@@ -1,5 +1,12 @@
 # QUV-Lab — DÉCISIONS (journal, ordre antichronologique)
 
+## 2026-09-04 — D-06 : release v1.3.0 (split-trialstore)
+
+- **Contenu** : découpage `trialStore.ts` 2432 l → 6 modules à façade, API 8 symboles inchangée,
+  cycle `reportGenerator` cassé, + D-05. Aucune logique modifiée (split byte-exact).
+- **Preuves** : `tsc --strict` 0 erreur du 1er coup, 195/195, build OK (PR #11, CI verte).
+- **Version** : manifest `1.2.0` → `1.3.0` (refactor interne sans changement fonctionnel : minor, pas major).
+
 ## 2026-09-04 — D-05 : release v1.2.0 (PR #9 develop → main, tag v1.2.0)
 
 - **Contenu** : strict:true + `@types/react{,-dom}`, listes contrôlées (whitelist wizard,
