@@ -12,7 +12,7 @@ import {
   ScientificReportStatus,
   ScientificReportReviewComment
 } from '../types/scientific';
-import { generateUUID } from './trialStore';
+import { generateUUID } from './trialIds';
 import { getActiveExposedPanels } from '../scientific/panelUtils';
 
 export const REPORT_SCHEMA_VERSION = '1.2.0';

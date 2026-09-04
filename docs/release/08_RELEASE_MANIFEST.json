@@ -1,11 +1,11 @@
 {
   "applicationName": "QUV-Lab",
-  "applicationVersion": "1.2.0",
+  "applicationVersion": "1.3.0",
   "schemaVersion": "1.2.0",
   "scientificEngineVersion": "v1.2.0",
   "scientificRuleSetId": "rule-set-nf-en-927-6-2018",
   "standardReference": "NF EN 927-6:2018",
-  "buildDate": "2026-09-04T00:00:00Z",
+  "buildDate": "2026-09-04T13:28:56Z",
   "releaseStatus": "RELEASE QUALIFIED",
   "qualificationGate": "GATE 5.4",
   "testSuiteSummary": {
