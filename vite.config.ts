@@ -18,17 +18,38 @@ export default defineConfig(() => {
         output: {
           manualChunks(id) {
             // Découpage applicatif (imports synchrones conservés : 0 changement de comportement).
+            // Règle anti-cycle (audit N1) : couches basses d'abord — les services/moteurs partagés
+            // ont leurs chunks dédiés, sinon Rollup les absorbe dans le plus gros importeur (quv-tabs)
+            // et chaque autre vue UI recrée un retour (tabs -> photo -> tabs, ...).
             if (id.includes('/src/components/trial-tabs/')) {
               return 'quv-tabs';
             }
             if (id.includes('/src/components/results-subviews/')) {
               return 'quv-results';
             }
-            if (id.includes('/src/components/')) {
-              return 'quv-components';
+            if (id.includes('/src/components/bench/')) {
+              return 'quv-bench';
             }
-            if (id.includes('/src/scientific/analysis/')) {
-              return 'quv-analysis';
+            if (id.includes('/src/components/phototheque/')) {
+              return 'quv-photo';
+            }
+            if (id.includes('/src/components/wizard/')) {
+              return 'quv-wizard';
+            }
+            if (id.includes('/src/components/')) {
+              return 'quv-shell';
+            }
+            if (id.includes('/src/services/')) {
+              return 'quv-services';
+            }
+            // Suites de tests : importées uniquement par les sections lazy, elles tirent
+            // les services (store) alors que les services tirent la science → chunk dédié
+            // pour casser le cycle services <-> science.
+            if (id.includes('/src/scientific/tests/') || id.includes('/src/scientific/analysis/tests/')) {
+              return 'quv-tests';
+            }
+            if (id.includes('/src/scientific/')) {
+              return 'quv-science';
             }
             if (id.includes('node_modules')) {
               if (id.includes('/react-dom/') || id.includes('/react/') || id.includes('/scheduler/')) {

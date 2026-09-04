@@ -38,11 +38,15 @@ Jamais de dev direct sur `main`. Branches : `main / develop / feature/* / fix/* 
 - **HIGH** (modèle de données, calcul scientifique, persistance, exports normatifs, migration, Gate 2.2 A2/A3/B2) :
   `Architect → validation humaine → Developer → Tester → Auditor → 2ᵉ audit si besoin → PR → validation humaine → merge`.
 
-## 4. Premiers tickets recommandés (issus de l'audit)
+## 4. Tickets issus de l'audit — état (N4, clos le 2026-09-04)
 
-1. `fix/gate22-temoin-jalons` (HIGH) : corriger A2/A3/B2, régénérer `test-results.txt` + manifest.
-2. `fix/scripts-typing` (MEDIUM) : `clean` compatible Windows, `typecheck` séparé, `strict:true`,
-   retirer `| string` des unions (`trial.ts:43-70`), `build` avec `tsc`.
-3. `fix/test-transparency` (LOW) : labels UI + `ScientificTestsViewer` couvrant les 12 suites.
-4. `refactor/prune-deps` (MEDIUM) : statuer sur `express/dotenv/@google/genai` (0 usage `src/`).
-5. `refactor/trialstore-split` (MEDIUM) : découper `trialStore.ts` (store / seed / migration / photos).
+1. ~~`fix/gate22-temoin-jalons`~~ — **annulé** : 7/7 verts en CI (artefact obsolète, C1bis).
+2. ~~`fix/scripts-typing`~~ — **mergé** (PR #7) : `strict:true`, listes contrôlées, scripts cross-platform.
+3. ~~`fix/test-transparency`~~ — **mergé** (PR #2) : labels 64/44 dynamiques, intitulés 23/11.
+4. ~~`refactor/prune-deps`~~ — **mergé** (PR #8) : −121 paquets.
+5. ~~`refactor/trialstore-split`~~ — **mergé** (PR #11) : 6 modules à façade.
+6. ~~Splits UI~~ — **mergés** (PR #15 photothèque, #17 bench, #18 wizard) ; formulaires bench (#23).
+7. ~~Perf~~ — chunks < 500 kB (#14), lazy sections entrée 7,8 kB (#22), cycles build résolus (N1).
+8. ~~Release docs~~ — manifest 195/195 (#5), D-00→D-07, releases v1.2.0/v1.3.0/v1.4.0 taguées.
+
+Nouveaux tickets : ouvrir une section §5 ci-dessous (ne pas réécrire l'historique ci-dessus).

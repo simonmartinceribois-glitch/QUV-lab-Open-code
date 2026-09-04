@@ -1,97 +1,96 @@
-# QUV-Lab — ARCHITECTURE (audit initial 2026-09-04)
+# QUV-Lab — ARCHITECTURE (v2, état `develop` post-v1.4.0 — 2026-09-04)
 
-> Source auditée : `quv-lab-main/` (copie ZIP, sans `.git`). Aucun fichier applicatif modifié.
-> Références : `src/App.tsx`, `src/types/{trial,scientific,analysis}.ts`, `src/services/trialStore.ts`,
-> `src/scientific/*`, `src/components/*`, `run_tests.ts`, `docs/release/`.
+> Régénéré le 2026-09-04 (audit N2) : remplace la v1 (audit initial, pré-tickets).
+> Source de vérité : GitHub `simonmartinceribois-glitch/QUV-lab-Open-code` (`main` taguée `v1.4.0`).
+> Preuves : `tsc --strict` 0 erreur, `npm test` 195/195, `vite build` OK (0 warning circulaire).
 
 ## 1. Vue d'ensemble
 
-- **Stack** : React 19 + Vite 6 + TypeScript 5.8 + Tailwind 4 (`package.json:14-26`).
+- **Stack** : React 19 + Vite 6 + TypeScript 5.8 (`strict:true`) + Tailwind 4.
 - **Objet** : suivi d'essais de vieillissement accéléré UV selon NF EN 927-6 (Cycle A : T0 + 12 × 168 h = 2016 h).
-- **Taille** : `src/` ~1,27 Mo. Plus gros fichiers : `services/trialStore.ts` (2226 l),
-  `components/trial-tabs/TabPhotographs.tsx` (1488 l), `components/CreateTrialWizardModal.tsx` (1464 l),
-  `components/trial-tabs/Tab06MeasurementsBench.tsx` (1246 l).
-- **Scripts** (`package.json:6-13`) : `dev`, `build` (vite seul, sans `tsc`), `test` (`tsx run_tests.ts`),
-  `lint` (= `tsc --noEmit`, pas d'ESLint), `clean` (`rm -rf`, casse sous Windows), `preview`.
+- **Scripts** (`package.json`) : `dev` (port 3000), `build` (`tsc --noEmit && vite build`),
+  `test` (`tsx run_tests.ts`, 195 tests), `typecheck`/`lint` (`tsc --noEmit`), `clean` (cross-platform, `dist/` seul), `preview`.
+- **Dépendances** : react, vite, tailwind, recharts, motion, lucide (+ `@types/*`).
+  `express`/`dotenv`/`@google/genai` purgés (PR #8). 100 % local, sans backend ni clé API.
+- Plus gros fichiers restants : `UXTestsSuite.tsx` (1346 l, tests UI),
+  `trialStoreService.ts` (1106 l), `trialSeed.ts` (1013 l), `Tab06MeasurementsBench.tsx` (574 l),
+  `CreateTrialWizardModal.tsx` (557 l). God files C8 tous découpés.
 
-## 2. Architecture React
+## 2. Architecture React (lazy par section depuis perf/lazy-sections)
 
 ```text
-src/main.tsx → src/App.tsx (5 sections)
+src/main.tsx → src/App.tsx — TRIALS eager, 4 sections + wizard en React.lazy (entrée 7,8 kB)
   TRIALS → TrialDashboard → TrialDetailView (10 onglets)
     01 Identification / 02 Lots & Éprouvettes / 03 Protocole / 04 Calendrier /
-    05 Étapes / 06 Paillasse-Saisie / PHOTO Photothèque /
+    05 Étapes / 06 Paillasse (bench/ : topbar, grille, calculs, 5 formulaires) /
+    PHOTO Photothèque (phototheque/ : 7 vues, jalons actifs uniquement) /
     07 Contrôle Qualité / 08 Résultats (7 sous-vues) / 09 Journal d'audit
-  UX_TESTS → UXTestsSuite.tsx
-  SCIENTIFIC_TESTS → ScientificTestsViewer.tsx (1 suite sur 12 seulement)
+  UX_TESTS → UXTestsSuite.tsx (64 tests, dynamique)
+  SCIENTIFIC_TESTS → ScientificTestsViewer.tsx (44 tests, dynamique)
   SANDBOX → ScientificCalculatorSandbox.tsx
   RULESET → ScientificRuleSetView.tsx
+  Wizard → CreateTrialWizardModal.tsx + wizard/ (7 steps)
 ```
 
-- État : `useState` local (`App.tsx:24-31`, `TrialDetailView.tsx:51-52`) + singleton
-  `globalTrialStore` (`services/trialStore.ts:1253`, `Map` mémoire).
-- Pas de routeur, pas de librairie d'état externe, pas de backend (voir §5).
+- État : `useState` local + singleton `globalTrialStore` (façade `services/trialStore.ts`).
+- Pas de routeur, pas de librairie d'état externe, pas de backend.
 
-## 3. Modèle de données
+## 3. Services (façade, depuis refactor/split-trialstore)
 
-- `src/types/trial.ts:265-282` : `Trial { metadata, commonCharacteristics, status,
-  configurationStatus, config, scheduleConfig, stages[], batches[], acquisitions{},
-  auditTrail[], mediaReferences[], reports? }`.
-- Lots : `BatchDefinition` → exactement 4 `PanelDefinition` (T témoin + E1/E2/E3 exposées).
-- Étapes : T0 (`INITIAL_PRE_EXPOSURE`) + 12 cycles 168 h (`generateStandardExposureStages`,
-  `trialStore.ts:163-215`), statut `INACTIVE` = cycle physique conservé mais exclu du plan de mesurage.
-- `src/types/scientific.ts` : 5 niveaux indépendants (validité lecture / qualité relevé /
-  conformité protocole / conclusion normative), alertes `MeasurementAlert`, `QualityAssessment`,
-  `ScientificReport` (sections + 6 annexes + review).
-- `src/types/analysis.ts` : hiérarchie d'information en 6 niveaux, anomalies factuelles,
-  tendances, comparaisons multi-systèmes, synthèse — conclusion normative `NON_EVALUEE` par défaut.
-- Point faible typage : `WoodGrainOrientation` (`trial.ts:43-56`) et `ExposureFace` (`trial.ts:61-70`)
-  se terminent par `| string` → unions littérales neutralisées. `tsconfig.json` sans `strict`,
-  sans `noUnusedLocals`.
+```text
+services/trialStore.ts (façade, 12 l — API stable à 8 symboles, point d'import unique)
+  ├── trialIds.ts — generateUUID
+  ├── trialIntegrity.ts — IntegrityViolationError + gardes Gate 3.1
+  ├── trialStages.ts — generateStandardExposureStages (T0 + 12×168 h)
+  ├── trialSeed.ts — createDemoTrial + createValidationTrial + seed
+  └── trialStoreService.ts — TrialStoreService (persistance localStorage, CRUD, photos, rapports)
+services/reportGenerator.ts + exportService.ts (inchangés)
+```
 
-## 4. Moteurs scientifiques (purs, versionnés 1.2.0)
+Cycle historique `reportGenerator ↔ trialStore` cassé (`reportGenerator` → `trialIds`).
 
-| Famille | Fichier | Référence |
-|---|---|---|
-| Couleur ΔE (CIE 1976, 4 pts) | `scientific/colorEngine.ts:25` | NF EN 927-6 cl. 6.3.2 |
-| Brillance 2×2 60° + rétention | `scientific/glossEngine.ts:25` | NF EN 927-6 cl. 6.3.3 / ISO 2813 |
-| Persoz (3 répétitions) | `scientific/persozEngine.ts:26` | ISO 1522 / procédure labo |
-| Adhérence quadrillage 0-5 + délai 168 h | `scientific/adhesionEngine.ts:18-19` | NF EN ISO 2409:2020 |
-| Observations visuelles | `scientific/observationsEngine.ts:17` | ISO 4628 |
-| Socle | `statistics.ts` (moyenne, écart-type échantillon n-1 par défaut, CV, gardes NaN/Inf), `validity.ts` (RAW SUSPECT conservé, jamais détruit), `protocolEngine.ts`, `qualityEngine.ts`, `aggregations.ts`, `recalculator.ts:32-54` (pipeline RAW→COMPUTED, réf T0, snapshot d'immuabilité), `auditEngine.ts`, `ruleSet.ts:23-33` (référentiel découplé, origines NORMATIVE/LAB/METRO/ADAPTATION) |
-| Analyse | `scientific/analysis/` (AnalysisEngine, AnomalyDetector, TrendAnalyzer, MultiSystemComparator, TechnicalSynthesisGenerator) |
+## 4. Modèle de données
 
-Règles canoniques : `panelUtils.ts:95-112` (ADHESION = T0 + C12 uniquement, destructif),
-`panelUtils.ts:65-67` (`getActiveStages` exclut INACTIVE), témoin T exclu des moyennes.
+- `src/types/trial.ts` : `Trial { metadata, commonCharacteristics, status, configurationStatus,
+  config, scheduleConfig, stages[], batches[], acquisitions{}, auditTrail[], mediaReferences[], reports? }`.
+- Lots → 4 `PanelDefinition` (T + E1/E2/E3). `INACTIVE` = cycle conservé, exclu du plan.
+- `WoodGrainOrientation` / `ExposureFace` : listes contrôlées strictes (plus de `| string`) ;
+  wizard : whitelist à la frontière (`CreateTrialWizardModal`, fix/scripts-typing).
+- `src/types/scientific.ts` (5 niveaux), `src/types/analysis.ts` (6 niveaux, `NON_EVALUEE` par défaut).
 
-## 5. Persistance, exports, AI
+## 5. Moteurs scientifiques (purs, versionnés 1.2.0 — inchangés par les refactors)
 
-- Persistance : `localStorage` clé `quv_lab_trials_v2_2` (`trialStore.ts:1352-1382`), blob JSON,
-  seed démo + essai de validation si vide (`trialStore.ts:1370-1376`), migration terminologie,
-  filtre anti-mock, store éphémère isolé pour tests (`trialStore.ts:1269`).
-  Limitations assumées (`docs/release/07_KNOWN_LIMITATIONS.md`) : purge navigateur, quota ~5 Mo,
-  last-write-wins multi-onglets, navigation privée interdite, pas d'auth.
-- Photos démo = SVG data-URI (`trialStore.ts:704-705`) vs consigne prod (serveur labo + indexation).
-- Exports : `exportService.ts` (Blob texte/JSON + `window.print()` ; pas de CSV/XLSX/PDF réel).
-- Dépendances `express`, `dotenv`, `@google/genai` présentes au `package.json` mais **0 usage dans `src/`**
-  (résidu probable AI Studio — à élaguer après confirmation).
+Couleur CIE 1976 (6.3.2), Brillance 2×2 60° + rétention (6.3.3/ISO 2813), Persoz (ISO 1522),
+Adhérence 0-5 + délai 168 h (ISO 2409:2020), Observations (ISO 4628) ; socle `statistics.ts`
+(n-1 par défaut), `validity.ts` (SUSPECT conservé), `recalculator.ts` (RAW→COMPUTED, réf T0),
+`ruleSet.ts` (origines NORMATIVE/LAB/METRO/ADAPTATION). Règles : ADHESION T0+C12,
+`getActiveStages` (INACTIVE exclu, aussi appliqué à photothèque/chronologie/matrice/modal),
+T exclu des moyennes.
 
-## 6. Tests (corrigé le 2026-09-04 après CI GitHub)
+## 6. Persistance, exports
 
-- `run_tests.ts` : 12 suites maison via `tsx`, **195 tests** (44+7+30+12+6+23+9+12+11+18+8+15).
-  Écarts d'intitulés dans `run_tests.ts` : suite 6 annoncée "20 tests" (23 réels), suite 9 annoncée "12" (11 réels).
-- **CI GitHub sur `e44914c` : 195/195 AU VERT** (`npm run lint` OK, `npm test` OK).
-  Gate 2.2 = 7/7, dont A2/A3 (ségrégation T) et B2 (jalons) : **conformes dans le code actuel**.
-- `test-results.txt` (committé) : **artefact obsolète** — affiche Gate 2.2 à 4/7 (3 échecs A2/A3/B2)
-  issus d'un état de code antérieur, contredit par la CI. Ne pas s'y fier ; voir constat C1bis
-  (`docs/audits/INITIAL_AUDIT.md`) : régénérer ou sortir ce fichier du versionnement.
-- `docs/release/08_RELEASE_MANIFEST.json` : régénéré le 2026-09-04 (195/195, GATE 5.4, `strict:true`) ;
-  `02_QUALIFICATION_SUMMARY.md` et `04_DEPLOYMENT_GUIDE.md` alignés.
-- UI `App.tsx:91-104` affiche "Tests UX (20)" / "Tests Calculs (22)" → obsolète vs 195 réels.
+- `localStorage` clé `quv_lab_trials_v2_2` (choix assumé, `07_KNOWN_LIMITATIONS.md`) ;
+  seed démo + validation ; photos démo SVG vs consigne prod serveur.
+- Exports : Blob texte/JSON + `window.print()` (pas de CSV/XLSX/PDF réel).
 
-## 7. Architecture cible (écarts)
+## 7. Tests & CI
 
-Cible : GitHub source de vérité + `main/develop/feature|fix|refactor|audit/*` + CI
-(`tsc --noEmit` + `tsx run_tests.ts` + `vite build`) + `docs/{architecture,agents,specifications,audits,decisions,tests}`.
-Écarts : pas de `.git`/CI ; docs limitées à `docs/release/` ; 3 tests rouges ; manifest à régénérer ;
-god files à découper ; dépendances mortes ; scripts/typage à durcir.
+- `run_tests.ts` : 12 suites, **195 tests** (44+7+30+12+6+23+9+12+11+18+8+15), intitulés corrigés.
+- CI (`.github/workflows/ci.yml`) : `npm ci` + `tsc` + `npm test` + `vite build`, branches
+  `main/develop/*`, protections PR + checks sur `main` et `develop`.
+- Labels UI dynamiques (64/44). `test-results.txt` sorti du versionnement (la CI fait foi).
+
+## 8. Build (chunks, sans cycle depuis fix N1)
+
+Entrée 8 kB ; vendors (`react-vendor` 194, `charts` 312, `vendor`, `icons`) ;
+applicatif (`quv-tabs` 106, `quv-shell` 110, `quv-results` 92, `quv-services` 72,
+`quv-science` 36, `quv-photo` 42, `quv-wizard` 37, `quv-bench` 27, `quv-tests` 24) ;
+lazy par section. Max 312 kB, 0 warning circulaire (règle : couches basses services/science
+dédiées, suites de tests isolées — voir audit N1).
+
+## 9. Cible atteinte (mise à jour)
+
+GitHub source de vérité + `main` (releases taguées) / `develop` (intégration) + CI stricte +
+`docs/` versionnées + workflow multi-agents (`docs/agents/`) : **en place et éprouvé (PR #2→#23)**.
+Restes connus : formulaires Tab06 extraits (save au parent — retypage `computed as any` ouvert),
+lazy d'onglets, vérifs visuelles humaines par ticket UI.
