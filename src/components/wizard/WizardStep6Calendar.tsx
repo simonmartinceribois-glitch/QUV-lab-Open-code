@@ -4,7 +4,7 @@
  * Aucun état ici : plan + préréglages reçus en props depuis le parent.
  */
 
-import { Calendar, ShieldAlert, Lock, CheckSquare, Square } from 'lucide-react';
+import { Calendar, Lock, CheckSquare, Square } from 'lucide-react';
 import type { MeasurementFamilyId } from '../../types/scientific';
 
 interface Props {
@@ -34,31 +34,8 @@ export function WizardStep6Calendar({
               </p>
             </div>
           </div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-800 text-[11px] font-bold shrink-0">
-            <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
-            PLAN MODIFIABLE
-          </div>
         </div>
-        <p className="text-[11px] text-slate-500 pl-8 italic">
-          Le plan sera automatiquement verrouillé (LOCKED) après la première acquisition scientifique saisie sur paillasse.
-        </p>
       </div>
-
-      {/* Règle spécifique ADHESION (si la famille est sélectionnée) */}
-      {activeFamilies.includes('ADHESION') && (
-        <div className="bg-amber-50/90 border border-amber-300 rounded-xl p-3.5 text-xs text-amber-950 flex items-start gap-3">
-          <ShieldAlert className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-bold text-amber-900 flex items-center gap-2">
-              <span>RÈGLE SPÉCIFIQUE — ADHÉRENCE AU QUADRILLAGE (NF EN ISO 2409)</span>
-              <span className="bg-amber-200/80 text-amber-900 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold">T0 + C12 uniquement</span>
-            </p>
-            <p className="mt-1 text-amber-900/90 text-[11px] leading-relaxed">
-              L'adhérence est un essai mécanique destructif réalisé exclusivement <strong>avant exposition (T0, 0 h)</strong> et au terme des 2016 h <strong>(C12, 2016 h)</strong>. Elle n'est jamais mesurée aux jalons intermédiaires C1 à C11, quel que soit le plan de mesurage sélectionné ci-dessous.
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Présélections rapides & Compteur */}
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
@@ -85,7 +62,7 @@ export function WizardStep6Calendar({
                   : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
               }`}
             >
-              Jalons Clés / Trimestriels (5 jalons)
+                      Jalons Clés / 3 semaines (5 jalons)
             </button>
             <button
               type="button"
