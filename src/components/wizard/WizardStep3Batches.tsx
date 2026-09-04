@@ -101,7 +101,7 @@ export function WizardStep3Batches({ batches, onAddBatch, onUpdateBatch, onRemov
                 />
               </div>
               <div>
-                <label className="block text-slate-600 font-medium mb-1">Fabricant / Fournisseur</label>
+                <label className="block text-slate-600 font-medium mb-1">Fabricant de la finition</label>
                 <input
                   type="text"
                   value={batch.manufacturerOrSupplier}
