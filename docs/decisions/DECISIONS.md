@@ -1,5 +1,12 @@
 # QUV-Lab — DÉCISIONS (journal, ordre antichronologique)
 
+## 2026-09-04 — D-09 : release v1.5.0 (lazy, bench-forms, ci-comment, audit-sync)
+
+- **Contenu** : lazy-loading 5 sections (entrée 7,8 kB), formulaires Tab06 en 5 éditeurs
+  (HIGH, visuel validé), `npm ci`, audit externe N1-N4 traité (chunks sans cycle,
+  ARCHITECTURE v2). Aucune logique métier modifiée.
+- **Preuves** : CI verte sur chaque PR (#21-24), 195/195 constants, builds sans warning.
+
 ## 2026-09-04 — D-08 : audit post-v1.4.0 (N1-N4) et resync architecture
 
 - **N1 (cycles de chunks)** : résolu — couches `quv-services`/`quv-science`/`quv-tests` dédiées ;
