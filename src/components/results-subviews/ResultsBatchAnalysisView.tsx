@@ -9,7 +9,7 @@
 
 import React, { useState } from 'react';
 import { Trial, BatchDefinition } from '../../types/trial';
-import { ScientificRuleSet } from '../../types/scientific';
+import { ScientificRuleSet, ColorComputedData, GlossComputedData } from '../../types/scientific';
 import { aggregateBatchColor, aggregateBatchGloss } from '../../scientific/aggregations';
 import {
   Layers,
@@ -187,10 +187,10 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                 if (witnessPanel) {
                   const wColorAcq = trial.acquisitions[`${stage.id}__${witnessPanel.id}__COLOR`];
                   const wGlossAcq = trial.acquisitions[`${stage.id}__${witnessPanel.id}__GLOSS`];
-                  const wDE = (wColorAcq?.computed as any)?.deltaE;
-                  const wG = (wGlossAcq?.computed as any)?.meanGloss;
+                  const wDE = (wColorAcq?.computed as ColorComputedData | undefined)?.deltaE;
+                  const wG = (wGlossAcq?.computed as GlossComputedData | undefined)?.meanGloss;
                   if (wDE !== undefined && wDE !== null) {
-                    witnessInfo = `ΔE*=${wDE.toFixed(2)}${wG !== undefined ? ` / ${wG.toFixed(1)}GU` : ''}`;
+                    witnessInfo = `ΔE*=${wDE.toFixed(2)}${wG !== undefined && wG !== null ? ` / ${wG.toFixed(1)}GU` : ''}`;
                   } else if (wG !== undefined && wG !== null) {
                     witnessInfo = `${wG.toFixed(1)} GU`;
                   }

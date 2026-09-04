@@ -6,7 +6,7 @@
 
 import React, { useState } from 'react';
 import { Trial, ExposureStage } from '../../types/trial';
-import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
+import { ScientificRuleSet, MeasurementFamilyId, ColorComputedData, GlossComputedData, PersozComputedData } from '../../types/scientific';
 import { getActiveStages, formatStageOption, formatStageShort } from '../../scientific/panelUtils';
 import {
   GitCompare,
@@ -225,8 +225,8 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
                       const refAcq = trial.acquisitions[refKey];
                       const targetAcq = trial.acquisitions[targetKey];
 
-                      const refComp = refAcq?.computed as any;
-                      const targetComp = targetAcq?.computed as any;
+                      const refComp = refAcq?.computed as ColorComputedData | undefined;
+                      const targetComp = targetAcq?.computed as ColorComputedData | undefined;
 
                       if (!targetAcq || !targetAcq.raw) {
                         return (
@@ -329,8 +329,8 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
                       const refAcq = trial.acquisitions[refKey];
                       const targetAcq = trial.acquisitions[targetKey];
 
-                      const refComp = refAcq?.computed as any;
-                      const targetComp = targetAcq?.computed as any;
+                      const refComp = refAcq?.computed as GlossComputedData | undefined;
+                      const targetComp = targetAcq?.computed as GlossComputedData | undefined;
 
                       if (!targetAcq || !targetAcq.raw) {
                         return (
@@ -424,8 +424,8 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
                       const refAcq = trial.acquisitions[refKey];
                       const targetAcq = trial.acquisitions[targetKey];
 
-                      const refComp = refAcq?.computed as any;
-                      const targetComp = targetAcq?.computed as any;
+                      const refComp = refAcq?.computed as PersozComputedData | undefined;
+                      const targetComp = targetAcq?.computed as PersozComputedData | undefined;
 
                       if (!targetAcq || !targetAcq.raw) {
                         return (
