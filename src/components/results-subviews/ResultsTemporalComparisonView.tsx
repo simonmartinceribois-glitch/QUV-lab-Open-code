@@ -7,7 +7,7 @@
 import React, { useState } from 'react';
 import { Trial, ExposureStage } from '../../types/trial';
 import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
-import { getActiveStages } from '../../scientific/panelUtils';
+import { getActiveStages, cycleTag, formatStageShort } from '../../scientific/panelUtils';
 import {
   GitCompare,
   Layers,
@@ -116,7 +116,7 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
             >
               {planStages.map((st) => (
                 <option key={st.id} value={st.id}>
-                  {st.name} ({st.scheduledExposureHours} h)
+                  {cycleTag(st)} · {st.name}
                 </option>
               ))}
             </select>
@@ -136,7 +136,7 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
                 .filter((st) => st.id !== refSelectValue)
                 .map((st) => (
                   <option key={st.id} value={st.id}>
-                    {st.name} ({st.scheduledExposureHours} h) — {st.status}
+                    {cycleTag(st)} · {st.name} — {st.status}
                   </option>
                 ))}
             </select>
@@ -233,7 +233,7 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
                           <tr key={panel.id} className="text-slate-400">
                             <td className="p-2.5 font-bold font-mono text-slate-600">{panel.label}</td>
                             <td colSpan={12} className="p-2.5 text-slate-400 italic">
-                              Mesure non réalisée à l'étape {targetStage.scheduledExposureHours} h.
+                              Mesure non réalisée à l'étape {formatStageShort(targetStage)}.
                             </td>
                           </tr>
                         );
@@ -337,7 +337,7 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
                           <tr key={panel.id} className="text-slate-400">
                             <td className="p-2.5 font-bold font-mono text-slate-600">{panel.label}</td>
                             <td colSpan={7} className="p-2.5 text-slate-400 italic">
-                              Mesure non réalisée à l'étape {targetStage.scheduledExposureHours} h.
+                              Mesure non réalisée à l'étape {formatStageShort(targetStage)}.
                             </td>
                           </tr>
                         );
@@ -432,7 +432,7 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
                           <tr key={panel.id} className="text-slate-400">
                             <td className="p-2.5 font-bold font-mono text-slate-600">{panel.label}</td>
                             <td colSpan={7} className="p-2.5 text-slate-400 italic">
-                              Mesure non réalisée à l'étape {targetStage.scheduledExposureHours} h.
+                              Mesure non réalisée à l'étape {formatStageShort(targetStage)}.
                             </td>
                           </tr>
                         );

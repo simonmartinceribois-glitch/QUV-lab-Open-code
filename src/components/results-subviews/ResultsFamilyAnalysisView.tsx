@@ -27,7 +27,7 @@ import {
   AlertTriangle,
   CheckCircle2
 } from 'lucide-react';
-import { getActiveExposedPanels } from '../../scientific/panelUtils';
+import { getActiveExposedPanels, formatStageShort } from '../../scientific/panelUtils';
 
 interface Props {
   trial: Trial;
@@ -48,7 +48,7 @@ export function ResultsFamilyAnalysisView({ trial, ruleSet }: Props) {
   const chartData = evaluatedStages.map((stage) => {
     const point: Record<string, any> = {
       exposureHours: stage.scheduledExposureHours,
-      stageLabel: `${stage.scheduledExposureHours} h`
+      stageLabel: formatStageShort(stage)
     };
 
     trial.batches.forEach((batch, bIdx) => {

@@ -6,6 +6,7 @@
 
 import type { Dispatch, SetStateAction } from 'react';
 import { Filter, Camera, Archive, Maximize2, Trash2, Clock } from 'lucide-react';
+import { cycleTag } from '../../scientific/panelUtils';
 import type { MediaReference, Trial } from '../../types/trial';
 import type { PanelMap, StageMap } from './photoTypes';
 
@@ -93,7 +94,7 @@ export function PhotoGalleryView({
               <option value="ALL">Toutes les étapes ({trial.stages.length})</option>
               {trial.stages.map((st) => (
                 <option key={st.id} value={st.id}>
-                  {st.name} ({st.scheduledExposureHours}h)
+                  {cycleTag(st)} · {st.name}
                 </option>
               ))}
             </select>
@@ -208,7 +209,7 @@ export function PhotoGalleryView({
                       {stage ? stage.name : 'Jalon N/A'}
                     </span>
                     <span className="font-mono text-[10px] font-bold text-slate-800">
-                      {stage?.scheduledExposureHours ?? 0} h
+                      {stage ? cycleTag(stage) : '—'}
                     </span>
                   </div>
 

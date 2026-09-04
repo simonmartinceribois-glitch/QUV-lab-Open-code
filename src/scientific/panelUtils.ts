@@ -67,6 +67,25 @@ export function getActiveStages<T extends { status: string }>(stages: T[]): T[] 
 }
 
 /**
+ * Repère court d'un jalon : 'T0' ou 'C1'..'C12' ('—' si indéfini) (fix/cycle-labels).
+ */
+export function cycleTag(stage: { cycleIndex: number } | null | undefined): string {
+  if (!stage) return '—';
+  return stage.cycleIndex === 0 ? 'T0' : `C${stage.cycleIndex}`;
+}
+
+/**
+ * Libellé compact d'un jalon avec ses heures : 'T0 (0 h)' / 'C3 (504 h)' (fix/cycle-labels).
+ */
+export function formatStageShort(stage: {
+  cycleIndex: number;
+  scheduledExposureHours?: number;
+} | null | undefined): string {
+  if (!stage) return '—';
+  return `${cycleTag(stage)} (${stage.scheduledExposureHours ?? 0} h)`;
+}
+
+/**
  * Détermine si une étape est obligatoire et non désactivable
  */
 export function isMandatoryStage(stage: { cycleIndex: number; stageType?: string }): boolean {

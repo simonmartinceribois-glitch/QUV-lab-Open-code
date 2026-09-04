@@ -23,7 +23,7 @@ import {
   FileSpreadsheet,
   Eye
 } from 'lucide-react';
-import { getActiveExposedPanels, getWitnessPanel, getActiveStages } from '../../scientific/panelUtils';
+import { getActiveExposedPanels, getWitnessPanel, getActiveStages, formatStageShort } from '../../scientific/panelUtils';
 
 interface Props {
   trial: Trial;
@@ -200,7 +200,7 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                   return (
                     <tr key={stage.id} className="text-slate-400">
                       <td className="p-2.5 font-bold font-mono text-slate-600">
-                        {stage.scheduledExposureHours} h ({stage.cycleIndex === 0 ? 'T0' : `Cycle ${stage.cycleIndex}`})
+                        {formatStageShort(stage)}
                       </td>
                       <td colSpan={8} className="p-2.5 text-slate-400 italic">
                         Aucun relevé validé à cette étape pour ce lot.
@@ -225,7 +225,7 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                   <tr key={stage.id} className="hover:bg-slate-50">
                     <td className="p-2.5 font-bold text-slate-900 flex items-center gap-1.5">
                       <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[10px] text-slate-700">
-                        {stage.scheduledExposureHours} h
+                        {formatStageShort(stage)}
                       </span>
                       <span>{stage.cycleIndex === 0 ? 'T0 Initiale' : stage.cycleIndex === 12 ? '2016h Finale' : `Cycle ${stage.cycleIndex}`}</span>
                     </td>
