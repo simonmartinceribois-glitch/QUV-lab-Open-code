@@ -17,7 +17,7 @@ npm install
 npm run lint
 ```
 
-### Exécution de la suite complète de tests de qualification (151 tests)
+### Exécution de la suite complète de tests de qualification (195 tests)
 ```bash
 npx tsx run_tests.ts
 ```
