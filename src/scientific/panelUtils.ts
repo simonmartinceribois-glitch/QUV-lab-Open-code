@@ -86,6 +86,23 @@ export function formatStageShort(stage: {
 }
 
 /**
+ * Titre d'affichage d'un jalon : préfixe T0/Cx + intitulé sans le préfixe d'heures redondant.
+ * Ex : '504 h — MESURES EN COURS D'EXPOSITION' → 'C3 — MESURES EN COURS D'EXPOSITION'.
+ */
+export function formatStageTitle(stage: {
+  cycleIndex: number;
+  scheduledExposureHours?: number;
+  name?: string;
+}): string {
+  const tag = cycleTag(stage);
+  const name = stage.name || '';
+  const stripped = name.replace(/^\d+\s*h\s*[—–-]\s*/, '');
+  if (stripped !== name) return `${tag} — ${stripped}`;
+  if (name.startsWith(tag)) return name;
+  return name ? `${tag} — ${name}` : tag;
+}
+
+/**
  * Détermine si une étape est obligatoire et non désactivable
  */
 export function isMandatoryStage(stage: { cycleIndex: number; stageType?: string }): boolean {
