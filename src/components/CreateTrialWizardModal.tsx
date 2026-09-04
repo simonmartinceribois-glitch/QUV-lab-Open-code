@@ -28,6 +28,7 @@ import { WizardStep3Batches } from './wizard/WizardStep3Batches';
 import { WizardStep5Families } from './wizard/WizardStep5Families';
 import { WizardStep6Calendar } from './wizard/WizardStep6Calendar';
 import { WizardStep7Review } from './wizard/WizardStep7Review';
+import type { LotFormItem } from './wizard/wizardTypes';
 import {
   X,
   ChevronRight,
@@ -56,23 +57,6 @@ interface Props {
   isOpen?: boolean;
   onClose: () => void;
   onCreated?: (trialId: string) => void;
-}
-
-export interface LotFormItem {
-  id: string;
-  reference: string;
-  woodSpecies: string;
-  productReference: string;
-  manufacturerOrSupplier: string;
-  coatingSystem: string;
-  coatCount: number;
-  substratePreparation: string;
-  applicationMethod: string;
-  applicationConditions: string;
-  applicationDate: string;
-  dryingOrConditioningTime: string;
-  batchNotes: string;
-  panelCount: number;
 }
 
 export function CreateTrialWizardModal({
