@@ -234,7 +234,10 @@ export function ResultsGlobalView({
                       {cycleTag(stage)}
                     </span>
                     <span className="text-xs font-bold text-slate-800">
-                      {isInitial ? 'T0 Initiale' : isFinal ? '2016 h Finale' : 'Cycle intermédiaire'}
+                      {isInitial ? 'T0 Initiale' : isFinal ? 'Finale' : 'Cycle intermédiaire'}
+                      {stage.scheduledExposureHours > 0 && (
+                        <span className="font-mono font-normal text-slate-500"> · {stage.scheduledExposureHours} h</span>
+                      )}
                     </span>
                   </div>
 
@@ -256,8 +259,6 @@ export function ResultsGlobalView({
                 </div>
 
                 <div className="mt-2.5 space-y-1">
-                  <p className="text-[11px] text-slate-600 line-clamp-1 font-medium">{stage.scheduledExposureHours} h</p>
-                  
                   <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-200/50">
                     <span>Relevés :</span>
                     <span className="font-semibold text-slate-800">
