@@ -257,6 +257,7 @@ export function CreateTrialWizardModal({
   const isPersozAdaptationInvalid = isPersozAdapted && persozJustification.trim().length === 0;
 
   const isStep1Valid = Boolean(reference.trim() && createdBy.trim());
+  const isStep3Valid = batches.length > 0 && batches.every((b) => b.reference.trim().length > 0);
   const isStep5Valid = !isColorAdaptationInvalid && !isGlossAdaptationInvalid && !isPersozAdaptationInvalid;
   const isFinalStepValid = Boolean(createdBy.trim());
 
@@ -551,10 +552,11 @@ export function CreateTrialWizardModal({
               <button
                 onClick={() => {
                   if (step === 1 && !isStep1Valid) return;
+                  if (step === 3 && !isStep3Valid) return;
                   if (step === 5 && !isStep5Valid) return;
                   setStep((step + 1) as any);
                 }}
-                disabled={(step === 1 && !isStep1Valid) || (step === 5 && !isStep5Valid)}
+                disabled={(step === 1 && !isStep1Valid) || (step === 3 && !isStep3Valid) || (step === 5 && !isStep5Valid)}
                 className="flex items-center gap-1.5 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs disabled:opacity-50"
               >
                 Suivant
