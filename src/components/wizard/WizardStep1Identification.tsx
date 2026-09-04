@@ -4,7 +4,6 @@
  * Aucun état ici : valeurs + setters reçus en props depuis le parent.
  */
 
-import { Info } from 'lucide-react';
 import type { TextSetter } from './wizardTypes';
 
 interface Props {
@@ -34,13 +33,6 @@ export function WizardStep1Identification({
 }: Props) {
   return (
     <div className="space-y-4">
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-xs text-blue-900 flex items-start gap-3">
-        <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-        <p>
-          Ces informations identifient l'essai et son contexte administratif. La référence doit être unique pour assurer la traçabilité.
-        </p>
-      </div>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
@@ -64,7 +56,7 @@ export function WizardStep1Identification({
 
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-            Titre descriptif de l'essai
+                    Projet
           </label>
           <input
             type="text"
@@ -77,7 +69,7 @@ export function WizardStep1Identification({
 
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-            Projet / Client / Demandeur
+                    Client
           </label>
           <input
             type="text"
@@ -111,7 +103,7 @@ export function WizardStep1Identification({
 
       <div>
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-          Notes générales de l'essai
+                    Descriptif de l'essai
         </label>
         <textarea
           rows={3}
