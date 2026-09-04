@@ -49,8 +49,10 @@ export function WizardStep3Batches({ batches, onAddBatch, onUpdateBatch, onRemov
                 <input
                   type="text"
                   value={batch.reference}
-                  onChange={(e) => onUpdateBatch(batch.id, 'reference', e.target.value)}
-                  className="px-2 py-1 text-sm font-bold border border-slate-300 rounded font-mono text-blue-900 w-32"
+                  onChange={(e) => onUpdateBatch(batch.id, 'reference', e.target.value.toUpperCase())}
+                  className={`px-2 py-1 text-sm font-bold border rounded font-mono text-blue-900 w-32 ${
+                    !batch.reference.trim() ? 'border-rose-300 bg-rose-50/20' : 'border-slate-300'
+                  }`}
                   placeholder="Ex: LOT XX1C"
                 />
               </div>
