@@ -12,7 +12,8 @@ import {
   ColorRawData,
   GlossRawData,
   PersozRawData,
-  AcquisitionStatus
+  AcquisitionStatus,
+  MeasurementAlert
 } from '../types/scientific';
 import { calculateColor } from './colorEngine';
 import { calculateGloss } from './glossEngine';
@@ -54,7 +55,7 @@ export function recalculateAcquisition(
   }
 
   let computed: unknown = null;
-  let alerts = [];
+  let alerts: MeasurementAlert[] = [];
 
   const famConfig = trial.config.familyConfigs[record.familyId];
 

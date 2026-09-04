@@ -13,7 +13,8 @@ import React, { useState } from 'react';
 import {
   TrialMetadata,
   CommonCharacteristics,
-  TrialProtocolConfig
+  TrialProtocolConfig,
+  WoodGrainOrientation
 } from '../types/trial';
 import {
   MeasurementFamilyId,
@@ -272,6 +273,16 @@ export function CreateTrialWizardModal({
       generalNotes: generalNotes.trim()
     };
 
+    // Frontière de saisie : la liste contrôlée GATE 2.1 s'applique au modèle persisté.
+    // Une valeur libre non listée n'est pas persistée (undefined) au lieu d'être forcée.
+    const ALLOWED_GRAIN_ORIENTATIONS: readonly string[] = [
+      'Quartier', 'Faux quartier', 'Dosse', 'Sur quartier (NF EN 927-6)', 'Sur dosse',
+      'QUARTER_SAWN', 'SLASH_SAWN', 'MIXED', 'STANDARD', 'QUARTER', 'FALSE_QUARTER', 'SLASH'
+    ];
+    const sanitizedGrain: WoodGrainOrientation | undefined = ALLOWED_GRAIN_ORIENTATIONS.includes(woodGrainOrientation)
+      ? (woodGrainOrientation as WoodGrainOrientation)
+      : undefined;
+
     const commonCharacteristics: CommonCharacteristics = {
       dimensions: {
         lengthMm,
@@ -281,7 +292,7 @@ export function CreateTrialWizardModal({
       },
       substrateNature,
       materialType,
-      woodGrainOrientation,
+      woodGrainOrientation: sanitizedGrain,
       preparationNotes,
       conditioningNotes,
       generalProtocolNotes: commonProtocolNotes

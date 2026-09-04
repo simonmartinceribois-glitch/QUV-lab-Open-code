@@ -25,7 +25,7 @@ interface Props {
 }
 
 export function Tab01Identification({ trial, onTrialUpdated }: Props) {
-  const [title, setTitle] = useState(trial.metadata.title);
+  const [title, setTitle] = useState(trial.metadata.title || '');
   const [orderNumber, setOrderNumber] = useState(trial.metadata.orderNumber || 'CO-VAN2026-001');
   const [reportNumber, setReportNumber] = useState(trial.metadata.reportNumber || 'RA-VAN2026-001');
   const [projectOrClient, setProjectOrClient] = useState(trial.metadata.projectOrClient || '');

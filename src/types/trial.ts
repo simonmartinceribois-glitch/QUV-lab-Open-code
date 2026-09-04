@@ -52,8 +52,7 @@ export type WoodGrainOrientation =
   | 'STANDARD'
   | 'QUARTER'
   | 'FALSE_QUARTER'
-  | 'SLASH'
-  | string;
+  | 'SLASH';
 
 /**
  * Face d'exposition UV — Liste contrôlée (GATE 2.1)
@@ -66,8 +65,7 @@ export type ExposureFace =
   | 'Face radiale (fil longitudinal)'
   | 'Face tangentielle'
   | 'EXTERNAL_FACE'
-  | 'INTERNAL_FACE'
-  | string;
+  | 'INTERNAL_FACE';
 
 /**
  * Rôle explicite de l'éprouvette (GATE 2.1 & 2.2)

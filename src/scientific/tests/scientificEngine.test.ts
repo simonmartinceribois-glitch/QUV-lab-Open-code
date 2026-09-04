@@ -500,7 +500,7 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     const persozCfg = ruleSet.measurementConfigurations.PERSOZ;
     const passed =
       persozCfg.origin === 'LAB_RECOMMENDATION' &&
-      persozCfg.standardReference?.includes('ISO 1522') &&
+      Boolean(persozCfg.standardReference?.includes('ISO 1522')) &&
       persozCfg.standardRecommendedCount === 3;
 
     record(

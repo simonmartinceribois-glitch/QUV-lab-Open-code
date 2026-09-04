@@ -9,6 +9,7 @@ import {
   MeasurementCountConfiguration,
   ScientificRuleSet,
   MeasurementAlert,
+  ReadingValidity,
   UUID
 } from '../types/scientific';
 import {
@@ -52,7 +53,7 @@ export function calculateColor(
   const validL: number[] = [];
   const validA: number[] = [];
   const validB: number[] = [];
-  const validityStatuses = [];
+  const validityStatuses: ReadingValidity[] = [];
 
   const readings = raw.readings || [];
 
