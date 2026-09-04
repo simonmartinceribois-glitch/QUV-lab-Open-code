@@ -244,8 +244,10 @@ export function ResultsPanelAnalysisView({
                 {trial.stages
                   .filter(
                     (stage) =>
-                      isFamilyScheduledForStage(selectedFamily, stage) ||
-                      Boolean(trial.acquisitions[`${stage.id}__${activePanel.id}__${selectedFamily}`]?.raw)
+                      // Plan de mesurage : jalons INACTIVE exclus (fix/results-active-stages).
+                      stage.status !== 'INACTIVE' &&
+                      (isFamilyScheduledForStage(selectedFamily, stage) ||
+                        Boolean(trial.acquisitions[`${stage.id}__${activePanel.id}__${selectedFamily}`]?.raw))
                   )
                   .map((stage) => {
                   const key = `${stage.id}__${activePanel.id}__${selectedFamily}`;
