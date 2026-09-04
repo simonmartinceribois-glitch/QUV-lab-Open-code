@@ -9,6 +9,7 @@ import {
   MeasurementSeriesConfiguration,
   ScientificRuleSet,
   MeasurementAlert,
+  ReadingValidity,
   UUID
 } from '../types/scientific';
 import {
@@ -69,7 +70,7 @@ export function calculateGloss(
 
   // 2. Traitement des séries et validation des points
   const allValidValues: number[] = [];
-  const allValidityStatuses = [];
+  const allValidityStatuses: ReadingValidity[] = [];
   const seriesStats = [];
 
   const seriesList = raw.series || [];

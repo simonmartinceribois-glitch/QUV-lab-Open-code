@@ -315,7 +315,10 @@ export function runGate33ScientificMetrologyTests(): {
   // 2. BRILLANCE & RÉTENTION (CAS NOMINAUX, SÉRIES 2x2, T0=0 GU)
   // ==========================================================================
 
-  const glossSeriesConfig = ruleSet.seriesConfigurations.GLOSS;
+  const glossSeriesConfig = ruleSet.seriesConfigurations?.GLOSS;
+  if (!glossSeriesConfig) {
+    throw new Error('Référentiel de brillance (GLOSS) manquant — suite G33 impossible.');
+  }
 
   // Cas 1 : 100 -> 100 = 100%
   // Cas 2 : 100 -> 50 = 50%

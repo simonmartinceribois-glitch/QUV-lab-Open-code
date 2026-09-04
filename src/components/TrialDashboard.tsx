@@ -29,7 +29,7 @@ interface Props {
 
 export function TrialDashboard({ trials, onSelectTrial, onOpenCreateWizard }: Props) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | TrialStatus>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | TrialStatus | 'VALIDATED'>('ALL');
 
   // Indicateurs clés
   const totalCount = trials.length;
@@ -38,7 +38,9 @@ export function TrialDashboard({ trials, onSelectTrial, onOpenCreateWizard }: Pr
   const draftCount = trials.filter((t) => t.status === 'DRAFT').length;
 
   const filteredTrials = trials.filter((t) => {
-    if (statusFilter !== 'ALL' && t.status !== statusFilter) return false;
+    // 'VALIDATED' (bouton « Validé ») = campagnes terminées : aucun TrialStatus ne porte ce libellé
+    const effectiveFilter = statusFilter === 'VALIDATED' ? 'COMPLETED' : statusFilter;
+    if (effectiveFilter !== 'ALL' && t.status !== effectiveFilter) return false;
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
     return (
