@@ -10,7 +10,12 @@ import {
   ScientificReport,
   ScientificReportMetadata,
   ScientificReportStatus,
-  ScientificReportReviewComment
+  ScientificReportReviewComment,
+  ColorComputedData,
+  GlossComputedData,
+  PersozComputedData,
+  AdhesionComputedData,
+  VisualObservationsComputedData
 } from '../types/scientific';
 import { generateUUID } from './trialIds';
 import { getActiveExposedPanels } from '../scientific/panelUtils';
@@ -184,14 +189,14 @@ export function buildScientificReport(
     }
 
     if (acq.familyId === 'COLOR' && acq.computed) {
-      const dE = (acq.computed as any).deltaE;
+      const dE = (acq.computed as ColorComputedData).deltaE;
       if (typeof dE === 'number' && dE > maxDeltaE) {
         maxDeltaE = dE;
         maxDeltaEPanel = acq.panelId;
       }
     }
     if (acq.familyId === 'GLOSS' && acq.computed) {
-      const ret = (acq.computed as any).retentionRatePercent;
+      const ret = (acq.computed as GlossComputedData).retentionRatePercent;
       if (typeof ret === 'number' && ret < minRetention) {
         minRetention = ret;
         minRetentionPanel = acq.panelId;
@@ -344,28 +349,40 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
             let stdStr = '';
             let deltaStr = '';
             let retStr = '';
-            const comp = acq.computed as any;
+            // Union pour les accès communs (qualityAssessment, computation) présents sur les 5 types ;
+            // chaque branche ci-dessous affine avec le type de sa famille (PARTIE 1 narrowing).
+            const comp = acq.computed as
+              | ColorComputedData
+              | GlossComputedData
+              | PersozComputedData
+              | AdhesionComputedData
+              | VisualObservationsComputedData;
 
             if (fam === 'COLOR') {
-              valStr = `L*=${comp.meanL?.toFixed(2) ?? '—'}, a*=${comp.meanA?.toFixed(2) ?? '—'}, b*=${comp.meanB?.toFixed(2) ?? '—'}`;
-              stdStr = `sL=${comp.stdDevL?.toFixed(2) ?? '—'}`;
-              deltaStr = comp.deltaE !== null && comp.deltaE !== undefined ? `ΔE*=${comp.deltaE.toFixed(2)}` : 'RÉF (T0)';
+              const compColor = acq.computed as ColorComputedData;
+              valStr = `L*=${compColor.meanL?.toFixed(2) ?? '—'}, a*=${compColor.meanA?.toFixed(2) ?? '—'}, b*=${compColor.meanB?.toFixed(2) ?? '—'}`;
+              stdStr = `sL=${compColor.stdDevL?.toFixed(2) ?? '—'}`;
+              deltaStr = compColor.deltaE !== null && compColor.deltaE !== undefined ? `ΔE*=${compColor.deltaE.toFixed(2)}` : 'RÉF (T0)';
             } else if (fam === 'GLOSS') {
-              valStr = comp.meanGloss !== null && comp.meanGloss !== undefined ? `${comp.meanGloss.toFixed(1)} GU` : '—';
-              stdStr = comp.stdDevGloss !== null && comp.stdDevGloss !== undefined ? `${comp.stdDevGloss.toFixed(2)}` : '—';
-              deltaStr = comp.deltaGloss !== null && comp.deltaGloss !== undefined ? `${comp.deltaGloss.toFixed(1)} GU` : 'RÉF (T0)';
-              retStr = comp.retentionRatePercent !== null && comp.retentionRatePercent !== undefined ? `${comp.retentionRatePercent.toFixed(1)} %` : '100 %';
+              const compGloss = acq.computed as GlossComputedData;
+              valStr = compGloss.meanGloss !== null && compGloss.meanGloss !== undefined ? `${compGloss.meanGloss.toFixed(1)} GU` : '—';
+              stdStr = compGloss.stdDevGloss !== null && compGloss.stdDevGloss !== undefined ? `${compGloss.stdDevGloss.toFixed(2)}` : '—';
+              deltaStr = compGloss.deltaGloss !== null && compGloss.deltaGloss !== undefined ? `${compGloss.deltaGloss.toFixed(1)} GU` : 'RÉF (T0)';
+              retStr = compGloss.retentionRatePercent !== null && compGloss.retentionRatePercent !== undefined ? `${compGloss.retentionRatePercent.toFixed(1)} %` : '100 %';
             } else if (fam === 'PERSOZ') {
-              valStr = comp.meanDampingTime !== null && comp.meanDampingTime !== undefined ? `${comp.meanDampingTime.toFixed(1)} s` : '—';
-              stdStr = comp.stdDevDampingTime !== null && comp.stdDevDampingTime !== undefined ? `${comp.stdDevDampingTime.toFixed(2)}` : '—';
-              deltaStr = comp.deltaDampingTime !== null && comp.deltaDampingTime !== undefined ? `${comp.deltaDampingTime.toFixed(1)} s` : 'RÉF (T0)';
+              const compPersoz = acq.computed as PersozComputedData;
+              valStr = compPersoz.meanDampingTime !== null && compPersoz.meanDampingTime !== undefined ? `${compPersoz.meanDampingTime.toFixed(1)} s` : '—';
+              stdStr = compPersoz.stdDevDampingTime !== null && compPersoz.stdDevDampingTime !== undefined ? `${compPersoz.stdDevDampingTime.toFixed(2)}` : '—';
+              deltaStr = compPersoz.deltaDampingTime !== null && compPersoz.deltaDampingTime !== undefined ? `${compPersoz.deltaDampingTime.toFixed(1)} s` : 'RÉF (T0)';
             } else if (fam === 'ADHESION') {
-              valStr = comp.adhesionClass !== null && comp.adhesionClass !== undefined ? `Classe ${comp.adhesionClass}` : '—';
-              stdStr = comp.gridSpacingUsedMm ? `Peigne ${comp.gridSpacingUsedMm} mm` : '—';
-              deltaStr = comp.deltaAdhesionClass !== null && comp.deltaAdhesionClass !== undefined ? `ΔClasse=${comp.deltaAdhesionClass >= 0 ? '+' : ''}${comp.deltaAdhesionClass}` : 'RÉF (T0)';
-              retStr = comp.delayCompliance || '—';
+              const compAdh = acq.computed as AdhesionComputedData;
+              valStr = compAdh.adhesionClass !== null && compAdh.adhesionClass !== undefined ? `Classe ${compAdh.adhesionClass}` : '—';
+              stdStr = compAdh.gridSpacingUsedMm ? `Peigne ${compAdh.gridSpacingUsedMm} mm` : '—';
+              deltaStr = compAdh.deltaAdhesionClass !== null && compAdh.deltaAdhesionClass !== undefined ? `ΔClasse=${compAdh.deltaAdhesionClass >= 0 ? '+' : ''}${compAdh.deltaAdhesionClass}` : 'RÉF (T0)';
+              retStr = compAdh.delayCompliance || '—';
             } else if (fam === 'OBSERVATIONS') {
-              valStr = comp.summary || 'Aspect conforme';
+              const compObs = acq.computed as VisualObservationsComputedData;
+              valStr = compObs.summary || 'Aspect conforme';
             }
 
             const qStatus = comp.qualityAssessment?.status || acq.status;

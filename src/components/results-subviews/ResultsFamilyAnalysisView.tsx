@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { Trial } from '../../types/trial';
-import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
+import { ScientificRuleSet, MeasurementFamilyId, ColorComputedData, GlossComputedData, PersozComputedData, AdhesionComputedData } from '../../types/scientific';
 import {
   LineChart,
   Line,
@@ -61,7 +61,7 @@ export function ResultsFamilyAnalysisView({ trial, ruleSet }: Props) {
           const key = `${stage.id}__${p.id}__COLOR`;
           const acq = trial.acquisitions[key];
           if (acq?.computed) {
-            const dE = (acq.computed as any).deltaE;
+            const dE = (acq.computed as ColorComputedData).deltaE;
             if (typeof dE === 'number') deltaEList.push(dE);
           }
         });
@@ -76,8 +76,8 @@ export function ResultsFamilyAnalysisView({ trial, ruleSet }: Props) {
           const key = `${stage.id}__${p.id}__GLOSS`;
           const acq = trial.acquisitions[key];
           if (acq?.computed) {
-            const g = (acq.computed as any).meanGloss;
-            const ret = (acq.computed as any).retentionRatePercent;
+            const g = (acq.computed as GlossComputedData).meanGloss;
+            const ret = (acq.computed as GlossComputedData).retentionRatePercent;
             if (typeof g === 'number') glossList.push(g);
             if (typeof ret === 'number') retentionList.push(ret);
           }
@@ -98,7 +98,7 @@ export function ResultsFamilyAnalysisView({ trial, ruleSet }: Props) {
           const key = `${stage.id}__${p.id}__PERSOZ`;
           const acq = trial.acquisitions[key];
           if (acq?.computed) {
-            const pVal = (acq.computed as any).meanDampingTime;
+            const pVal = (acq.computed as PersozComputedData).meanDampingTime;
             if (typeof pVal === 'number') persozList.push(pVal);
           }
         });
@@ -113,7 +113,7 @@ export function ResultsFamilyAnalysisView({ trial, ruleSet }: Props) {
           const key = `${stage.id}__${p.id}__ADHESION`;
           const acq = trial.acquisitions[key];
           if (acq?.computed) {
-            const aVal = (acq.computed as any).adhesionClass;
+            const aVal = (acq.computed as AdhesionComputedData).adhesionClass;
             if (typeof aVal === 'number') adhList.push(aVal);
           }
         });
