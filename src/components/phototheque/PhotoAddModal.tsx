@@ -5,7 +5,9 @@
  */
 
 import type { ChangeEvent, Dispatch, SetStateAction } from 'react';
+import { useMemo } from 'react';
 import { Camera, X, AlertCircle, AlertTriangle } from 'lucide-react';
+import { getActiveStages } from '../../scientific/panelUtils';
 import type { MediaReference, PanelDefinition, Trial } from '../../types/trial';
 
 interface Props {
@@ -53,6 +55,8 @@ export function PhotoAddModal({
   onSavePhoto,
   onCloseModal
 }: Props) {
+  // Plan de mesurage : seuls les jalons actifs sont proposés (fix/photo-active-stages).
+  const activeStages = useMemo(() => getActiveStages(trial.stages), [trial.stages]);
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-4 border border-slate-200">
@@ -131,7 +135,7 @@ export function PhotoAddModal({
               onChange={(e) => onStageIdChange(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg font-medium"
             >
-              {trial.stages.map((st) => (
+              {activeStages.map((st) => (
                 <option key={st.id} value={st.id}>
                   {st.name} ({st.scheduledExposureHours}h)
                 </option>

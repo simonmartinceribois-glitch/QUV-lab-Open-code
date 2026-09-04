@@ -4,6 +4,8 @@
  * Aucun état ni handler ici : tout est reçu en props depuis le parent.
  */
 
+import { useMemo } from 'react';
+import { getActiveStages } from '../../scientific/panelUtils';
 import type { Trial } from '../../types/trial';
 import type { MediaReference } from '../../types/trial';
 
@@ -22,6 +24,8 @@ export function PhotoMatrixView({
   onPreviewPhoto,
   onOpenAddModalForStage
 }: Props) {
+  // Plan de mesurage : seuls les jalons actifs (non INACTIVE) sont affichés (fix/photo-active-stages).
+  const activeStages = useMemo(() => getActiveStages(trial.stages), [trial.stages]);
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4 overflow-x-auto">
       <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -38,7 +42,7 @@ export function PhotoMatrixView({
           <tr className="border-b border-slate-200 bg-slate-50/80">
             <th className="p-2.5 font-bold text-slate-700">Éprouvette</th>
             <th className="p-2.5 font-bold text-slate-700">Lot & Essence</th>
-            {trial.stages.map((st) => (
+            {activeStages.map((st) => (
               <th key={st.id} className="p-2.5 font-bold text-slate-700 text-center font-mono">
                 {st.name}
                 <span className="block text-[10px] text-slate-400 font-normal">({st.scheduledExposureHours}h)</span>
@@ -71,7 +75,7 @@ export function PhotoMatrixView({
                   <td className="p-2.5 text-slate-600 whitespace-nowrap">
                     {b.woodSpecies || 'Bois'} ({b.productReference || '—'})
                   </td>
-                  {trial.stages.map((st) => {
+                  {activeStages.map((st) => {
                     const photo = trial.mediaReferences.find(
                       (m) =>
                         m.type === 'PHOTO' &&

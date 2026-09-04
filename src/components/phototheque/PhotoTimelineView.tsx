@@ -15,6 +15,8 @@ import {
   Trash2,
   Info
 } from 'lucide-react';
+import { useMemo } from 'react';
+import { getActiveStages } from '../../scientific/panelUtils';
 import type { BatchDefinition, MediaReference, PanelDefinition, Trial } from '../../types/trial';
 
 interface Props {
@@ -48,6 +50,8 @@ export function PhotoTimelineView({
   onDeletePhoto,
   onPreviewPhoto
 }: Props) {
+  // Plan de mesurage : seuls les jalons actifs (non INACTIVE) sont affichés (fix/photo-active-stages).
+  const activeStages = useMemo(() => getActiveStages(trial.stages), [trial.stages]);
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       {/* A. Arborescence Hiérarchique (Lot & Échantillon) */}
@@ -191,13 +195,13 @@ export function PhotoTimelineView({
                     Chronologie d'Exposition (NF EN 927-6)
                   </h4>
                   <span className="text-[11px] text-slate-500">
-                    {activePanelPhotos.length} cliché(s) documenté(s) sur {trial.stages.length} jalons
+                    {activePanelPhotos.length} cliché(s) documenté(s) sur {activeStages.length} jalons
                   </span>
                 </div>
 
                 {/* Timeline des Jalons */}
                 <div className="space-y-3">
-                  {trial.stages.map((stage) => {
+                  {activeStages.map((stage) => {
                     const photo = trial.mediaReferences.find(
                       (m) =>
                         m.type === 'PHOTO' &&
