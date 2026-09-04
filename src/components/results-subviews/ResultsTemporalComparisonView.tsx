@@ -7,7 +7,7 @@
 import React, { useState } from 'react';
 import { Trial, ExposureStage } from '../../types/trial';
 import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
-import { getActiveStages, cycleTag, formatStageShort } from '../../scientific/panelUtils';
+import { getActiveStages, formatStageOption, formatStageShort } from '../../scientific/panelUtils';
 import {
   GitCompare,
   Layers,
@@ -116,7 +116,7 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
             >
               {planStages.map((st) => (
                 <option key={st.id} value={st.id}>
-                  {cycleTag(st)} · {st.name}
+                  {formatStageOption(st)}
                 </option>
               ))}
             </select>
@@ -136,7 +136,7 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
                 .filter((st) => st.id !== refSelectValue)
                 .map((st) => (
                   <option key={st.id} value={st.id}>
-                    {cycleTag(st)} · {st.name} — {st.status}
+                    {formatStageOption(st)} — {st.status}
                   </option>
                 ))}
             </select>

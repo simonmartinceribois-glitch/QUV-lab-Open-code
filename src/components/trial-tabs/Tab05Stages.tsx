@@ -10,7 +10,7 @@ import React, { useState } from 'react';
 import { Trial, ExposureStage } from '../../types/trial';
 import { MeasurementFamilyId } from '../../types/scientific';
 import { globalTrialStore } from '../../services/trialStore';
-import { isMandatoryStage, getActiveFamiliesForStage, cycleTag, formatStageShort } from '../../scientific/panelUtils';
+import { isMandatoryStage, getActiveFamiliesForStage, formatStageOption, formatStageShort } from '../../scientific/panelUtils';
 import {
   Calendar,
   Clock,
@@ -489,7 +489,7 @@ export function Tab05Stages({
 
             <div className="space-y-3 text-xs text-slate-600">
               <p>
-                Vous allez désactiver l'étape <strong>{cycleTag(currentStage)} — {currentStage.name}</strong>.
+                Vous allez désactiver l'étape <strong>{formatStageOption(currentStage)}</strong>.
               </p>
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900">
                 <strong>Garantie de non-destruction :</strong> Les données déjà saisies sur ce jalon ne seront pas effacées. L'étape sera masquée des campagnes de mesures et des calculs de tendances jusqu'à une éventuelle réactivation.

@@ -8,7 +8,7 @@ import { Trial, BatchDefinition, ExposureStage } from '../../types/trial';
 import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
 import { aggregateBatchColor, aggregateBatchGloss } from '../../scientific/aggregations';
 import { GitCompare, Layers, TrendingUp, Info, CheckCircle2 } from 'lucide-react';
-import { getActiveExposedPanels, getActiveStages, cycleTag, formatStageShort } from '../../scientific/panelUtils';
+import { getActiveExposedPanels, getActiveStages, formatStageOption, formatStageShort } from '../../scientific/panelUtils';
 
 interface Props {
   trial: Trial;
@@ -48,7 +48,7 @@ export function ResultsAdvancedComparisonsView({ trial, ruleSet }: Props) {
             >
               {activeStages.map((st) => (
                 <option key={st.id} value={st.id}>
-                  {cycleTag(st)} · {st.name}
+                  {formatStageOption(st)}
                 </option>
               ))}
             </select>
@@ -79,7 +79,7 @@ export function ResultsAdvancedComparisonsView({ trial, ruleSet }: Props) {
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
             <Layers className="w-4 h-4 text-blue-600" />
-            Performance Comparée des Lots à {activeStage ? `${cycleTag(activeStage)} — ${activeStage.name}` : '—'}
+            Performance Comparée des Lots à {formatStageOption(activeStage)}
           </h3>
           <span className="text-xs bg-blue-100 text-blue-900 px-2.5 py-1 rounded-lg font-bold">
             {trial.batches.length} lots comparés

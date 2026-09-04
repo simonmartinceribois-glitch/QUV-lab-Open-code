@@ -5,7 +5,7 @@
  */
 
 import { Split, AlertTriangle, Camera, Maximize2, FileImage } from 'lucide-react';
-import { cycleTag } from '../../scientific/panelUtils';
+import { cycleTag, formatStageOption } from '../../scientific/panelUtils';
 import type { MediaReference, PanelDefinition, Trial } from '../../types/trial';
 import type { PanelMap, StageMap } from './photoTypes';
 
@@ -275,7 +275,7 @@ export function PhotoCompareView({
                     return (
                       <tr key={photo.id} className="hover:bg-slate-50">
                         <td className="p-2.5 font-mono font-bold text-slate-900 whitespace-nowrap">
-                          {stage ? `${cycleTag(stage)} — ${stage.name}` : 'Jalon'}
+                          {formatStageOption(stage)}
                         </td>
                         <td className="p-2.5 font-mono text-blue-700 whitespace-nowrap">
                           {info ? `${info.batch.reference} - ${info.panel.label}` : '—'}

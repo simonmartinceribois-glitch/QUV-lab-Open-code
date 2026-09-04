@@ -6,7 +6,7 @@
 
 import type { Dispatch, SetStateAction } from 'react';
 import { Filter, Camera, Archive, Maximize2, Trash2, Clock } from 'lucide-react';
-import { cycleTag } from '../../scientific/panelUtils';
+import { cycleTag, formatStageOption } from '../../scientific/panelUtils';
 import type { MediaReference, Trial } from '../../types/trial';
 import type { PanelMap, StageMap } from './photoTypes';
 
@@ -94,7 +94,7 @@ export function PhotoGalleryView({
               <option value="ALL">Toutes les étapes ({trial.stages.length})</option>
               {trial.stages.map((st) => (
                 <option key={st.id} value={st.id}>
-                  {cycleTag(st)} · {st.name}
+                  {formatStageOption(st)}
                 </option>
               ))}
             </select>
