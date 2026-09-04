@@ -1,5 +1,16 @@
 # QUV-Lab — DÉCISIONS (journal, ordre antichronologique)
 
+## 2026-09-04 — D-04 : branche `develop`, lockfile versionné, `main` protégée
+
+- **Décidé** : `develop` créée depuis `main` (merge #2) comme branche d'intégration ;
+  `main` = releases uniquement. `package-lock.json` (généré par `npm install` local, 253 packages)
+  est désormais **versionné** (reproductibilité CI/dev, lève le report de D-01).
+  Exception au workflow : premier commit de `develop` direct (initialisation, pas de dev).
+- **À activer côté humain** (Settings → Branches → Add branch protection rule, motif `main`) :
+  `Require a pull request before merging`, `Require status checks to pass` (sélectionner `verify`),
+  `Do not allow bypassing the above settings`.
+- **Leçon incident PR #2** : merge GitHub **avant** tout nettoyage local ; règle ajoutée à `WORKFLOW.md` §1.
+
 ## 2026-09-04 — D-03 : CI verte 195/195, audit corrigé, ticket Gate 2.2 annulé
 
 - **Fait** : CI sur `e44914c` = `tsc` OK + **195/195 tests OK** (Gate 2.2 = 7/7) + build.
