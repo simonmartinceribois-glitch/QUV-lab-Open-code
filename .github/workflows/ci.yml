@@ -1,8 +1,8 @@
-# QUV-Lab — CI minimale (source de vérité GitHub)
-# Vérifie : typage (tsc) + 193 tests scientifiques (tsx) + build Vite.
-# NOTE : `npm install` (pas `npm ci`) car aucun lockfile dans le dépôt.
-# État connu au 2026-09-04 : Gate 2.2 A2/A3/B2 en échec → CI ROUGE attendue
-# jusqu'au ticket `fix/gate22-temoin-jalons`.
+# QUV-Lab — CI (source de vérité GitHub)
+# Vérifie : typage strict (tsc) + 195 tests scientifiques (tsx) + build Vite.
+# `npm ci` : le lockfile est versionné (reproductible, échoue s'il est désynchronisé).
+# État au 2026-09-04 : 195/195 verts, Gate 2.2 7/7 (l'ancienne mention « CI rouge attendue »
+# venait d'un test-results.txt obsolète — voir docs/audits/INITIAL_AUDIT.md C1bis).
 
 name: CI
 
@@ -23,12 +23,12 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Typecheck (tsc --noEmit)
         run: npm run lint
 
-      - name: Scientific test suites (193 tests)
+      - name: Scientific test suites (195 tests)
         run: npm test
 
       - name: Production build
