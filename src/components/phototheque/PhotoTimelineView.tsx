@@ -16,7 +16,7 @@ import {
   Info
 } from 'lucide-react';
 import { useMemo } from 'react';
-import { getActiveStages, cycleTag, formatStageTitle } from '../../scientific/panelUtils';
+import { getActiveStages, formatStageTitle } from '../../scientific/panelUtils';
 import type { BatchDefinition, MediaReference, PanelDefinition, Trial } from '../../types/trial';
 
 interface Props {
@@ -231,9 +231,6 @@ export function PhotoTimelineView({
                             <div className="flex items-center gap-2">
                               <span className="font-mono font-bold text-xs text-slate-900">
                                 {formatStageTitle(stage)}
-                              </span>
-                              <span className="px-1.5 py-0.2 text-[10px] font-mono font-semibold rounded bg-slate-100 text-slate-700">
-                                {cycleTag(stage)}
                               </span>
                             </div>
                             <div className="text-[11px] text-slate-500">
