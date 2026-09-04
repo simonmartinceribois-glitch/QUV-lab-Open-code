@@ -41,7 +41,7 @@ import { createConfigChangeEvent } from '../scientific/auditEngine';
 import { buildScientificReport } from './reportGenerator';
 import { isFamilyScheduledForStage } from '../scientific/panelUtils';
 import { generateUUID } from './trialIds';
-import { validateAcquisitionTarget, validatePhotoTarget } from './trialIntegrity';
+import { IntegrityViolationError, validateAcquisitionTarget, validatePhotoTarget } from './trialIntegrity';
 import { generateStandardExposureStages } from './trialStages';
 import { createDemoTrial, createValidationTrial } from './trialSeed';
 
@@ -564,21 +564,6 @@ export class TrialStoreService {
 
     const now = new Date().toISOString();
 
-    // Verrouillage automatique si non encore verrouillé
-    if (trial.configurationStatus !== 'LOCKED') {
-      trial.configurationStatus = 'LOCKED';
-      trial.auditTrail.push({
-        id: generateUUID(),
-        trialId: trial.id,
-        timestamp: now,
-        operatorId: 'SYSTEM',
-        action: 'LOCK_TRIAL_CONFIGURATION',
-        entityType: 'CONFIG',
-        entityId: trial.id,
-        details: { reason: 'Première acquisition scientifique enregistrée.' }
-      });
-    }
-
     const key = `${params.stageId}__${params.panelId}__${params.familyId}`;
     const prevRecord = trial.acquisitions[key];
 
@@ -606,18 +591,37 @@ export class TrialStoreService {
     // Calcul immédiat via PROMPT 5 sans toucher à raw
     const { updatedRecord, rawUnchanged } = recalculateAcquisition(newRecord, trial, this.ruleSet);
     if (!rawUnchanged) {
-      // Garde-fou scientifique : le moteur de calcul a modifié le RAW, ce qui ne doit
-      // structurellement jamais arriver. On le rend visible plutôt que de le laisser silencieux.
-      updatedRecord.alerts.push({
+      // P0 : rejet transactionnel AVANT tout commit — aucune mutation n'a encore eu lieu
+      // (ni verrouillage, ni acquisition, ni audit, ni sauvegarde). L'ancien enregistrement,
+      // s'il existe, reste intact puisque trial.acquisitions[key] n'est jamais assigné ici.
+      throw new IntegrityViolationError(
+        'Anomalie critique d’intégrité RAW : les données brutes ont été modifiées pendant le recalcul scientifique. L’acquisition a été rejetée et aucune donnée n’a été persistée.',
+        {
+          trialId: trial.id,
+          stageId: params.stageId,
+          batchId: params.batchId,
+          panelId: params.panelId,
+          familyId: params.familyId
+        }
+      );
+    }
+
+    // Verrouillage automatique si non encore verrouillé (uniquement sur le chemin validé :
+    // une acquisition rejetée ne doit jamais verrouiller la configuration à elle seule).
+    if (trial.configurationStatus !== 'LOCKED') {
+      trial.configurationStatus = 'LOCKED';
+      trial.auditTrail.push({
         id: generateUUID(),
-        severity: 'BLOCKING',
-        code: 'RAW_INTEGRITY_VIOLATION',
-        message: 'Anomalie critique : la donnée brute (RAW) a été modifiée lors du recalcul. Intégrité scientifique compromise.',
-        familyId: params.familyId,
-        stageId: params.stageId,
-        panelId: params.panelId
+        trialId: trial.id,
+        timestamp: now,
+        operatorId: 'SYSTEM',
+        action: 'LOCK_TRIAL_CONFIGURATION',
+        entityType: 'CONFIG',
+        entityId: trial.id,
+        details: { reason: 'Première acquisition scientifique enregistrée.' }
       });
     }
+
     trial.acquisitions[key] = updatedRecord;
 
     // Audit de l'acquisition
