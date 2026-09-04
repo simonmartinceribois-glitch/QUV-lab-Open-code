@@ -25,7 +25,6 @@ import { createCountConfiguration, createSeriesConfiguration } from '../scientif
 import { WizardStep1Identification } from './wizard/WizardStep1Identification';
 import { WizardStep2Characteristics } from './wizard/WizardStep2Characteristics';
 import { WizardStep3Batches } from './wizard/WizardStep3Batches';
-import { WizardStep4Panels } from './wizard/WizardStep4Panels';
 import { WizardStep5Families } from './wizard/WizardStep5Families';
 import { WizardStep6Calendar } from './wizard/WizardStep6Calendar';
 import { WizardStep7Review } from './wizard/WizardStep7Review';
@@ -354,15 +353,25 @@ export function CreateTrialWizardModal({
     onClose();
   };
 
+  // Étape 04 Panneaux masquée (demande utilisateur) : le flux saute de 03 à 05.
+  // Le composant WizardStep4Panels est conservé (réactivation possible).
   const stepsList = [
     { num: 1, label: '01 Identification' },
     { num: 2, label: '02 Caractéristiques' },
     { num: 3, label: '03 Lots' },
-    { num: 4, label: '04 Panneaux' },
     { num: 5, label: '05 Plan de Mesure' },
     { num: 6, label: '06 Calendrier' },
     { num: 7, label: '07 Validation' }
   ];
+  const goNextStep = () => {
+    if (step === 1 && !isStep1Valid) return;
+    if (step === 3 && !isStep3Valid) return;
+    if (step === 5 && !isStep5Valid) return;
+    setStep((step === 3 ? 5 : step + 1) as any);
+  };
+  const goPrevStep = () => {
+    setStep((step === 5 ? 3 : step - 1) as any);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
@@ -464,10 +473,6 @@ export function CreateTrialWizardModal({
             />
           )}
 
-          {step === 4 && (
-            <WizardStep4Panels batches={batches} totalPanelsCount={totalPanelsCount} />
-          )}
-
           {step === 5 && (
             <WizardStep5Families
               activeFamilies={activeFamilies}
@@ -531,7 +536,7 @@ export function CreateTrialWizardModal({
           <div>
             {step > 1 && (
               <button
-                onClick={() => setStep((step - 1) as any)}
+                onClick={goPrevStep}
                 className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 hover:bg-white text-slate-700 rounded-xl text-xs font-bold transition-colors shadow-xs"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -550,12 +555,7 @@ export function CreateTrialWizardModal({
 
             {step < 7 ? (
               <button
-                onClick={() => {
-                  if (step === 1 && !isStep1Valid) return;
-                  if (step === 3 && !isStep3Valid) return;
-                  if (step === 5 && !isStep5Valid) return;
-                  setStep((step + 1) as any);
-                }}
+                onClick={goNextStep}
                 disabled={(step === 1 && !isStep1Valid) || (step === 3 && !isStep3Valid) || (step === 5 && !isStep5Valid)}
                 className="flex items-center gap-1.5 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs disabled:opacity-50"
               >
