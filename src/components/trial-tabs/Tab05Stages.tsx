@@ -248,11 +248,7 @@ export function Tab05Stages({
               >
                 {isInactive ? 'DÉSACTIVÉE (NON-DESTRUCTIF)' : currentStage.status}
               </span>
-              {isMandatory && (
-                <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 rounded-md">
-                  Norme Obligatoire
-                </span>
-              )}
+
             </div>
             <p className="text-xs text-slate-500">
               Exposition théorique prévue (NF EN 927-6) : <strong className="font-mono text-slate-800">{currentStage.cycleIndex} × 168 h = {currentStage.scheduledExposureHours} h</strong>

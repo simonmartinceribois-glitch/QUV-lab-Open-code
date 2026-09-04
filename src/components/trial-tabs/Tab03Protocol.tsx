@@ -9,7 +9,6 @@ import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
 import { globalTrialStore } from '../../services/trialStore';
 import {
   AlertTriangle,
-  Lock,
   Edit3,
   CheckCircle2,
   X,
@@ -79,19 +78,6 @@ export function Tab03Protocol({ trial, ruleSet, onTrialUpdated }: Props) {
           </p>
         </div>
 
-        <div>
-          {isLocked ? (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold">
-              <Lock className="w-4 h-4 text-amber-600" />
-              <span>Protocole <strong>VERROUILLÉ</strong> (Acquisitions en cours)</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Protocole <strong>MODIFIABLE</strong></span>
-            </div>
-          )}
-        </div>
       </div>
 
 
