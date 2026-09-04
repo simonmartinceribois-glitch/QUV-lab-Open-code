@@ -15,6 +15,8 @@ View your app in AI Studio: https://ai.studio/apps/0c7d42fd-5ade-4f62-bd51-dcc3e
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Run the app:
    `npm run dev`
+
+> QUV-Lab is 100 % local (browser `localStorage`, French lab terminology preserved in code).
+> No backend, no API key, no `.env` file required. See `docs/release/04_DEPLOYMENT_GUIDE.md`.
