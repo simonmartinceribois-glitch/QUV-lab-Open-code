@@ -1,5 +1,5 @@
 /**
- * QUV-Lab — 02 Lots & Échantillons (GATE 2.1 + GATE 2.2)
+ * QUV-Lab — 02 Lots & Échantillons
  * Gère le référentiel hiérarchique :
  * PROJET (Dimensions communes)
  *  └── LOTS (Essence, Produit, Système)
@@ -235,11 +235,6 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
   );
   const totalPanels = trial.batches.reduce((acc, b) => acc + b.panels.length, 0);
 
-  const dimLength = trial.commonCharacteristics?.dimensions?.lengthMm || 150;
-  const dimWidth = trial.commonCharacteristics?.dimensions?.widthMm || 75;
-  const dimThick = trial.commonCharacteristics?.dimensions?.thicknessMm || 15;
-  const dimUnit = trial.commonCharacteristics?.dimensions?.unit || 'mm';
-
   return (
     <div className="space-y-6">
       {/* Header Info & Actions */}
@@ -247,9 +242,6 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
         <div>
           <div className="flex items-center gap-2">
             <h3 className="text-base font-bold text-slate-900">Référentiel : Lots & Échantillons</h3>
-            <span className="px-2 py-0.5 text-xs font-mono font-bold rounded bg-blue-50 text-blue-700 border border-blue-200">
-              GATE 2.1 & 2.2
-            </span>
           </div>
           <p className="text-xs text-slate-500">
             {trial.batches.length} lots expérimentaux • {totalActivePanels} éprouvettes actives ({trial.batches.length} témoins T + {totalActivePanels - trial.batches.length} exposées E)
@@ -282,9 +274,6 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
           <Maximize2 className="w-5 h-5 text-blue-600 shrink-0" />
           <div>
             <span className="font-bold text-blue-900 block">Dimensions Communes PROJET</span>
-            <span className="font-mono font-semibold text-blue-800">
-              {dimLength} × {dimWidth} × {dimThick} {dimUnit}
-            </span>
             <span className="text-[10px] text-blue-600 block">Saisies 1 seule fois au niveau Projet</span>
           </div>
         </div>
@@ -349,7 +338,6 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
                       {excludedPanels} exclu(s)
                     </span>
                   )}
-                  <span className="text-slate-400 font-mono text-[11px]">UUID: {batch.id.slice(0, 8)}</span>
                 </div>
               </div>
 
@@ -516,7 +504,7 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
                                 disabled={isExcluded}
                                 className="w-full px-2 py-1 bg-white border border-slate-200 rounded-md text-xs font-medium text-slate-800 focus:ring-1 focus:ring-blue-500"
                               >
-                                <option value="Quartier">Quartier (NF EN 927-6)</option>
+                                <option value="Quartier">Quartier</option>
                                 <option value="Faux quartier">Faux quartier</option>
                                 <option value="Dosse">Dosse</option>
                               </select>
@@ -538,7 +526,7 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
                                   disabled={isExcluded}
                                   className="w-full px-2 py-1 bg-white border border-slate-200 rounded-md text-xs font-medium text-slate-800 focus:ring-1 focus:ring-blue-500"
                                 >
-                                  <option value="Face externe">Face externe (côté soleil)</option>
+                                  <option value="Face externe">Face externe (côté écorce)</option>
                                   <option value="Face interne">Face interne (côté coeur)</option>
                                 </select>
                               )}
@@ -554,9 +542,6 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
                             }`}
                           >
                             {panel.status}
-                          </span>
-                          <span className="text-slate-400 font-mono">
-                            {dimLength}×{dimWidth} mm
                           </span>
                         </div>
 
