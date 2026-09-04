@@ -19,7 +19,7 @@ Jamais de dev direct sur `main`. Branches : `main / develop / feature/* / fix/* 
 4. **BRANCHE** : `fix/gate22-temoin-jalons`, `fix/scripts-windows`, `refactor/trialstore-split`, etc.
 5. **DÉVELOPPEMENT** : Developer seul écrivain, périmètre strict de la spec.
 6. **TEST** : commandes réelles uniquement — `npm run lint` (= `tsc --noEmit`), `npm test` (= `tsx run_tests.ts`),
-   `npm run build`. Référence : 193 tests / 12 suites. Mettre à jour `test-results.txt`.
+   `npm run build`. Référence : 195 tests / 12 suites (la CI fait foi, pas de fichier de résultats committé).
 7. **AUDIT** : Auditor produit `docs/audits/<DATE>_<SUJET>.md`.
 8. **CORRECTION** : Developer corrige ; jamais de test supprimé/désactivé pour verdir.
 9. **SECOND TEST** : rejouer l'intégralité + build.
@@ -31,7 +31,7 @@ Jamais de dev direct sur `main`. Branches : `main / develop / feature/* / fix/* 
 
 ## 3. Niveaux de risque
 
-- **LOW** (typo, label UI, ex. corriger "Tests UX (20)" / "Tests Calculs (22)" en `App.tsx:91-104`) :
+- **LOW** (typo, label UI, ex. renommer un libellé d'onglet dans `TrialDetailView.tsx`) :
   `Developer → tests → PR`.
 - **MEDIUM** (nouveau composant/fonction, logique existante, ex. split `TabPhotographs.tsx`, exports CSV) :
   `Architect → Developer → Tester → Auditor → PR`.
