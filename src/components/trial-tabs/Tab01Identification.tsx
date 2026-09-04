@@ -7,7 +7,6 @@ import React, { useState } from 'react';
 import { Trial, CommonCharacteristics } from '../../types/trial';
 import { globalTrialStore } from '../../services/trialStore';
 import {
-  Lock,
   CheckCircle2,
   Save,
   FileText,
@@ -41,7 +40,6 @@ export function Tab01Identification({ trial, onTrialUpdated }: Props) {
   const [generalProtocolNotes, setGeneralProtocolNotes] = useState<string>(trial.commonCharacteristics?.generalProtocolNotes || '');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
-  const isLocked = trial.configurationStatus === 'LOCKED';
 
   const handleSave = () => {
     trial.metadata.title = title.trim();
@@ -94,19 +92,6 @@ export function Tab01Identification({ trial, onTrialUpdated }: Props) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {isLocked ? (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold">
-              <Lock className="w-4 h-4 text-amber-600" />
-              <span>Configuration <strong>LOCKED</strong> (Acquisitions enregistrées)</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Configuration <strong>EDITABLE</strong> (Avant 1ère acquisition)</span>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Form Grid 1 : Métadonnées */}
