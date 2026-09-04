@@ -51,6 +51,10 @@ export function generateTechnicalSynthesis(
     ? trial.stages.find((s) => s.id === options.targetStageId)
     : trial.stages[trial.stages.length - 1] || stageT0;
 
+  if (!targetStage) {
+    throw new Error(`Jalon cible introuvable pour la synthèse (targetStageId=${options?.targetStageId || 'non défini'}).`);
+  }
+
   const targetExposureHours = targetStage.scheduledExposureHours || (targetStage.cycleIndex * 168);
   const kinetics = extractTemporalKinetics(trial, targetBatch.id);
   const finalKinetics = kinetics.find((k) => k.exposureHours === targetExposureHours) || kinetics[kinetics.length - 1];

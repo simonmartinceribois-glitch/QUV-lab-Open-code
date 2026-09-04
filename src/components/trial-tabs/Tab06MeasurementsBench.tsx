@@ -743,7 +743,7 @@ export function Tab06MeasurementsBench({
 
             {/* --- ADHÉRENCE — ESSAI AU QUADRILLAGE (NF EN ISO 2409:2020) --- */}
             {selectedFamilyId === 'ADHESION' && (() => {
-              const thickness = currentBatch?.dryFilmThicknessMicrons;
+              const thickness = currentBatch?.dryFilmThicknessMicrons ?? undefined;
               const spacingResult = getApplicableGridSpacing(thickness);
               const delayResult = calculateDelayCompliance(currentBatch?.applicationDate, new Date().toISOString(), 168);
               const isWitness = currentPanel?.role === 'WITNESS' || currentPanel?.index === 1;

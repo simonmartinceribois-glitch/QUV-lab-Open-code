@@ -40,6 +40,10 @@ export function runQUVAnalysis(
     ? trial.stages.find((s) => s.id === options.targetStageId)
     : trial.stages[trial.stages.length - 1] || stageT0;
 
+  if (!targetStage) {
+    throw new Error(`Jalon cible introuvable (targetStageId=${options?.targetStageId || 'non défini'}).`);
+  }
+
   const selectedBatches = options?.batchIds && options.batchIds.length > 0
     ? trial.batches.filter((b) => options.batchIds!.includes(b.id))
     : trial.batches;

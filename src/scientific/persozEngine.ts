@@ -9,6 +9,7 @@ import {
   MeasurementCountConfiguration,
   ScientificRuleSet,
   MeasurementAlert,
+  ReadingValidity,
   UUID
 } from '../types/scientific';
 import {
@@ -51,7 +52,7 @@ export function calculatePersoz(
 
   // 1. Validation des points de mesure
   const validValues: number[] = [];
-  const validityStatuses = [];
+  const validityStatuses: ReadingValidity[] = [];
 
   const readings = raw.readings || [];
 

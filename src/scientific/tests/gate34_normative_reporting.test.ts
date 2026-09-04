@@ -94,12 +94,15 @@ export function runGate34NormativeReportingTests(): {
 
   {
     const colCfg = ruleSet.measurementConfigurations.COLOR;
-    const gloCfg = ruleSet.seriesConfigurations.GLOSS;
+    const gloCfg = ruleSet.seriesConfigurations?.GLOSS;
     const perCfg = ruleSet.measurementConfigurations.PERSOZ;
+    if (!gloCfg) {
+      throw new Error('Référentiel de brillance (GLOSS) manquant — suite G34 impossible.');
+    }
 
     const colNormative = colCfg.origin === 'NORMATIVE_REQUIREMENT' && colCfg.clause === '6.3.2';
     const gloNormative = gloCfg.origin === 'NORMATIVE_REQUIREMENT' && gloCfg.clause === '6.3.3';
-    const perLab = perCfg.origin === 'LAB_RECOMMENDATION' && perCfg.standardReference?.includes('ISO 1522');
+    const perLab = perCfg.origin === 'LAB_RECOMMENDATION' && Boolean(perCfg.standardReference?.includes('ISO 1522'));
 
     record(
       'G34-NOR-01',
