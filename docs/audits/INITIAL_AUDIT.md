@@ -12,7 +12,7 @@ régressions, intégration OpenCode. Détail architecture : voir `docs/architect
 |---|---|---|---|
 | C1 | ~~Gate 2.2 : 3 échecs~~ **RÉVISÉ le 2026-09-04** : la CI GitHub sur `e44914c` donne Gate 2.2 = 7/7 et **195/195 au vert**. Les 3 échecs venaient d'un `test-results.txt` obsolète (état de code antérieur). Cœur métier T/jalons **conforme dans le code actuel**. | `test-results.txt` vs log CI | — levé, voir C1bis |
 | C1bis (nouveau) | `test-results.txt` committé = artefact obsolète et trompeur (4/7 vs 195/195 CI). Risque de décision sur de fausses données. Recommandation : régénérer via `npm test` local ou sortir du versionnement (la CI fait foi). | `test-results.txt` | MED — confusion |
-| C2 | Manifest 151/151 à 100 % obsolète (antérieur aux suites 52/53/54 ; réel = 195). À régénérer, pas de faux vert bloquant puisque CI fait foi. | `docs/release/08_RELEASE_MANIFEST.json:11-16` | MED — traçabilité release |
+| C2 | ~~Manifest 151/151 obsolète~~ **RÉSOLU le 2026-09-04** : manifest régénéré (195/195, GATE 5.4, `strict:true`) + synthèse 02 (lignes 52/53/54) + guide 04 (195 tests). | `docs/release/08_RELEASE_MANIFEST.json`, `02_QUALIFICATION_SUMMARY.md`, `04_DEPLOYMENT_GUIDE.md` | — clos |
 | C3 | Pas de Git/CI, pas de source de vérité | `Test-Path .git` = False | HIGH — bloque multi-agents |
 | C4 | Labels UI "20/22" faux vs 193 tests réels ; viewer UI = 1/12 suites | `App.tsx:91-104`, `ScientificTestsViewer.tsx:2` | MED — confiance |
 | C5 | Typage permissif (`| string`, pas de `strict`) | `trial.ts:43-70`, `tsconfig.json` | MED — données |
