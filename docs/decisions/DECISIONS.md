@@ -1,5 +1,13 @@
 # QUV-Lab — DÉCISIONS (journal, ordre antichronologique)
 
+## 2026-09-04 — D-10 : étape 4 panneaux illustrative, création figée à 4 (statu quo)
+
+- **Constat** : l'étape 4 prévisualise `panelCount` panneaux (libellés P01…) mais
+  `TrialStoreService.createTrial` fige toujours 4 éprouvettes (T/1/2/3, Gate 2.1/2.2).
+  L'input `panelCount` (1-24, étape 3) est sans effet sur le modèle créé.
+- **Décidé** : ne rien changer (option écart documenté). Rendre N effectif casserait le
+  modèle normatif (ségrégation témoin, cinétiques, tests) ; figer à 4 reste possible plus tard.
+
 ## 2026-09-04 — D-09 : release v1.5.0 (lazy, bench-forms, ci-comment, audit-sync)
 
 - **Contenu** : lazy-loading 5 sections (entrée 7,8 kB), formulaires Tab06 en 5 éditeurs
