@@ -86,6 +86,21 @@ export function formatStageShort(stage: {
 }
 
 /**
+ * Libellé d'option/en-tête : 'T0 — MESURES…' tel quel, sinon 'C3 · 504 h — MESURES…'.
+ * Évite le doublon 'T0 · T0 — …' (le nom T0 porte déjà son repère).
+ */
+export function formatStageOption(stage: {
+  cycleIndex: number;
+  name?: string;
+} | null | undefined): string {
+  if (!stage) return '—';
+  const tag = cycleTag(stage);
+  const name = stage.name || '';
+  if (!name || name.startsWith(tag)) return name || tag;
+  return `${tag} · ${name}`;
+}
+
+/**
  * Titre d'affichage d'un jalon : préfixe T0/Cx + intitulé sans le préfixe d'heures redondant.
  * Ex : '504 h — MESURES EN COURS D'EXPOSITION' → 'C3 — MESURES EN COURS D'EXPOSITION'.
  */
