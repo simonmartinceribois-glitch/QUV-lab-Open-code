@@ -35,7 +35,7 @@ export const ScientificTestsViewer: React.FC = () => {
         <div>
           <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-            Suite de Validation Métrologique (PROMPT 5 — 22 Tests Obligatoires)
+            Suite de Validation Métrologique (PROMPT 5 — {testOutput.summary.total} Tests)
           </h3>
           <p className="text-xs text-slate-600 mt-1">
             Contrôle automatique du déterminisme, de la séparation des 5 niveaux, des alertes de géométrie et de l'immuabilité de RAW.
@@ -73,7 +73,7 @@ export const ScientificTestsViewer: React.FC = () => {
                 : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
             }`}
           >
-            {cat === 'ALL' ? 'Tous les tests (22)' : cat}
+            {cat === 'ALL' ? `Tous les tests (${testOutput.results.length})` : cat}
           </button>
         ))}
       </div>

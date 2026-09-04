@@ -10,8 +10,9 @@ régressions, intégration OpenCode. Détail architecture : voir `docs/architect
 
 | # | Constat | Preuve | Risque |
 |---|---|---|---|
-| C1 | Gate 2.2 : 3 échecs (A2 cinétique, A3 comparateur, B2 réactivation jalon) | `test-results.txt` (4/7) | HIGH — cœur métier (témoin T, jalons) |
-| C2 | Manifest 151/151 à 100 % contredit par C1 | `docs/release/08_RELEASE_MANIFEST.json:11-16` | HIGH — faux vert |
+| C1 | ~~Gate 2.2 : 3 échecs~~ **RÉVISÉ le 2026-09-04** : la CI GitHub sur `e44914c` donne Gate 2.2 = 7/7 et **195/195 au vert**. Les 3 échecs venaient d'un `test-results.txt` obsolète (état de code antérieur). Cœur métier T/jalons **conforme dans le code actuel**. | `test-results.txt` vs log CI | — levé, voir C1bis |
+| C1bis (nouveau) | `test-results.txt` committé = artefact obsolète et trompeur (4/7 vs 195/195 CI). Risque de décision sur de fausses données. Recommandation : régénérer via `npm test` local ou sortir du versionnement (la CI fait foi). | `test-results.txt` | MED — confusion |
+| C2 | Manifest 151/151 à 100 % obsolète (antérieur aux suites 52/53/54 ; réel = 195). À régénérer, pas de faux vert bloquant puisque CI fait foi. | `docs/release/08_RELEASE_MANIFEST.json:11-16` | MED — traçabilité release |
 | C3 | Pas de Git/CI, pas de source de vérité | `Test-Path .git` = False | HIGH — bloque multi-agents |
 | C4 | Labels UI "20/22" faux vs 193 tests réels ; viewer UI = 1/12 suites | `App.tsx:91-104`, `ScientificTestsViewer.tsx:2` | MED — confiance |
 | C5 | Typage permissif (`| string`, pas de `strict`) | `trial.ts:43-70`, `tsconfig.json` | MED — données |
@@ -30,8 +31,10 @@ store éphémère isolé, `docs/release/` (procédures, limitations assumées).
 
 ## 4. Architecture cible / écarts / plan
 
-Cible : repo GitHub + CI (tsc + 193 tests + build) + docs versionnées + workflow
-`docs/agents/WORKFLOW.md`. Écarts : §2 C1-C9. Plan : (1) corriger Gate 2.2 + régénérer résultats/manifest
-(HIGH, validation humaine) ; (2) `git init` + CI ; (3) durcir scripts/typage ; (4) transparence tests UI ;
-(5) élaguer dépendances ; (6) découper god files. Premier ticket conseillé : `fix/gate22-temoin-jalons`.
+Cible : repo GitHub + CI (tsc + 195 tests + build) + docs versionnées + workflow
+`docs/agents/WORKFLOW.md`. Écarts : §2 C1bis-C9. Plan révisé : (1) ~~corriger Gate 2.2~~ **annulé**
+(vert en CI) → remplacer par : traiter l'artefact `test-results.txt` + régénérer le manifest
+(LOW/MEDIUM) ; (2) repo + CI ✔ fait (`e44914c`, `29edcda`) ; (3) durcir scripts/typage ;
+(4) transparence tests UI ; (5) élaguer dépendances ; (6) découper god files.
+Prochain ticket conseillé : `fix/test-transparency` (labels UI + intitulés `run_tests.ts` + sort du `test-results.txt`).
 Aucune refonte engagée — cet audit + `docs/` sont l'étape 1.

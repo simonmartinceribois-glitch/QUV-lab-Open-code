@@ -88,7 +88,7 @@ export default function App() {
               }`}
             >
               <CheckSquare className="w-3.5 h-3.5 text-blue-400" />
-              Tests UX (20)
+              Tests UX (64)
             </button>
 
             <button
@@ -100,7 +100,7 @@ export default function App() {
               }`}
             >
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-              Tests Calculs (22)
+              Tests Calculs (44)
             </button>
 
             <button

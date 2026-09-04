@@ -6,3 +6,5 @@ coverage/
 *.log
 .env*
 !.env.example
+# Artefact généré obsolète (voir docs/audits/INITIAL_AUDIT.md C1bis) — la CI fait foi
+test-results.txt

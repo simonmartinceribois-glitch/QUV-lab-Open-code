@@ -76,13 +76,18 @@ Règles canoniques : `panelUtils.ts:95-112` (ADHESION = T0 + C12 uniquement, des
 - Dépendances `express`, `dotenv`, `@google/genai` présentes au `package.json` mais **0 usage dans `src/`**
   (résidu probable AI Studio — à élaguer après confirmation).
 
-## 6. Tests
+## 6. Tests (corrigé le 2026-09-04 après CI GitHub)
 
-- `run_tests.ts` : 12 suites maison via `tsx`, **193 tests** (44+7+30+12+6+20+9+12+12+18+8+15).
-- `test-results.txt` : suite générale 44/44 OK, puis **Gate 2.2 : 4/7 — 3 échecs (A2, A3, B2)** :
-  ségrégation témoin T dans `extractTemporalKinetics` / `MultiSystemComparator`, réactivation de jalon.
-- `docs/release/08_RELEASE_MANIFEST.json:11-16` affirme 151/151 à 100 % (GATE 5.2) → **contredit**,
-  manifest obsolète. UI `App.tsx:91-104` affiche "Tests UX (20)" / "Tests Calculs (22)" → obsolète vs 193 réels.
+- `run_tests.ts` : 12 suites maison via `tsx`, **195 tests** (44+7+30+12+6+23+9+12+11+18+8+15).
+  Écarts d'intitulés dans `run_tests.ts` : suite 6 annoncée "20 tests" (23 réels), suite 9 annoncée "12" (11 réels).
+- **CI GitHub sur `e44914c` : 195/195 AU VERT** (`npm run lint` OK, `npm test` OK).
+  Gate 2.2 = 7/7, dont A2/A3 (ségrégation T) et B2 (jalons) : **conformes dans le code actuel**.
+- `test-results.txt` (committé) : **artefact obsolète** — affiche Gate 2.2 à 4/7 (3 échecs A2/A3/B2)
+  issus d'un état de code antérieur, contredit par la CI. Ne pas s'y fier ; voir constat C1bis
+  (`docs/audits/INITIAL_AUDIT.md`) : régénérer ou sortir ce fichier du versionnement.
+- `docs/release/08_RELEASE_MANIFEST.json:11-16` affirme 151/151 (GATE 5.2) → obsolète aussi
+  (antérieur aux suites 52/53/54). À régénérer.
+- UI `App.tsx:91-104` affiche "Tests UX (20)" / "Tests Calculs (22)" → obsolète vs 195 réels.
 
 ## 7. Architecture cible (écarts)
 

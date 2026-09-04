@@ -74,7 +74,7 @@ suite5.results.forEach((r) => {
 });
 
 console.log('\n================================================================');
-console.log('6. EXÉCUTION DES TESTS SCIENTIFIQUES & MÉTROLOGIQUES GATE 3.3 (20 TESTS)');
+console.log('6. EXÉCUTION DES TESTS SCIENTIFIQUES & MÉTROLOGIQUES GATE 3.3 (23 TESTS)');
 console.log('================================================================');
 const suite6 = runGate33ScientificMetrologyTests();
 console.log(`Résultats Suite GATE 3.3 : ${suite6.summary.passed} / ${suite6.summary.total} réussis.`);
@@ -113,7 +113,7 @@ suite8.results.forEach((r) => {
 });
 
 console.log('\n================================================================');
-console.log('9. EXÉCUTION DE LA QUALIFICATION OPÉRATIONNELLE GATE 5.0 (12 TESTS)');
+console.log('9. EXÉCUTION DE LA QUALIFICATION OPÉRATIONNELLE GATE 5.0 (11 TESTS)');
 console.log('================================================================');
 const suite9 = runGate50OperationalQualificationTests();
 console.log(`Résultats Suite GATE 5.0 : ${suite9.passed} / ${suite9.total} réussis.`);
