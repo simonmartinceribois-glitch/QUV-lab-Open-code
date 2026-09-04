@@ -1,0 +1,35 @@
+# QUV-Lab — CI minimale (source de vérité GitHub)
+# Vérifie : typage (tsc) + 193 tests scientifiques (tsx) + build Vite.
+# NOTE : `npm install` (pas `npm ci`) car aucun lockfile dans le dépôt.
+# État connu au 2026-09-04 : Gate 2.2 A2/A3/B2 en échec → CI ROUGE attendue
+# jusqu'au ticket `fix/gate22-temoin-jalons`.
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop, 'feature/**', 'fix/**', 'refactor/**', 'audit/**']
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck (tsc --noEmit)
+        run: npm run lint
+
+      - name: Scientific test suites (193 tests)
+        run: npm test
+
+      - name: Production build
+        run: npm run build
