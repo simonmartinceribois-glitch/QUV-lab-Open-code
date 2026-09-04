@@ -446,10 +446,6 @@ export function CreateTrialWizardModal({
               onDimUnitChange={setDimUnit}
               substrateNature={substrateNature}
               onSubstrateNatureChange={setSubstrateNature}
-              materialType={materialType}
-              onMaterialTypeChange={setMaterialType}
-              woodGrainOrientation={woodGrainOrientation}
-              onWoodGrainOrientationChange={setWoodGrainOrientation}
               preparationNotes={preparationNotes}
               onPreparationNotesChange={setPreparationNotes}
               conditioningNotes={conditioningNotes}

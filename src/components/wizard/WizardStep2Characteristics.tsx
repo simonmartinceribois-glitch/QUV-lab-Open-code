@@ -4,7 +4,7 @@
  * Aucun état ici : valeurs + setters reçus en props depuis le parent.
  */
 
-import { Info, Sliders } from 'lucide-react';
+import { Sliders } from 'lucide-react';
 import type { DimUnitSetter, NumberSetter, TextSetter } from './wizardTypes';
 
 interface Props {
@@ -18,10 +18,6 @@ interface Props {
   onDimUnitChange: DimUnitSetter;
   substrateNature: string;
   onSubstrateNatureChange: TextSetter;
-  materialType: string;
-  onMaterialTypeChange: TextSetter;
-  woodGrainOrientation: string;
-  onWoodGrainOrientationChange: TextSetter;
   preparationNotes: string;
   onPreparationNotesChange: TextSetter;
   conditioningNotes: string;
@@ -41,10 +37,6 @@ export function WizardStep2Characteristics({
   onDimUnitChange,
   substrateNature,
   onSubstrateNatureChange,
-  materialType,
-  onMaterialTypeChange,
-  woodGrainOrientation,
-  onWoodGrainOrientationChange,
   preparationNotes,
   onPreparationNotesChange,
   conditioningNotes,
@@ -54,16 +46,6 @@ export function WizardStep2Characteristics({
 }: Props) {
   return (
     <div className="space-y-4">
-      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-700 flex items-start gap-3">
-        <Info className="w-5 h-5 text-slate-500 shrink-0 mt-0.5" />
-        <div>
-          <p className="font-semibold text-slate-900">Caractéristiques communes du substrat et de préparation</p>
-          <p>
-            Ces caractéristiques s'appliquent par défaut à l'ensemble des éprouvettes de l'essai selon les exigences de la norme NF EN 927-6 §5.
-          </p>
-        </div>
-      </div>
-
       {/* Dimensions */}
       <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3">
         <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
@@ -116,7 +98,7 @@ export function WizardStep2Characteristics({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-            Nature du support
+            Nature du support / matériau de référence
           </label>
           <input
             type="text"
@@ -127,31 +109,6 @@ export function WizardStep2Characteristics({
           />
         </div>
 
-        <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-            Type de matériau / Essence de référence
-          </label>
-          <input
-            type="text"
-            value={materialType}
-            onChange={(e) => onMaterialTypeChange(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            placeholder="Ex: Pin sylvestre (Pinus sylvestris)"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-            Orientation du fil du bois
-          </label>
-          <input
-            type="text"
-            value={woodGrainOrientation}
-            onChange={(e) => onWoodGrainOrientationChange(e.target.value)}
-            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            placeholder="Ex: Sur quartier (NF EN 927-6)"
-          />
-        </div>
       </div>
 
       {/* Préparation & Conditionnement */}
