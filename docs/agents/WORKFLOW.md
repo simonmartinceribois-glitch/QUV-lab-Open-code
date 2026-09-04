@@ -25,6 +25,9 @@ Jamais de dev direct sur `main`. Branches : `main / develop / feature/* / fix/* 
 9. **SECOND TEST** : rejouer l'intégralité + build.
 10. **PR** : objectif, modifications, fichiers principaux, résultats tests, limites éventuelles.
 11. **VALIDATION HUMAINE + MERGE** : obligatoire pour tout HIGH.
+12. **NETTOYAGE (après merge effectif uniquement)** : ne jamais supprimer une branche
+    (locale ou distante) avant que le merge soit visible sur GitHub (incident PR #2, 2026-09-04 :
+    branche supprimée avant merge → restaurée via reflog, aucune perte).
 
 ## 3. Niveaux de risque
 
