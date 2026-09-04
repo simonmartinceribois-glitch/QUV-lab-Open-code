@@ -20,6 +20,7 @@ import { calculateGloss } from './glossEngine';
 import { calculatePersoz } from './persozEngine';
 import { calculateAdhesion } from './adhesionEngine';
 import { calculateObservations } from './observationsEngine';
+import { getWitnessPanel } from './panelUtils';
 import { VisualObservationsRawData, AdhesionRawData } from '../types/scientific';
 
 export interface RecalculationResult {
@@ -47,7 +48,18 @@ export function recalculateAcquisition(
 
   let referenceRaw: unknown = null;
   if (!isCurrentInitial && initialStage) {
-    const refKey = `${initialStage.id}__${record.panelId}__${record.familyId}`;
+    // Règle ADHESION : la référence T0 est celle du panneau TÉMOIN du lot
+    // (T non exposé), jamais celle du panneau exposé lui-même.
+    // Les autres familles conservent la référence T0 du même panneau.
+    let referencePanelId = record.panelId;
+    if (record.familyId === 'ADHESION') {
+      const batch = trial.batches?.find((b) => b.id === record.batchId);
+      const witness = batch ? getWitnessPanel(batch.panels || []) : undefined;
+      if (witness) {
+        referencePanelId = witness.id;
+      }
+    }
+    const refKey = `${initialStage.id}__${referencePanelId}__${record.familyId}`;
     const refRecord = trial.acquisitions[refKey];
     if (refRecord) {
       referenceRaw = refRecord.raw;
