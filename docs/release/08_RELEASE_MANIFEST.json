@@ -5,18 +5,19 @@
   "scientificEngineVersion": "v1.2.0",
   "scientificRuleSetId": "rule-set-nf-en-927-6-2018",
   "standardReference": "NF EN 927-6:2018",
-  "buildDate": "2026-09-01T00:45:00Z",
+  "buildDate": "2026-09-04T00:00:00Z",
   "releaseStatus": "RELEASE QUALIFIED",
-  "qualificationGate": "GATE 5.2",
+  "qualificationGate": "GATE 5.4",
   "testSuiteSummary": {
-    "totalDiscovered": 151,
-    "totalExecuted": 151,
-    "passed": 151,
+    "totalDiscovered": 195,
+    "totalExecuted": 195,
+    "passed": 195,
     "failed": 0,
     "successRatePercent": 100.0
   },
   "typeScriptCheck": {
     "command": "tsc --noEmit",
+    "strictMode": true,
     "errors": 0,
     "status": "PASSED"
   },

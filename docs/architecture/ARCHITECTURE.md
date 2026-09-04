@@ -85,8 +85,8 @@ Règles canoniques : `panelUtils.ts:95-112` (ADHESION = T0 + C12 uniquement, des
 - `test-results.txt` (committé) : **artefact obsolète** — affiche Gate 2.2 à 4/7 (3 échecs A2/A3/B2)
   issus d'un état de code antérieur, contredit par la CI. Ne pas s'y fier ; voir constat C1bis
   (`docs/audits/INITIAL_AUDIT.md`) : régénérer ou sortir ce fichier du versionnement.
-- `docs/release/08_RELEASE_MANIFEST.json:11-16` affirme 151/151 (GATE 5.2) → obsolète aussi
-  (antérieur aux suites 52/53/54). À régénérer.
+- `docs/release/08_RELEASE_MANIFEST.json` : régénéré le 2026-09-04 (195/195, GATE 5.4, `strict:true`) ;
+  `02_QUALIFICATION_SUMMARY.md` et `04_DEPLOYMENT_GUIDE.md` alignés.
 - UI `App.tsx:91-104` affiche "Tests UX (20)" / "Tests Calculs (22)" → obsolète vs 195 réels.
 
 ## 7. Architecture cible (écarts)
