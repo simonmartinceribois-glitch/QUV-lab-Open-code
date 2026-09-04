@@ -234,7 +234,7 @@ export function ResultsGlobalView({
                       {cycleTag(stage)}
                     </span>
                     <span className="text-xs font-bold text-slate-800">
-                      {isInitial ? 'T0 Initiale' : isFinal ? '2016 h Finale' : 'Cycle intermédiaire'}
+                      {isInitial ? 'T0 Initiale' : isFinal ? 'Finale' : 'Cycle intermédiaire'}
                     </span>
                   </div>
 
