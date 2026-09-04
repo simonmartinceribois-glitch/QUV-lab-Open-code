@@ -1,5 +1,14 @@
 # QUV-Lab — DÉCISIONS (journal, ordre antichronologique)
 
+## 2026-09-04 — D-07 : release v1.4.0 (splits UI + jalons photo)
+
+- **Contenu** : split Tab06 (1332→921 l, bench/), split CreateTrialWizard (1558→557 l,
+  wizard/ 7 steps), split TabPhotographs (PR antérieure), photothèque limitée aux jalons
+  actifs, chunks < 500 kB. Aucune logique métier modifiée (déplacements + whitelist/gardes).
+- **Preuves** : `tsc --strict` 0 après chaque extraction, 195/195 constants, builds OK (PR #14-18).
+- **Version** : manifest `1.3.0` → `1.4.0` (refactors internes + 1 évolution d'affichage mineure :
+  jalons photo ; minor, pas major).
+
 ## 2026-09-04 — D-06 : release v1.3.0 (split-trialstore)
 
 - **Contenu** : découpage `trialStore.ts` 2432 l → 6 modules à façade, API 8 symboles inchangée,
