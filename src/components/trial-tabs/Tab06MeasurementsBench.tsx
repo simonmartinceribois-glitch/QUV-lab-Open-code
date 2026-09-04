@@ -32,6 +32,11 @@ import { isFamilyScheduledForStage, getActiveFamiliesForStage } from '../../scie
 import { BenchTopBar } from '../bench/BenchTopBar';
 import { BenchPanelGrid } from '../bench/BenchPanelGrid';
 import { BenchComputedPanel } from '../bench/BenchComputedPanel';
+import { BenchColorForm } from '../bench/BenchColorForm';
+import { BenchGlossForm } from '../bench/BenchGlossForm';
+import { BenchPersozForm } from '../bench/BenchPersozForm';
+import { BenchAdhesionForm } from '../bench/BenchAdhesionForm';
+import { BenchObservationsForm } from '../bench/BenchObservationsForm';
 import {
   PlayCircle,
   CheckCircle2,
@@ -436,414 +441,46 @@ export function Tab06MeasurementsBench({
             </div>
 
             {/* Formulaire spécifique à la famille */}
-            {/* --- COULEUR --- */}
             {selectedFamilyId === 'COLOR' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    Saisie des {colorCount} coordonnées colorimétriques (CIE L*a*b*)
-                  </span>
-                  <span className="text-xs text-slate-500 font-mono">D65 / 10°</span>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider">
-                        <th className="py-2 px-3 text-left">Point</th>
-                        <th className="py-2 px-3 text-center">L* (Clarté)</th>
-                        <th className="py-2 px-3 text-center">a* (Axe Vert-Rouge)</th>
-                        <th className="py-2 px-3 text-center">b* (Axe Bleu-Jaune)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 font-mono">
-                      {colorReadings.map((reading, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/50">
-                          <td className="py-2.5 px-3 font-bold text-slate-800">Pt #{idx + 1}</td>
-                          <td className="py-2.5 px-3 text-center">
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={reading.L}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setColorReadings(colorReadings.map((r, i) => (i === idx ? { ...r, L: val } : r)));
-                              }}
-                              placeholder="ex: 62.4"
-                              className="w-24 px-2 py-1.5 text-center font-bold bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                            />
-                          </td>
-                          <td className="py-2.5 px-3 text-center">
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={reading.a}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setColorReadings(colorReadings.map((r, i) => (i === idx ? { ...r, a: val } : r)));
-                              }}
-                              placeholder="ex: 8.2"
-                              className="w-24 px-2 py-1.5 text-center font-bold bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                            />
-                          </td>
-                          <td className="py-2.5 px-3 text-center">
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={reading.b}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setColorReadings(colorReadings.map((r, i) => (i === idx ? { ...r, b: val } : r)));
-                              }}
-                              placeholder="ex: 24.1"
-                              className="w-24 px-2 py-1.5 text-center font-bold bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <BenchColorForm
+                colorCount={colorCount}
+                colorReadings={colorReadings}
+                onColorReadingsChange={setColorReadings}
+              />
             )}
 
-            {/* --- BRILLANCE --- */}
             {selectedFamilyId === 'GLOSS' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    Saisie Brillance 60° par Séries & Orientations
-                  </span>
-                  <span className="text-xs text-slate-500 font-mono">NF EN 927-6 Clause 6.3.3</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {glossSeriesData.map((series, sIdx) => (
-                    <div key={sIdx} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-800 font-mono">
-                          Série #{sIdx + 1} : {series.orientation}
-                        </span>
-                      </div>
-
-                      <div className="space-y-2">
-                        {series.values.map((val, rIdx) => (
-                          <div key={rIdx} className="flex items-center justify-between text-xs">
-                            <span className="text-slate-600 font-mono">Relevé #{rIdx + 1} :</span>
-                            <div className="flex items-center gap-1.5">
-                              <input
-                                type="number"
-                                step="0.1"
-                                value={val}
-                                onChange={(e) => {
-                                  const newVal = e.target.value;
-                                  setGlossSeriesData(
-                                    glossSeriesData.map((s, i) =>
-                                      i === sIdx
-                                        ? { ...s, values: s.values.map((v, j) => (j === rIdx ? newVal : v)) }
-                                        : s
-                                    )
-                                  );
-                                }}
-                                placeholder="ex: 45.0"
-                                className="w-24 px-2 py-1.5 text-center font-bold bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                              />
-                              <span className="text-[11px] font-bold text-slate-400">GU</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <BenchGlossForm
+                glossSeriesData={glossSeriesData}
+                onGlossSeriesChange={setGlossSeriesData}
+              />
             )}
 
-            {/* --- PERSOZ --- */}
             {selectedFamilyId === 'PERSOZ' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-purple-950 uppercase tracking-wider">
-                    Saisie du Temps d'Amortissement Persoz (Secondes)
-                  </span>
-                  <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-purple-100 text-purple-800">
-                    Recommandation Labo
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {persozValues.map((val, idx) => (
-                    <div key={idx} className="p-3 bg-purple-50/50 border border-purple-200 rounded-xl space-y-1.5">
-                      <span className="text-xs font-bold text-purple-900">Répétition #{idx + 1}</span>
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="number"
-                          step="0.1"
-                          value={val}
-                          onChange={(e) => {
-                            const newVal = e.target.value;
-                            setPersozValues(persozValues.map((v, i) => (i === idx ? newVal : v)));
-                          }}
-                          placeholder="ex: 85.0"
-                          className="w-full px-2 py-1.5 text-center font-bold bg-white border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                        />
-                        <span className="text-xs font-bold text-purple-700">s</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <BenchPersozForm
+                persozValues={persozValues}
+                onPersozValuesChange={setPersozValues}
+              />
             )}
 
-            {/* --- ADHÉRENCE — ESSAI AU QUADRILLAGE (NF EN ISO 2409:2020) --- */}
-            {selectedFamilyId === 'ADHESION' && (() => {
-              const thickness = currentBatch?.dryFilmThicknessMicrons ?? undefined;
-              const spacingResult = getApplicableGridSpacing(thickness);
-              const delayResult = calculateDelayCompliance(currentBatch?.applicationDate, new Date().toISOString(), 168);
-              const isWitness = currentPanel?.role === 'WITNESS' || currentPanel?.index === 1;
+            {selectedFamilyId === 'ADHESION' && (
+              <BenchAdhesionForm
+                currentBatch={currentBatch}
+                currentPanel={currentPanel}
+                currentStage={currentStage}
+                isInitialStage={isInitialStage}
+                adhesionClass={adhesionClass}
+                onAdhesionClassChange={setAdhesionClass}
+                adhesionObservation={adhesionObservation}
+                onAdhesionObservationChange={setAdhesionObservation}
+              />
+            )}
 
-              return (
-                <div className="space-y-4">
-                  {/* 1. Cadre de préparation et traçabilité ISO 2409 (Section 7) */}
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs space-y-3">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                      <span className="font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                        <Sliders className="w-4 h-4 text-indigo-600" />
-                        Paramètres Préparatoires du Quadrillage — NF EN ISO 2409:2020
-                      </span>
-                      <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold rounded-md">
-                        Évaluation qualitative de séparation
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                      <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
-                        <div className="text-slate-500 text-[11px]">Lot & Subjectile :</div>
-                        <div className="font-bold text-slate-900 mt-0.5">
-                          {currentBatch?.reference} ({currentBatch?.woodSpecies || 'Bois'})
-                        </div>
-                      </div>
-                      <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
-                        <div className="text-slate-500 text-[11px]">Épaisseur sèche (ISO 2808) :</div>
-                        <div className={`font-bold mt-0.5 ${thickness !== undefined && thickness <= 250 ? 'text-indigo-900' : 'text-rose-600'}`}>
-                          {thickness !== undefined ? `${thickness} µm` : '⚠️ Non renseignée'}
-                        </div>
-                      </div>
-                      <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
-                        <div className="text-slate-500 text-[11px]">Espacement requis du peigne :</div>
-                        <div className={`font-bold mt-0.5 ${thickness !== undefined && thickness <= 250 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                          {thickness !== undefined && thickness <= 250 ? `${spacingResult.gridSpacingMm} mm (6×6 incisions)` : '🔴 Bloqué'}
-                        </div>
-                      </div>
-                      <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
-                        <div className="text-slate-500 text-[11px]">Conditionnement avant essai :</div>
-                        <div className="font-bold text-slate-800 mt-0.5">23 ± 2 °C / 50 ± 5 % HR (≥ 16 h)</div>
-                      </div>
-                    </div>
-
-                    {/* Traçabilité du délai d'application */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 bg-white border border-slate-200 rounded-lg gap-2">
-                      <div>
-                        <span className="text-slate-500 font-medium">Application finition : </span>
-                        <span className="font-mono font-bold text-slate-800">{currentBatch?.applicationDate || 'Non renseignée'}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 font-medium">Délai écoulé : </span>
-                        {delayResult.elapsedTimeHours !== null ? (
-                          <span className={`font-bold ${delayResult.status === 'CONFORME' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                            {Math.floor(delayResult.elapsedTimeHours / 24)} j {Math.round(delayResult.elapsedTimeHours % 24)} h ({delayResult.status === 'CONFORME' ? '✅ Conforme ≥ 168 h' : '⚠️ < 168 h'})
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 italic">Date d'application manquante</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Ségrégation T0 / Exposition */}
-                    {isInitialStage ? (
-                      <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-blue-900 flex items-start gap-2">
-                        <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                        <div>
-                          <strong>Étape T0 (Initial) :</strong> Mesure de référence réalisée sur l'éprouvette Témoin <strong>{currentBatch?.reference}-T</strong>. Cette donnée brute initiale est sanctuarisée et ne sera jamais écrasée par les mesures d'exposition.
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 flex items-start gap-2">
-                        <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                        <div>
-                          <strong>Étape d'Exposition ({currentStage.name}) :</strong> Évaluation de la résistance à la séparation après vieillissement accéléré sur éprouvette exposée <strong>{currentBatch?.reference}-{currentPanel?.label}</strong>.
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 2. Garde-fous normatifs */}
-                  {thickness === undefined && (
-                    <div className="p-4 bg-rose-50 border border-rose-300 rounded-xl text-xs text-rose-900 space-y-2">
-                      <div className="font-bold flex items-center gap-2 text-sm text-rose-800">
-                        <AlertTriangle className="w-5 h-5 text-rose-600" />
-                        Donnée manquante — Épaisseur sèche du revêtement requise
-                      </div>
-                      <p>
-                        Conformément à la NF EN ISO 2409:2020, l'espacement du peigne de quadrillage dépend strictement de l'épaisseur du film sec (≤ 60 µm : 1 mm sur subjectile dur ou 2 mm sur bois ; 61–120 µm : 2 mm ; 121–250 µm : 3 mm).
-                      </p>
-                      <p className="font-bold">
-                        La saisie du résultat d'adhérence est bloquée tant que l'épaisseur sèche du lot n'est pas renseignée dans l'onglet Lots & Éprouvettes.
-                      </p>
-                    </div>
-                  )}
-
-                  {thickness !== undefined && thickness > 250 && (
-                    <div className="p-4 bg-rose-50 border border-rose-300 rounded-xl text-xs text-rose-900 space-y-2">
-                      <div className="font-bold flex items-center gap-2 text-sm text-rose-800">
-                        <AlertTriangle className="w-5 h-5 text-rose-600" />
-                        🔴 Méthode non appropriée (Épaisseur {thickness} µm &gt; 250 µm)
-                      </div>
-                      <p>
-                        La NF EN ISO 2409:2020 spécifie formellement que l'essai de quadrillage ne s'applique pas aux revêtements dont l'épaisseur totale est supérieure à 250 µm.
-                      </p>
-                      <p className="font-bold">
-                        La saisie est bloquée conformément au domaine d'application de la norme.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* 3. Sélecteur interactif des Classes de Quadrillage ISO 2409 */}
-                  {thickness !== undefined && thickness <= 250 && (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                          Classification visuelle du quadrillage (ISO 2409:2020)
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          Espacement retenu : <strong>{spacingResult.gridSpacingMm} mm</strong>
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                        {Object.values(ISO2409_CLASSES).map((cls) => {
-                          const isSelected = adhesionClass === cls.rating;
-                          return (
-                            <button
-                              key={cls.rating}
-                              type="button"
-                              onClick={() => setAdhesionClass(cls.rating)}
-                              className={`p-3 rounded-xl border text-left transition-all ${
-                                isSelected
-                                    ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-400 shadow-xs'
-                                    : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between mb-1.5">
-                                <span className={`px-2.5 py-0.5 rounded-md text-xs font-bold ${
-                                  cls.rating === 0
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : cls.rating === 1
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : cls.rating === 2
-                                    ? 'bg-amber-100 text-amber-800'
-                                    : cls.rating === 3
-                                    ? 'bg-orange-100 text-orange-800'
-                                    : 'bg-rose-100 text-rose-800'
-                                }`}>
-                                  Classe {cls.rating}
-                                </span>
-                                <span className="text-[11px] font-mono text-slate-500">
-                                  Détachement : {cls.affectedAreaPercent}
-                                </span>
-                              </div>
-                              <div className="text-xs font-semibold text-slate-800 mb-1">{cls.shortLabel}</div>
-                              <p className="text-[11px] text-slate-600 line-clamp-3 leading-relaxed">{cls.description}</p>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {/* Observations de l'opérateur */}
-                      <div className="pt-2">
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          Observations spécifiques sur le quadrillage (facultatif) :
-                        </label>
-                        <input
-                          type="text"
-                          value={adhesionObservation}
-                          onChange={(e) => setAdhesionObservation(e.target.value)}
-                          placeholder="Ex : Rupture cohésive dans le bois, détachement net sur fil du bois, petits éclats aux croisillons..."
-                          className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
-            {/* --- OBSERVATIONS --- */}
             {selectedFamilyId === 'OBSERVATIONS' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    Cotations des Défauts d'Aspect (ISO 4628 / ISO 2409)
-                  </span>
-                  <span className="text-xs text-slate-500 font-mono">0 = Intact, 5 = Altération Sévère</span>
-                </div>
-
-                <div className="space-y-2.5">
-                  {observations.map((obs, idx) => (
-                    <div
-                      key={obs.category}
-                      className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                    >
-                      <div className="sm:w-1/3">
-                        <span className="font-bold text-slate-900">{obs.categoryLabel}</span>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <label className="text-slate-500 font-semibold">Note :</label>
-                        <select
-                          value={obs.rating}
-                          onChange={(e) => {
-                            const rVal = parseInt(e.target.value, 10);
-                            setObservations(
-                              observations.map((o, i) =>
-                                i === idx
-                                  ? {
-                                      ...o,
-                                      rating: rVal,
-                                      status: rVal === 0 ? 'CONFORME' : 'OBSERVE',
-                                      comment: rVal === 0 ? 'Aucun' : `Défaut note ${rVal}`
-                                    }
-                                  : o
-                              )
-                            );
-                          }}
-                          className="px-2 py-1 font-bold bg-white border border-slate-300 rounded-lg"
-                        >
-                          <option value={0}>0 — Aucun défaut</option>
-                          <option value={1}>1 — Très léger</option>
-                          <option value={2}>2 — Modéré</option>
-                          <option value={3}>3 — Prononcé (Alerte)</option>
-                          <option value={4}>4 — Très prononcé</option>
-                          <option value={5}>5 — Rupture / Destruction</option>
-                        </select>
-                      </div>
-
-                      <div className="flex-1">
-                        <input
-                          type="text"
-                          value={obs.comment || ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setObservations(observations.map((o, i) => (i === idx ? { ...o, comment: val } : o)));
-                          }}
-                          placeholder="Remarques éventuelles..."
-                          className="w-full px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs"
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <BenchObservationsForm
+                observations={observations}
+                onObservationsChange={setObservations}
+              />
             )}
 
             {/* Actions de validation du panneau */}
