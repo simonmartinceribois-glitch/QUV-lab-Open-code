@@ -61,10 +61,30 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
 
   const isLocked = trial.configurationStatus === 'LOCKED';
 
+  // L'épaisseur ne sert normativement qu'au quadrillage (ISO 2409) : sans adhérence
+  // mesurée pour ce lot, la modifier après verrouillage est sans effet sur les résultats
+  // (fix/batch-thickness). Sinon, saisie bloquée avec message explicite.
+  const hasBatchAdhesionData = (batchId: string): boolean => {
+    return Object.values(trial.acquisitions || {}).some(
+      (a) => a.batchId === batchId && a.familyId === 'ADHESION' && a.raw !== null && a.raw !== undefined
+    );
+  };
+
   const handleUpdateBatchThickness = (batchId: string, thickness: number | undefined) => {
     const batch = trial.batches.find((b) => b.id === batchId);
     if (!batch) return;
+    const previous = batch.dryFilmThicknessMicrons ?? null;
     batch.dryFilmThicknessMicrons = thickness;
+    trial.auditTrail.push({
+      id: generateUUID(),
+      trialId: trial.id,
+      timestamp: new Date().toISOString(),
+      operatorId: operatorId || 'OPERATOR',
+      action: 'UPDATE_BATCH_THICKNESS',
+      entityType: 'BATCH',
+      entityId: batchId,
+      details: { previousMicrons: previous, newMicrons: thickness ?? null, lockedTrial: isLocked }
+    });
     globalTrialStore.saveTrial(trial);
     onTrialUpdated();
   };
@@ -379,9 +399,9 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
                       <Sliders className="w-3.5 h-3.5 text-indigo-600" />
                       Épaisseur sèche du film (µm) :
                     </span>
-                    {isLocked ? (
-                      <span className={`font-mono font-bold ${batch.dryFilmThicknessMicrons ? 'text-indigo-900' : 'text-slate-400 italic'}`}>
-                        {batch.dryFilmThicknessMicrons ? `${batch.dryFilmThicknessMicrons} µm` : 'Non renseignée'}
+                    {isLocked && hasBatchAdhesionData(batch.id) ? (
+                      <span className="font-mono font-bold text-slate-500" title="Verrouillée : une adhérence a déjà été mesurée pour ce lot">
+                        {batch.dryFilmThicknessMicrons ? `${batch.dryFilmThicknessMicrons} µm 🔒` : 'Non renseignée 🔒'}
                       </span>
                     ) : (
                       <div className="flex items-center gap-1.5">
@@ -400,6 +420,14 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
                           className="w-20 px-2 py-0.5 bg-white border border-indigo-300 rounded-lg text-xs font-mono font-bold text-indigo-900 text-center focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                         />
                         <span className="font-mono text-indigo-800 font-semibold text-[11px]">µm</span>
+                        {isLocked && !hasBatchAdhesionData(batch.id) && (
+                          <span
+                            className="text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded font-medium"
+                            title="Essai verrouillé mais aucune adhérence mesurée pour ce lot : saisie autorisée et tracée en audit"
+                          >
+                            Saisie tardive
+                          </span>
+                        )}
                         {batch.dryFilmThicknessMicrons ? (
                           <span
                             className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${
