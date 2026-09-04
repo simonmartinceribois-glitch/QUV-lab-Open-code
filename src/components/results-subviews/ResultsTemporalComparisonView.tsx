@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import { Trial, ExposureStage } from '../../types/trial';
 import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
+import { getActiveStages } from '../../scientific/panelUtils';
 import {
   GitCompare,
   Layers,
@@ -40,8 +41,17 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
   const [showCalculationDetailsModal, setShowCalculationDetailsModal] = useState<boolean>(false);
   const [calculationModalData, setCalculationModalData] = useState<any>(null);
 
-  const refStage = trial.stages.find((s) => s.id === selectedReferenceStageId) || stageT0;
-  const targetStage = trial.stages.find((s) => s.id === selectedTargetStageId) || trial.stages[1];
+  // Plan de mesurage : sélecteurs limités aux jalons actifs (fix/results-active-stages).
+  // T0 est toujours actif (jalo obligatoire) ; repli d'affichage si la sélection est hors plan.
+  const planStages = getActiveStages(trial.stages);
+  const refStage = planStages.find((s) => s.id === selectedReferenceStageId) || stageT0;
+  const targetStage = planStages.find((s) => s.id === selectedTargetStageId) || planStages[1] || stageT0;
+  const refSelectValue = planStages.some((s) => s.id === selectedReferenceStageId)
+    ? selectedReferenceStageId
+    : stageT0?.id || '';
+  const targetSelectValue = planStages.some((s) => s.id === selectedTargetStageId)
+    ? selectedTargetStageId
+    : (planStages[1] || stageT0)?.id || '';
 
   const filteredBatches = selectedBatchId === 'ALL'
     ? trial.batches
@@ -100,11 +110,11 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
               1. Étape de Référence (T0 obligatoire)
             </label>
             <select
-              value={selectedReferenceStageId}
+              value={refSelectValue}
               onChange={(e) => setSelectedReferenceStageId(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
             >
-              {trial.stages.map((st) => (
+              {planStages.map((st) => (
                 <option key={st.id} value={st.id}>
                   {st.name} ({st.scheduledExposureHours} h)
                 </option>
@@ -118,12 +128,12 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
               2. Étape Comparée (En cours / Finale 2016 h)
             </label>
             <select
-              value={selectedTargetStageId}
+              value={targetSelectValue}
               onChange={(e) => setSelectedTargetStageId(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
             >
-              {trial.stages
-                .filter((st) => st.id !== selectedReferenceStageId)
+              {planStages
+                .filter((st) => st.id !== refSelectValue)
                 .map((st) => (
                   <option key={st.id} value={st.id}>
                     {st.name} ({st.scheduledExposureHours} h) — {st.status}

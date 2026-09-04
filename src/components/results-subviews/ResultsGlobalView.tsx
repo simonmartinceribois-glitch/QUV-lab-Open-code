@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import { Trial, ExposureStage } from '../../types/trial';
 import { ScientificRuleSet } from '../../types/scientific';
-import { getActiveFamiliesForStage, isFamilyScheduledForStage } from '../../scientific/panelUtils';
+import { getActiveFamiliesForStage, isFamilyScheduledForStage, getActiveStages } from '../../scientific/panelUtils';
 import {
   Layers,
   Clock,
@@ -40,6 +40,9 @@ export function ResultsGlobalView({
   const totalPanels = allPanels.length;
   const activePanels = allPanels.filter((p) => p.status === 'ACTIVE').length;
   const excludedPanels = allPanels.filter((p) => p.status === 'EXCLUDED').length;
+
+  // Plan de mesurage : chronologie et tableau limités aux jalons actifs (fix/results-active-stages).
+  const planStages = getActiveStages(trial.stages);
 
   const totalStages = trial.stages.length;
   const validatedStages = trial.stages.filter((s) => s.status === 'VALIDATED').length;
@@ -180,7 +183,7 @@ export function ResultsGlobalView({
           <div>
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <Clock className="w-4 h-4 text-blue-600" />
-              Chronologie des 13 Étapes d'Exposition (T0 → 2016 h)
+              Chronologie des {planStages.length} Étapes d'Exposition (T0 → 2016 h)
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
               Terminologie normalisée v6.2 • Mesures initiales, en cours et finales
@@ -189,7 +192,7 @@ export function ResultsGlobalView({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {trial.stages.map((stage) => {
+          {planStages.map((stage) => {
             const isInitial = stage.stageType === 'INITIAL_PRE_EXPOSURE';
             const isFinal = stage.stageType === 'FINAL_POST_EXPOSURE';
             const isValidated = stage.status === 'VALIDATED';
@@ -317,7 +320,7 @@ export function ResultsGlobalView({
             <thead>
               <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-700">
                 <th className="p-2.5 font-bold sticky left-0 bg-slate-100 z-10 min-w-[140px]">Lot / Éprouvette</th>
-                {trial.stages.map((st) => (
+                {planStages.map((st) => (
                   <th key={st.id} className="p-2 text-center font-bold whitespace-nowrap min-w-[65px]">
                     <div className="text-[11px] font-mono">{st.scheduledExposureHours} h</div>
                     <div className="text-[9px] text-slate-500 font-normal">
@@ -331,7 +334,7 @@ export function ResultsGlobalView({
               {trial.batches.map((batch) => (
                 <React.Fragment key={batch.id}>
                   <tr className="bg-slate-50/70 text-slate-800 font-bold text-[11px]">
-                    <td colSpan={trial.stages.length + 1} className="p-2 pl-3">
+                    <td colSpan={planStages.length + 1} className="p-2 pl-3">
                       {batch.reference} — {batch.coatingSystem || 'Système non renseigné'} ({batch.woodSpecies || 'Bois'})
                     </td>
                   </tr>
@@ -352,7 +355,7 @@ export function ResultsGlobalView({
                         </button>
                       </td>
 
-                      {trial.stages.map((stage) => {
+                      {planStages.map((stage) => {
                         const baseFamilies = filterFamily === 'ALL'
                           ? trial.config.activeFamilies
                           : trial.config.activeFamilies.includes(filterFamily as any)

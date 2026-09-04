@@ -57,7 +57,7 @@ export function TrialDetailView({
     { id: '03', label: '03 Protocole', icon: Sliders },
     { id: '04', label: '04 Calendrier', icon: Calendar },
     { id: '05', label: '05 Étapes', icon: Clock },
-    { id: '06', label: '06 Paillasse / Saisie', icon: PlayCircle },
+    { id: '06', label: '06 Mesures', icon: PlayCircle },
     { id: 'PHOTO', label: 'Photothèque', icon: Camera },
     { id: '07', label: '07 Contrôle Qualité', icon: ShieldCheck },
     { id: '08', label: '08 Résultats & Fiches', icon: BarChart3 },
