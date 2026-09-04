@@ -167,10 +167,6 @@ export function PhotoTimelineView({
                       {activePanel.label === 'T' ? 'Témoin (Chambre Obscure)' : 'Exposé QUV'}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {activeBatch.woodSpecies || 'Pin sylvestre'} • {activeBatch.productReference || 'Lasure / Finition'} • Épaisseur film sec :{' '}
-                    <strong>{activeBatch.dryFilmThicknessMicrons ? `${activeBatch.dryFilmThicknessMicrons} µm` : 'Non renseignée'}</strong>
-                  </p>
                 </div>
 
                 <div className="flex items-center gap-2">
