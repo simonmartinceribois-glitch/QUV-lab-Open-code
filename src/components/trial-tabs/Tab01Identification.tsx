@@ -7,7 +7,6 @@ import React, { useState } from 'react';
 import { Trial, CommonCharacteristics } from '../../types/trial';
 import { globalTrialStore } from '../../services/trialStore';
 import {
-  Info,
   Lock,
   CheckCircle2,
   Save,
@@ -39,9 +38,6 @@ export function Tab01Identification({ trial, onTrialUpdated }: Props) {
   const [thicknessMm, setThicknessMm] = useState<number>(trial.commonCharacteristics?.dimensions?.thicknessMm || 15);
   const [dimUnit, setDimUnit] = useState<'mm' | 'cm'>(trial.commonCharacteristics?.dimensions?.unit || 'mm');
   const [substrateNature, setSubstrateNature] = useState<string>(trial.commonCharacteristics?.substrateNature || 'Bois massif');
-  const [materialType, setMaterialType] = useState<string>(trial.commonCharacteristics?.materialType || 'Pin sylvestre (NF EN 927-6)');
-  const [preparationNotes, setPreparationNotes] = useState<string>(trial.commonCharacteristics?.preparationNotes || 'Ponçage P120, dépoussiérage');
-  const [conditioningNotes, setConditioningNotes] = useState<string>(trial.commonCharacteristics?.conditioningNotes || 'Conditionnement 7 jours à 20±2°C / 65±5% HR');
   const [generalProtocolNotes, setGeneralProtocolNotes] = useState<string>(trial.commonCharacteristics?.generalProtocolNotes || '');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -64,9 +60,10 @@ export function Tab01Identification({ trial, onTrialUpdated }: Props) {
         unit: dimUnit
       },
       substrateNature: substrateNature.trim(),
-      materialType: materialType.trim(),
-      preparationNotes: preparationNotes.trim(),
-      conditioningNotes: conditioningNotes.trim(),
+      // Champs retirés de l'UI (demande utilisateur) : valeurs stockées préservées telles quelles.
+      materialType: trial.commonCharacteristics?.materialType || '',
+      preparationNotes: trial.commonCharacteristics?.preparationNotes || '',
+      conditioningNotes: trial.commonCharacteristics?.conditioningNotes || '',
       generalProtocolNotes: generalProtocolNotes.trim()
     };
 
@@ -112,17 +109,6 @@ export function Tab01Identification({ trial, onTrialUpdated }: Props) {
         </div>
       </div>
 
-      {/* Normative/Context Disclaimer */}
-      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-start gap-3 text-xs text-slate-600">
-        <Info className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" />
-        <div>
-          <p className="font-semibold text-slate-800">Fiche d'identification et caractéristiques communes</p>
-          <p>
-            Ces informations garantissent la traçabilité complète des éprouvettes et du protocole (NF EN 927-6 §5). Elles sont séparées des données de calculs scientifiques.
-          </p>
-        </div>
-      </div>
-
       {/* Form Grid 1 : Métadonnées */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-5">
         <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-2">
@@ -132,7 +118,7 @@ export function Tab01Identification({ trial, onTrialUpdated }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Référence Essai (Immuable)
+              Référence Essai
             </label>
             <input
               type="text"
@@ -184,7 +170,7 @@ export function Tab01Identification({ trial, onTrialUpdated }: Props) {
 
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Client / Demandeur / Projet
+              Client
             </label>
             <input
               type="text"
@@ -295,46 +281,6 @@ export function Tab01Identification({ trial, onTrialUpdated }: Props) {
             />
           </div>
 
-          <div>
-            <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Essence par défaut (Précisée par lot dans l'onglet 02)
-            </label>
-            <input
-              type="text"
-              value={materialType}
-              onChange={(e) => setMaterialType(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white"
-              placeholder="Ex: Pin sylvestre standardisé (NF EN 927-6)"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-          <div>
-            <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Informations de préparation
-            </label>
-            <textarea
-              rows={2}
-              value={preparationNotes}
-              onChange={(e) => setPreparationNotes(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white"
-              placeholder="Ponçage, dépoussiérage..."
-            />
-          </div>
-
-          <div>
-            <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Informations de conditionnement
-            </label>
-            <textarea
-              rows={2}
-              value={conditioningNotes}
-              onChange={(e) => setConditioningNotes(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white"
-              placeholder="Stabilisation..."
-            />
-          </div>
         </div>
 
         {/* Bouton d'enregistrement */}

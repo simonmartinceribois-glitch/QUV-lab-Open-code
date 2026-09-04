@@ -104,10 +104,10 @@ export function CreateTrialWizardModal({
   const [thicknessMm, setThicknessMm] = useState<number>(15);
   const [dimUnit, setDimUnit] = useState<'mm' | 'cm'>('mm');
   const [substrateNature, setSubstrateNature] = useState<string>('Bois massif');
-  const [materialType, setMaterialType] = useState<string>('Pin sylvestre standardisé (NF EN 927-6)');
+  const [materialType, setMaterialType] = useState<string>('');
   const [woodGrainOrientation, setWoodGrainOrientation] = useState<string>('Sur quartier (NF EN 927-6 §5)');
-  const [preparationNotes, setPreparationNotes] = useState<string>('Ponçage mécanique P120, dépoussiérage soigné');
-  const [conditioningNotes, setConditioningNotes] = useState<string>('Conditionnement 7 jours à 20±2°C et 65±5% HR jusqu\'à masse constante');
+  const [preparationNotes, setPreparationNotes] = useState<string>('');
+  const [conditioningNotes, setConditioningNotes] = useState<string>('');
   const [commonProtocolNotes, setCommonProtocolNotes] = useState<string>('Éprouvettes usinées sans nœud ni défaut selon prescriptions de la norme.');
 
   // ==========================================
