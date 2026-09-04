@@ -7,7 +7,7 @@
 import type { ChangeEvent, Dispatch, SetStateAction } from 'react';
 import { useMemo } from 'react';
 import { Camera, X, AlertCircle, AlertTriangle } from 'lucide-react';
-import { getActiveStages } from '../../scientific/panelUtils';
+import { getActiveStages, cycleTag } from '../../scientific/panelUtils';
 import type { MediaReference, PanelDefinition, Trial } from '../../types/trial';
 
 interface Props {
@@ -137,7 +137,7 @@ export function PhotoAddModal({
             >
               {activeStages.map((st) => (
                 <option key={st.id} value={st.id}>
-                  {st.name} ({st.scheduledExposureHours}h)
+                  {cycleTag(st)} · {st.name}
                 </option>
               ))}
             </select>

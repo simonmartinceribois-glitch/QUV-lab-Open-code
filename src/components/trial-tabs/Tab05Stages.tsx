@@ -10,7 +10,7 @@ import React, { useState } from 'react';
 import { Trial, ExposureStage } from '../../types/trial';
 import { MeasurementFamilyId } from '../../types/scientific';
 import { globalTrialStore } from '../../services/trialStore';
-import { isMandatoryStage, getActiveFamiliesForStage } from '../../scientific/panelUtils';
+import { isMandatoryStage, getActiveFamiliesForStage, cycleTag, formatStageShort } from '../../scientific/panelUtils';
 import {
   Calendar,
   Clock,
@@ -221,7 +221,7 @@ export function Tab05Stages({
               {isVal && <CheckCircle2 className="w-3.5 h-3.5" />}
               {isInProg && !isVal && <PlayCircle className="w-3.5 h-3.5" />}
               {isStInactive && <Ban className="w-3.5 h-3.5 text-slate-400" />}
-              {stage.cycleIndex === 0 ? 'T0 (0 h)' : `${stage.scheduledExposureHours} h`}
+              {formatStageShort(stage)}
               {isStMandatory && <span className="text-[9px] px-1 bg-amber-200 text-amber-900 rounded">REQ</span>}
               {isStInactive && <span className="text-[9px] px-1 bg-slate-200 text-slate-500 rounded font-normal">EXCLU</span>}
             </button>
@@ -489,7 +489,7 @@ export function Tab05Stages({
 
             <div className="space-y-3 text-xs text-slate-600">
               <p>
-                Vous allez désactiver l'étape <strong>{currentStage.name} ({currentStage.scheduledExposureHours} h)</strong>.
+                Vous allez désactiver l'étape <strong>{cycleTag(currentStage)} — {currentStage.name}</strong>.
               </p>
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900">
                 <strong>Garantie de non-destruction :</strong> Les données déjà saisies sur ce jalon ne seront pas effacées. L'étape sera masquée des campagnes de mesures et des calculs de tendances jusqu'à une éventuelle réactivation.

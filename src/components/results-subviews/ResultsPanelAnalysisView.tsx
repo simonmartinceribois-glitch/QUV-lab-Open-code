@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { Trial, PanelDefinition, BatchDefinition } from '../../types/trial';
 import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
-import { isFamilyScheduledForStage } from '../../scientific/panelUtils';
+import { isFamilyScheduledForStage, cycleTag, formatStageShort } from '../../scientific/panelUtils';
 import {
   Square,
   Sparkles,
@@ -258,7 +258,7 @@ export function ResultsPanelAnalysisView({
                     return (
                       <tr key={stage.id} className="text-slate-400">
                         <td className="p-2.5 font-bold font-mono text-slate-600">
-                          {stage.scheduledExposureHours} h ({stage.name})
+                          {cycleTag(stage)} — {stage.name}
                         </td>
                         <td className="p-2.5">—</td>
                         <td colSpan={8} className="p-2.5 text-slate-400 italic">
@@ -272,7 +272,7 @@ export function ResultsPanelAnalysisView({
                     <tr key={stage.id} className="hover:bg-slate-50">
                       <td className="p-2.5 font-bold text-slate-900">
                         <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[10px] text-slate-700 mr-2">
-                          {stage.scheduledExposureHours} h
+                          {formatStageShort(stage)}
                         </span>
                         {stage.cycleIndex === 0 ? 'T0 (Initiale)' : stage.cycleIndex === 12 ? '2016 h (Finale)' : `Cycle ${stage.cycleIndex}`}
                       </td>
@@ -413,7 +413,7 @@ export function ResultsPanelAnalysisView({
                 <div key={stage.id} className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-900 font-mono">
-                      Étape {stage.scheduledExposureHours} h — {stage.name}
+                      Étape {cycleTag(stage)} — {stage.name}
                     </span>
                     <span className="text-[10px] text-slate-500">
                       Saisie par {acq.trace.createdBy} le {new Date(acq.trace.createdAt).toLocaleString('fr-FR')} (Source: {acq.trace.source})

@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import { Trial, ExposureStage } from '../../types/trial';
 import { ScientificRuleSet } from '../../types/scientific';
-import { getActiveFamiliesForStage, isFamilyScheduledForStage, getActiveStages } from '../../scientific/panelUtils';
+import { getActiveFamiliesForStage, isFamilyScheduledForStage, getActiveStages, formatStageShort } from '../../scientific/panelUtils';
 import {
   Layers,
   Clock,
@@ -231,7 +231,7 @@ export function ResultsGlobalView({
                           : 'bg-slate-200 text-slate-800'
                       }`}
                     >
-                      {stage.scheduledExposureHours} h
+                      {formatStageShort(stage)}
                     </span>
                     <span className="text-xs font-bold text-slate-800">
                       {isInitial ? 'T0 Initiale' : isFinal ? '2016 h Finale' : `Cycle ${stage.cycleIndex}`}

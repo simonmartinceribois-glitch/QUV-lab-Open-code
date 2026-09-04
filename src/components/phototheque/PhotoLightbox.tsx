@@ -5,6 +5,7 @@
  */
 
 import { Camera, X, Trash2 } from 'lucide-react';
+import { cycleTag } from '../../scientific/panelUtils';
 import type { MediaReference } from '../../types/trial';
 import type { PanelMap, StageMap } from './photoTypes';
 
@@ -77,8 +78,7 @@ export function PhotoLightbox({ media, panelMap, stageMap, onClose, onDeletePhot
                 <div>
                   <span className="text-slate-400 block text-[10px]">Jalon d'Exposition :</span>
                   <span className="font-semibold text-slate-900">
-                    {stageMap.get(media.stageId)?.name} (
-                    {stageMap.get(media.stageId)?.scheduledExposureHours} h)
+                    {cycleTag(stageMap.get(media.stageId))} — {stageMap.get(media.stageId)?.name}
                   </span>
                 </div>
               )}
