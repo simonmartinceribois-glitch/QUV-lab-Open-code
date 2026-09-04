@@ -177,7 +177,7 @@ export function WizardStep3Batches({ batches, onAddBatch, onUpdateBatch, onRemov
             </div>
 
             <div>
-              <label className="block text-slate-600 font-medium mb-1 text-xs">Observations / Notes du lot</label>
+              <label className="block text-slate-600 font-medium mb-1 text-xs">Observations</label>
               <input
                 type="text"
                 value={batch.batchNotes}
