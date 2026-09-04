@@ -1,14 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { getDefaultScientificRuleSet } from './scientific/ruleSet';
 import { globalTrialStore } from './services/trialStore';
 import { Trial } from './types/trial';
 import { TrialDashboard } from './components/TrialDashboard';
 import { TrialDetailView } from './components/TrialDetailView';
-import { CreateTrialWizardModal } from './components/CreateTrialWizardModal';
-import { UXTestsSuite } from './components/UXTestsSuite';
-import { ScientificRuleSetView } from './components/ScientificRuleSetView';
-import { ScientificCalculatorSandbox } from './components/ScientificCalculatorSandbox';
-import { ScientificTestsViewer } from './components/ScientificTestsViewer';
+
+// perf/lazy-sections : sections secondaires chargées à la demande (TRIALS reste eager).
+const CreateTrialWizardModal = lazy(() =>
+  import('./components/CreateTrialWizardModal').then((m) => ({ default: m.CreateTrialWizardModal }))
+);
+const UXTestsSuite = lazy(() =>
+  import('./components/UXTestsSuite').then((m) => ({ default: m.UXTestsSuite }))
+);
+const ScientificRuleSetView = lazy(() =>
+  import('./components/ScientificRuleSetView').then((m) => ({ default: m.ScientificRuleSetView }))
+);
+const ScientificCalculatorSandbox = lazy(() =>
+  import('./components/ScientificCalculatorSandbox').then((m) => ({ default: m.ScientificCalculatorSandbox }))
+);
+const ScientificTestsViewer = lazy(() =>
+  import('./components/ScientificTestsViewer').then((m) => ({ default: m.ScientificTestsViewer }))
+);
+
+function SectionFallback() {
+  return (
+    <div className="p-12 text-center text-xs text-slate-500 bg-white border border-slate-200 rounded-2xl">
+      Chargement de la section…
+    </div>
+  );
+}
 import {
   FlaskConical,
   BookOpen,
@@ -157,34 +177,50 @@ export default function App() {
         )}
 
         {activeSection === 'UX_TESTS' && (
-          <UXTestsSuite
-            trial={currentTrial || trials[0]}
-            ruleSet={ruleSet}
-            onSelectTab={(tabId) => {
-              setSelectedTrialId(trials[0]?.id || null);
-              setActiveTrialTab(tabId);
-              setActiveSection('TRIALS');
-            }}
-          />
+          <Suspense fallback={<SectionFallback />}>
+            <UXTestsSuite
+              trial={currentTrial || trials[0]}
+              ruleSet={ruleSet}
+              onSelectTab={(tabId) => {
+                setSelectedTrialId(trials[0]?.id || null);
+                setActiveTrialTab(tabId);
+                setActiveSection('TRIALS');
+              }}
+            />
+          </Suspense>
         )}
 
-        {activeSection === 'SCIENTIFIC_TESTS' && <ScientificTestsViewer />}
+        {activeSection === 'SCIENTIFIC_TESTS' && (
+          <Suspense fallback={<SectionFallback />}>
+            <ScientificTestsViewer />
+          </Suspense>
+        )}
 
-        {activeSection === 'SANDBOX' && <ScientificCalculatorSandbox ruleSet={ruleSet} />}
+        {activeSection === 'SANDBOX' && (
+          <Suspense fallback={<SectionFallback />}>
+            <ScientificCalculatorSandbox ruleSet={ruleSet} />
+          </Suspense>
+        )}
 
-        {activeSection === 'RULESET' && <ScientificRuleSetView ruleSet={ruleSet} />}
+        {activeSection === 'RULESET' && (
+          <Suspense fallback={<SectionFallback />}>
+            <ScientificRuleSetView ruleSet={ruleSet} />
+          </Suspense>
+        )}
       </main>
 
       {/* Wizard Modal */}
       {showCreateWizard && (
-        <CreateTrialWizardModal
-          onClose={() => setShowCreateWizard(false)}
-          onCreated={(newId) => {
-            refreshTrials();
-            setSelectedTrialId(newId);
-            setActiveTrialTab('01');
-          }}
-        />
+        <Suspense fallback={<SectionFallback />}>
+          <CreateTrialWizardModal
+            onClose={() => setShowCreateWizard(false)}
+            onCreated={(newId) => {
+              refreshTrials();
+              setSelectedTrialId(newId);
+              setActiveTrialTab('01');
+            }}
+          />
+        </Suspense>
       )}
 
       {/* Footer */}

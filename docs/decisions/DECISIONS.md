@@ -1,5 +1,21 @@
 # QUV-Lab — DÉCISIONS (journal, ordre antichronologique)
 
+## 2026-09-04 — D-09 : release v1.5.0 (lazy, bench-forms, ci-comment, audit-sync)
+
+- **Contenu** : lazy-loading 5 sections (entrée 7,8 kB), formulaires Tab06 en 5 éditeurs
+  (HIGH, visuel validé), `npm ci`, audit externe N1-N4 traité (chunks sans cycle,
+  ARCHITECTURE v2). Aucune logique métier modifiée.
+- **Preuves** : CI verte sur chaque PR (#21-24), 195/195 constants, builds sans warning.
+
+## 2026-09-04 — D-08 : audit post-v1.4.0 (N1-N4) et resync architecture
+
+- **N1 (cycles de chunks)** : résolu — couches `quv-services`/`quv-science`/`quv-tests` dédiées ;
+  cause racine : services absorbés dans `quv-tabs` + suites de tests important le store.
+  Build : 0 warning circulaire, max 312 kB.
+- **N2** : `ARCHITECTURE.md` régénéré en v2 (état `develop` réel).
+- **N3** : classé sans suite — déjà traité par PR #21 (l'auditeur avait un état antérieur).
+- **N4** : listes `WORKFLOW.md` §4 et décisions clôturées/marqué(e)s au lieu d'être réécrites.
+
 ## 2026-09-04 — D-07 : release v1.4.0 (splits UI + jalons photo)
 
 - **Contenu** : split Tab06 (1332→921 l, bench/), split CreateTrialWizard (1558→557 l,
