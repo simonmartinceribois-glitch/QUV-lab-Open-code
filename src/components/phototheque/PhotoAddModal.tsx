@@ -20,8 +20,6 @@ interface Props {
   onPanelIdChange: Dispatch<SetStateAction<string>>;
   newPhotoStageId: string;
   onStageIdChange: Dispatch<SetStateAction<string>>;
-  newPhotoFace: string;
-  onFaceChange: Dispatch<SetStateAction<string>>;
   newPhotoCaption: string;
   onCaptionChange: Dispatch<SetStateAction<string>>;
   newPhotoOperator: string;
@@ -43,8 +41,6 @@ export function PhotoAddModal({
   onPanelIdChange,
   newPhotoStageId,
   onStageIdChange,
-  newPhotoFace,
-  onFaceChange,
   newPhotoCaption,
   onCaptionChange,
   newPhotoOperator,
@@ -140,21 +136,6 @@ export function PhotoAddModal({
                   {cycleTag(st)} · {st.name}
                 </option>
               ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-              4. Face photographiée
-            </label>
-            <select
-              value={newPhotoFace}
-              onChange={(e) => onFaceChange(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg font-medium"
-            >
-              <option value="Face externe">Face externe (exposée UV)</option>
-              <option value="Face interne">Face interne (non exposée)</option>
-              <option value="Tranche / Rive">Tranche / Rive</option>
             </select>
           </div>
 

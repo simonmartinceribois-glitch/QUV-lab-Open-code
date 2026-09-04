@@ -234,7 +234,7 @@ export function ResultsGlobalView({
                       {formatStageShort(stage)}
                     </span>
                     <span className="text-xs font-bold text-slate-800">
-                      {isInitial ? 'T0 Initiale' : isFinal ? '2016 h Finale' : `Cycle ${stage.cycleIndex}`}
+                      {isInitial ? 'T0 Initiale' : isFinal ? '2016 h Finale' : 'Cycle intermédiaire'}
                     </span>
                   </div>
 
