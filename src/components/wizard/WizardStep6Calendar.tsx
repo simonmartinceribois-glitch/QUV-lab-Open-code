@@ -117,7 +117,7 @@ export function WizardStep6Calendar({
           <div className="text-[11px] text-slate-500">
             {13 - selectedMeasurementCycles.length > 0 ? (
               <span>
-                <strong>{13 - selectedMeasurementCycles.length}</strong> cycle(s) en <em>exposition continue seule</em> sans arrêt paillasse
+                <strong>{13 - selectedMeasurementCycles.length}</strong> cycle(s) en <em>exposition continue seule</em> sans arrêt pour mesurage
               </span>
             ) : (
               <span>Campagne de mesurage prévue à chaque cycle</span>
