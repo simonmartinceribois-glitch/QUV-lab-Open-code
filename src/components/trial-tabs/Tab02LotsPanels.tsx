@@ -248,7 +248,7 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
           </p>
         </div>
 
-        {!isLocked ? (
+        {!isLocked && (
           <button
             type="button"
             onClick={() => {
@@ -260,11 +260,6 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
             <Plus className="w-4 h-4" />
             Ajouter un Lot (T + 3 E)
           </button>
-        ) : (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs font-semibold">
-            <Lock className="w-4 h-4 text-slate-500" />
-            <span>Référentiel verrouillé (Acquisitions en cours)</span>
-          </div>
         )}
       </div>
 

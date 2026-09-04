@@ -15,8 +15,6 @@ import {
   Circle,
   AlertCircle,
   Info,
-  Lock,
-  Unlock,
   CheckSquare,
   Square,
   Sparkles,
@@ -107,16 +105,6 @@ export function Tab04Calendar({ trial, onSelectStage, onTrialUpdated }: Props) {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 ${
-            isPlanLocked
-              ? 'bg-amber-50 text-amber-900 border-amber-200'
-              : 'bg-emerald-50 text-emerald-900 border-emerald-200'
-          }`}>
-            {isPlanLocked ? <Lock className="w-3.5 h-3.5 text-amber-700" /> : <Unlock className="w-3.5 h-3.5 text-emerald-700" />}
-            <span>{isPlanLocked ? 'Plan Verrouillé (Acquisitions en cours)' : 'Plan Modifiable (Avant 1ère acquisition)'}</span>
-          </div>
-        </div>
       </div>
 
       {errorMessage && (

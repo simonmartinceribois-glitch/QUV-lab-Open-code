@@ -24,9 +24,7 @@ import {
   PlayCircle,
   Camera,
   BarChart3,
-  History,
-  Lock,
-  CheckCircle2
+  History
 } from 'lucide-react';
 
 interface Props {
@@ -66,8 +64,6 @@ export function TrialDetailView({
     onSelectTab('06');
   };
 
-  const isLocked = trial.configurationStatus === 'LOCKED';
-
   return (
     <div className="space-y-6">
       {/* 1. TOP BAR DU SUIVI D'ESSAI */}
@@ -96,18 +92,6 @@ export function TrialDetailView({
         </div>
 
         <div className="flex items-center gap-3">
-          {isLocked ? (
-            <span className="px-3 py-1 text-xs font-bold rounded-lg bg-amber-50 text-amber-900 border border-amber-200 flex items-center gap-1.5">
-              <Lock className="w-3.5 h-3.5 text-amber-600" />
-              Config Verrouillée
-            </span>
-          ) : (
-            <span className="px-3 py-1 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-200 flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              Config Modifiable
-            </span>
-          )}
-
           <span
             className={`px-3 py-1 text-xs font-bold rounded-lg ${
               trial.status === 'COMPLETED'
