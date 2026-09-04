@@ -1,7 +1,8 @@
 # QUV-Lab — AGENTS (rôles, droits, modèles)
 
 > Principe : **un seul agent écrivain par branche à un instant donné**.
-> Analyse/audit = **READ ONLY** par défaut. GitHub = source de vérité (à initialiser : aucun `.git` dans la copie auditée le 2026-09-04).
+> Analyse/audit = **READ ONLY** par défaut. GitHub = source de vérité
+> (`simonmartinceribois-glitch/QUV-lab-Open-code`, `main` protégée + `develop`).
 
 ## 1. ORCHESTRATOR → OpenCode
 
@@ -32,9 +33,9 @@
 
 ## 5. TESTER → OpenCode / modèle rapide
 
-- Exécute et complète les 12 suites (`run_tests.ts`, 193 tests). N'invente aucune commande :
-  seules `dev/build/test/preview/clean/lint` existent (`package.json:6-13`).
-- Met à jour `test-results.txt` + labels UI (`App.tsx:91-104`, actuellement faux "20/22").
+- Exécute et complète les 12 suites (`run_tests.ts`, 195 tests). N'invente aucune commande :
+  seules `dev/build/test/preview/clean/lint/typecheck` existent (`package.json`).
+- Met à jour les intitulés (`run_tests.ts`, labels UI dynamiques) en cas d'ajout de suite.
 - Cas limites obligatoires : T0 manquant, C12 manquant, jalon INACTIVE, témoin T, RAW invalide/suspect, quota `localStorage`.
 
 ## 6. RESEARCHER → Gemini + Web (READ ONLY, séparé du code)

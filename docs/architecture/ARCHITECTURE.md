@@ -20,16 +20,16 @@
 
 ```text
 src/main.tsx → src/App.tsx — TRIALS eager, 4 sections + wizard en React.lazy (entrée 7,8 kB)
-  TRIALS → TrialDashboard → TrialDetailView (10 onglets)
-    01 Identification / 02 Lots & Éprouvettes / 03 Protocole / 04 Calendrier /
-    05 Étapes / 06 Paillasse (bench/ : topbar, grille, calculs, 5 formulaires) /
+  TRIALS → TrialDashboard → TrialDetailView (9 onglets, 07 supprimé : PR #28)
+    01 Identification / 02 Lots & Échantillons / 03 Protocole / 04 Calendrier /
+    05 Étapes / 06 Mesures (bench/ : topbar, grille, calculs, 5 formulaires) /
     PHOTO Photothèque (phototheque/ : 7 vues, jalons actifs uniquement) /
-    07 Contrôle Qualité / 08 Résultats (7 sous-vues) / 09 Journal d'audit
+    08 Résultats (7 sous-vues) / 09 Journal d'audit
   UX_TESTS → UXTestsSuite.tsx (64 tests, dynamique)
   SCIENTIFIC_TESTS → ScientificTestsViewer.tsx (44 tests, dynamique)
   SANDBOX → ScientificCalculatorSandbox.tsx
   RULESET → ScientificRuleSetView.tsx
-  Wizard → CreateTrialWizardModal.tsx + wizard/ (7 steps)
+  Wizard → CreateTrialWizardModal.tsx + wizard/ (7 fichiers d'étape, 04 masquée : flux 01-02-03-05-06-07)
 ```
 
 - État : `useState` local + singleton `globalTrialStore` (façade `services/trialStore.ts`).

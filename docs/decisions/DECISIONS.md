@@ -87,7 +87,7 @@
   `git` introuvable sur le poste (`C:\Program Files\Git\*`, GitHub Desktop : absents).
 - **Décidé** : CI `.github/workflows/ci.yml` (ubuntu, Node 20) avec `npm install`
   (pas `npm ci`, aucun lockfile), puis `npm run lint` (= `tsc --noEmit`), `npm test`
-  (= `tsx run_tests.ts`, 193 tests), `npm run build`.
+  (= `tsx run_tests.ts`, 195 tests), `npm run build`.
 - **Conséquence assumée** : CI **rouge** tant que Gate 2.2 A2/A3/B2 non corrigés
   (voir `docs/audits/INITIAL_AUDIT.md` C1). C'est le comportement voulu : pas de vert artificiel.
 - **À faire côté humain** : installer Git, `git init` + commit + push (commandes transmises à l'utilisateur).
