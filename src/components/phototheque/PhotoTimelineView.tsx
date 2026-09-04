@@ -16,7 +16,7 @@ import {
   Info
 } from 'lucide-react';
 import { useMemo } from 'react';
-import { getActiveStages, formatStageShort } from '../../scientific/panelUtils';
+import { getActiveStages, formatStageTitle } from '../../scientific/panelUtils';
 import type { BatchDefinition, MediaReference, PanelDefinition, Trial } from '../../types/trial';
 
 interface Props {
@@ -230,18 +230,15 @@ export function PhotoTimelineView({
                           <div className="space-y-0.5">
                             <div className="flex items-center gap-2">
                               <span className="font-mono font-bold text-xs text-slate-900">
-                                {stage.name}
-                              </span>
-                              <span className="px-1.5 py-0.2 text-[10px] font-mono font-semibold rounded bg-slate-100 text-slate-700">
-                                {formatStageShort(stage)}
+                                {formatStageTitle(stage)}
                               </span>
                             </div>
                             <div className="text-[11px] text-slate-500">
                               {stage.cycleIndex === 0
-                                ? 'Initial (T0 avant exposition)'
+                                ? 'Initial (avant exposition)'
                                 : stage.cycleIndex === 12
-                                ? 'Final (2016 h terme essai)'
-                                : `Cycle ${stage.cycleIndex} intermédiaire`}
+                                ? `Final (terme essai) ${stage.scheduledExposureHours}h`
+                                : `Cycle intermédiaire ${stage.scheduledExposureHours}h`}
                             </div>
                           </div>
                         </div>

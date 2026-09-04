@@ -18,3 +18,12 @@
 ## 3. Tests
 
 `typecheck` (0), `npm test` (195/195), `build` OK + vérif visuelle (C3 (504 h) partout).
+
+## 4. Addendum chronologie (demande de rationalisation)
+
+- Nouveau helper `formatStageTitle()` : `504 h — MESURES…` → `C3 — MESURES…`
+  (T0/C12 gérés : préfixe existant conservé, heures retirées du doublon).
+- Timeline : badge = repère seul (`C3`), titre via `formatStageTitle`,
+  sous-libellé `Cycle intermédiaire 504h` / `Final (terme essai) 2016h` (T0 inchangé).
+  Chaque info (repère, heures, nature) apparaît une seule fois. Vérifié par exécution
+  (`tsx` : T0/C3/C12 conformes).
