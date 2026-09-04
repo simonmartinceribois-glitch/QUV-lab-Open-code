@@ -33,6 +33,16 @@ export function Tab04Calendar({ trial, onSelectStage, onTrialUpdated }: Props) {
   const validatedCount = trial.stages.filter((s) => s.status === 'VALIDATED').length;
   const inProgressStage = trial.stages.find((s) => s.status === 'IN_PROGRESS');
   const measuredStages = trial.stages.filter((s) => s.status !== 'INACTIVE');
+  // Statut global du plan : « terminées » uniquement si TOUS les jalons mesurés sont validés
+  // (fix/calendar-status-text : l'absence d'étape IN_PROGRESS ne signifie pas la fin).
+  const allMeasuredValidated =
+    measuredStages.length > 0 && measuredStages.every((s) => s.status === 'VALIDATED');
+  const nextPendingStage = measuredStages.find((s) => s.status !== 'VALIDATED');
+  const planStatusText = inProgressStage
+    ? `Étape active : ${inProgressStage.name}`
+    : allMeasuredValidated
+      ? 'Toutes étapes terminées'
+      : `Prochaine étape : ${nextPendingStage?.name || '—'}`;
   const totalPhysicalHours = 2016;
 
   // Calcul du statut de verrouillage du plan
@@ -93,7 +103,7 @@ export function Tab04Calendar({ trial, onSelectStage, onTrialUpdated }: Props) {
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
             Cycles hebdomadaires de 168 h (NF EN 927-6) • {validatedCount} validée(s) •{' '}
-            {inProgressStage ? `Étape active : ${inProgressStage.name}` : 'Toutes étapes terminées'}
+            {planStatusText}
           </p>
         </div>
 
