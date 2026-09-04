@@ -384,7 +384,6 @@ export function CreateTrialWizardModal({
             </div>
             <div>
               <h2 className="text-base font-bold">Assistant de Création d'un Nouvel Essai</h2>
-              <p className="text-xs text-slate-400">Flux Métier Laboratoire • NF EN 927-6 • Référentiel Permanent</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors">
