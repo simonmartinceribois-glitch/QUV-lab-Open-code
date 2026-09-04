@@ -2,21 +2,34 @@
  * QUV-Lab — Paillasse : colonne calculs instantanés & qualité (refactor/split-bench).
  * JSX déplacé à l'identique depuis Tab06MeasurementsBench.tsx (colonne droite).
  * Aucun état ni handler ici : tout est reçu en props depuis le parent.
- * Note : `computed` reste typé `any` comme à l'origine (retypage = ticket dédié).
+ * Typage : prop `computed: unknown`, narrowing familial local par branche.
  */
 
 import { AlertTriangle } from 'lucide-react';
-import type { MeasurementFamilyId } from '../../types/scientific';
+import type {
+  MeasurementFamilyId,
+  QualityAssessment,
+  ColorComputedData,
+  GlossComputedData,
+  PersozComputedData,
+  AdhesionComputedData,
+  VisualObservationsComputedData
+} from '../../types/scientific';
 import type { PanelAcquisitionRecord } from '../../types/trial';
+import { getQualityStatus } from '../../scientific/validity';
 
 interface Props {
-  computed: any;
+  computed: unknown;
   currentRecord: PanelAcquisitionRecord | undefined;
   selectedFamilyId: MeasurementFamilyId;
   isInitialStage: boolean;
 }
 
 export function BenchComputedPanel({ computed, currentRecord, selectedFamilyId, isInitialStage }: Props) {
+  // Accès structurel commun (qualityAssessment présent sur les 5 types computed).
+  const qualityStatus = getQualityStatus(computed);
+  const qualityInfo: QualityAssessment | null =
+    (computed as { qualityAssessment?: QualityAssessment | null } | null | undefined)?.qualityAssessment ?? null;
   return (
     <div className="lg:col-span-4 space-y-4">
       {/* Card Qualité du relevé */}
@@ -27,31 +40,31 @@ export function BenchComputedPanel({ computed, currentRecord, selectedFamilyId, 
           </h5>
           <span
             className={`px-2.5 py-0.5 text-xs font-bold rounded-full ${
-              computed?.qualityAssessment?.status === 'GOOD'
+              qualityStatus === 'GOOD'
                 ? 'bg-emerald-100 text-emerald-800'
-                : computed?.qualityAssessment?.status === 'WARNING'
+                : qualityStatus === 'WARNING'
                 ? 'bg-amber-100 text-amber-800'
-                : computed?.qualityAssessment?.status === 'INVALID'
+                : qualityStatus === 'INVALID'
                 ? 'bg-rose-100 text-rose-800'
                 : 'bg-slate-100 text-slate-500'
             }`}
           >
-            {computed?.qualityAssessment?.status || 'EN_ATTENTE'}
+            {qualityStatus || 'EN_ATTENTE'}
           </span>
         </div>
 
-        {computed?.qualityAssessment ? (
+        {qualityInfo ? (
           <div className="space-y-2 text-xs text-slate-600">
             <div className="flex justify-between">
               <span>Points valides :</span>
               <strong className="text-slate-900">
-                {computed.qualityAssessment.validCount} / {computed.qualityAssessment.totalCount}
+                {qualityInfo.validCount} / {qualityInfo.expectedCount}
               </strong>
             </div>
             <div className="flex justify-between">
               <span>Complétude :</span>
               <strong className="text-emerald-700">
-                {computed.qualityAssessment.completionRatePercent}%
+                {qualityInfo.completenessPercent}%
               </strong>
             </div>
 
@@ -93,108 +106,119 @@ export function BenchComputedPanel({ computed, currentRecord, selectedFamilyId, 
         {computed ? (
           <div className="space-y-2.5 text-xs text-slate-700 font-mono">
             {/* COULEUR */}
-            {selectedFamilyId === 'COLOR' && (
+            {selectedFamilyId === 'COLOR' && (() => {
+              const compColor = computed as ColorComputedData;
+              return (
               <>
                 <div className="flex justify-between p-2 bg-slate-50 rounded-lg">
                   <span>Moyenne L* :</span>
-                  <strong>{computed.meanL !== null ? computed.meanL.toFixed(2) : '—'}</strong>
+                  <strong>{compColor.meanL !== null ? compColor.meanL.toFixed(2) : '—'}</strong>
                 </div>
                 <div className="flex justify-between p-2 bg-slate-50 rounded-lg">
                   <span>Moyenne a* :</span>
-                  <strong>{computed.meanA !== null ? computed.meanA.toFixed(2) : '—'}</strong>
+                  <strong>{compColor.meanA !== null ? compColor.meanA.toFixed(2) : '—'}</strong>
                 </div>
                 <div className="flex justify-between p-2 bg-slate-50 rounded-lg">
                   <span>Moyenne b* :</span>
-                  <strong>{computed.meanB !== null ? computed.meanB.toFixed(2) : '—'}</strong>
+                  <strong>{compColor.meanB !== null ? compColor.meanB.toFixed(2) : '—'}</strong>
                 </div>
                 {!isInitialStage && (
                   <div className="flex justify-between p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-blue-900 font-bold">
                     <span>Écart Total ΔE*ab :</span>
-                    <span>{computed.deltaE !== null ? computed.deltaE.toFixed(2) : '—'}</span>
+                    <span>{compColor.deltaE !== null ? compColor.deltaE.toFixed(2) : '—'}</span>
                   </div>
                 )}
               </>
-            )}
+              );
+            })()}
 
             {/* BRILLANCE */}
-            {selectedFamilyId === 'GLOSS' && (
+            {selectedFamilyId === 'GLOSS' && (() => {
+              const compGloss = computed as GlossComputedData;
+              return (
               <>
                 <div className="flex justify-between p-2 bg-slate-50 rounded-lg">
                   <span>Moyenne Brillance :</span>
-                  <strong>{computed.meanGloss !== null ? `${computed.meanGloss.toFixed(1)} GU` : '—'}</strong>
+                  <strong>{compGloss.meanGloss !== null ? `${compGloss.meanGloss.toFixed(1)} GU` : '—'}</strong>
                 </div>
                 <div className="flex justify-between p-2 bg-slate-50 rounded-lg">
                   <span>Écart-type s :</span>
-                  <strong>{computed.stdDevGloss !== null ? computed.stdDevGloss.toFixed(2) : '—'}</strong>
+                  <strong>{compGloss.stdDevGloss !== null ? compGloss.stdDevGloss.toFixed(2) : '—'}</strong>
                 </div>
                 {!isInitialStage && (
                   <div className="flex justify-between p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-blue-900 font-bold">
                     <span>Taux de Rétention :</span>
                     <span>
-                      {computed.retentionRatePercent !== null
-                        ? `${computed.retentionRatePercent.toFixed(1)} %`
+                      {compGloss.retentionRatePercent !== null
+                        ? `${compGloss.retentionRatePercent.toFixed(1)} %`
                         : '—'}
                     </span>
                   </div>
                 )}
               </>
-            )}
+              );
+            })()}
 
             {/* PERSOZ */}
-            {selectedFamilyId === 'PERSOZ' && (
+            {selectedFamilyId === 'PERSOZ' && (() => {
+              const compPersoz = computed as PersozComputedData;
+              return (
               <>
                 <div className="flex justify-between p-2 bg-purple-50 rounded-lg text-purple-950">
                   <span>Moyenne Amortissement :</span>
                   <strong>
-                    {computed.meanDampingTime !== null ? `${computed.meanDampingTime.toFixed(1)} s` : '—'}
+                    {compPersoz.meanDampingTime !== null ? `${compPersoz.meanDampingTime.toFixed(1)} s` : '—'}
                   </strong>
                 </div>
                 <div className="flex justify-between p-2 bg-purple-50 rounded-lg text-purple-950">
                   <span>Coeff. Variation CV% :</span>
                   <strong>
-                    {computed.coefficientOfVariationPercent !== null
-                      ? `${computed.coefficientOfVariationPercent.toFixed(1)} %`
+                    {compPersoz.coefficientOfVariationPercent !== null
+                      ? `${compPersoz.coefficientOfVariationPercent.toFixed(1)} %`
                       : '—'}
                   </strong>
                 </div>
               </>
-            )}
+              );
+            })()}
 
             {/* ADHESION */}
-            {selectedFamilyId === 'ADHESION' && (
+            {selectedFamilyId === 'ADHESION' && (() => {
+              const compAdh = computed as AdhesionComputedData;
+              return (
               <>
                 <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-indigo-950 uppercase tracking-wider">Classe d'Adhérence :</span>
                     <span className="px-2.5 py-0.5 bg-indigo-600 text-white font-bold rounded-lg text-sm">
-                      Classe {computed.adhesionClass ?? '—'}
+                      Classe {compAdh.adhesionClass ?? '—'}
                     </span>
                   </div>
-                  <p className="text-xs text-indigo-900 italic leading-relaxed">{computed.classDescription}</p>
+                  <p className="text-xs text-indigo-900 italic leading-relaxed">{compAdh.classDescription}</p>
                 </div>
 
                 <div className="flex justify-between p-2 bg-slate-50 rounded-lg text-xs">
                   <span className="text-slate-600">Peigne de quadrillage :</span>
-                  <strong>{computed.gridSpacingUsedMm ? `${computed.gridSpacingUsedMm} mm (6×6)` : '—'}</strong>
+                  <strong>{compAdh.gridSpacingUsedMm ? `${compAdh.gridSpacingUsedMm} mm (6×6)` : '—'}</strong>
                 </div>
 
                 <div className="flex justify-between p-2 bg-slate-50 rounded-lg text-xs">
                   <span className="text-slate-600">Délai d'application :</span>
-                  <strong>{computed.elapsedTimeHours !== undefined && computed.elapsedTimeHours !== null ? `${computed.elapsedTimeHours} h` : '—'}</strong>
+                  <strong>{compAdh.elapsedTimeHours !== undefined && compAdh.elapsedTimeHours !== null ? `${compAdh.elapsedTimeHours} h` : '—'}</strong>
                 </div>
 
-                {!isInitialStage && computed.witnessT0AdhesionClass !== undefined && (
+                {!isInitialStage && compAdh.initialAdhesionClass !== undefined && (
                   <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-950 space-y-1">
                     <div className="flex justify-between font-bold">
                       <span>Évolution vs T0 :</span>
                       <span>
-                        {computed.deltaAdhesionClass !== null && computed.deltaAdhesionClass !== undefined
-                          ? (computed.deltaAdhesionClass >= 0 ? `+${computed.deltaAdhesionClass}` : `${computed.deltaAdhesionClass}`)
+                        {compAdh.deltaAdhesionClass !== null && compAdh.deltaAdhesionClass !== undefined
+                          ? (compAdh.deltaAdhesionClass >= 0 ? `+${compAdh.deltaAdhesionClass}` : `${compAdh.deltaAdhesionClass}`)
                           : '—'}
                       </span>
                     </div>
                     <div className="text-[11px] text-blue-700">
-                      (Classe {computed.adhesionClass} actuelle vs Classe {computed.witnessT0AdhesionClass} à T0 sur témoin)
+                      (Classe {compAdh.adhesionClass} actuelle vs Classe {compAdh.initialAdhesionClass} à T0 sur témoin)
                     </div>
                   </div>
                 )}
@@ -206,17 +230,21 @@ export function BenchComputedPanel({ computed, currentRecord, selectedFamilyId, 
                   </p>
                 </div>
               </>
-            )}
+              );
+            })()}
 
             {/* OBSERVATIONS */}
-            {selectedFamilyId === 'OBSERVATIONS' && (
+            {selectedFamilyId === 'OBSERVATIONS' && (() => {
+              const compObs = computed as VisualObservationsComputedData;
+              return (
               <>
                 <div className="p-2 bg-slate-50 rounded-lg">
                   <span className="text-slate-500">Synthèse :</span>
-                  <div className="font-sans font-bold text-slate-900 mt-1">{computed.summary}</div>
+                  <div className="font-sans font-bold text-slate-900 mt-1">{compObs.summary}</div>
                 </div>
               </>
-            )}
+              );
+            })()}
           </div>
         ) : (
           <div className="text-xs text-slate-400 italic">Aucun calcul disponible.</div>

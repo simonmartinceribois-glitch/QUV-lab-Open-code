@@ -36,6 +36,7 @@ import {
 } from '../types/scientific';
 import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../scientific/ruleSet';
 import { recalculateAcquisition } from '../scientific/recalculator';
+import { getQualityStatus } from '../scientific/validity';
 import { createConfigChangeEvent } from '../scientific/auditEngine';
 import { buildScientificReport } from './reportGenerator';
 import { isFamilyScheduledForStage } from '../scientific/panelUtils';
@@ -633,7 +634,7 @@ export class TrialStoreService {
         panelId: params.panelId,
         familyId: params.familyId,
         source: newRecord.trace.source,
-        quality: (updatedRecord.computed as any)?.qualityAssessment?.status || 'N/A',
+        quality: getQualityStatus(updatedRecord.computed) || 'N/A',
         rawUnchanged
       }
     });

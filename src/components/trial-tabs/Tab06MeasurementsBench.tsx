@@ -349,7 +349,7 @@ export function Tab06MeasurementsBench({
     }
   };
 
-  const computed = currentRecord?.computed as any;
+  const computed: unknown = currentRecord?.computed;
 
   // Calcul du résumé de la campagne pour la famille
   const completedPanelsCount = activePanelsList.filter((item) => {
