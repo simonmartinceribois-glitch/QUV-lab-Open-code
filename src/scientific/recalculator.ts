@@ -22,7 +22,7 @@ import { calculateGloss } from './glossEngine';
 import { calculatePersoz } from './persozEngine';
 import { calculateAdhesion, resolveAdhesionCountConfig } from './adhesionEngine';
 import { calculateObservations } from './observationsEngine';
-import { getWitnessPanel } from './panelUtils';
+import { getWitnessPanel, isAdhesionEligiblePanel, isPersozEligiblePanel } from './panelUtils';
 import { VisualObservationsRawData, AdhesionRawData } from '../types/scientific';
 
 export interface RecalculationResult {
@@ -53,7 +53,23 @@ export function recalculateAcquisition(
   let referenceStageId: string | null = null;
   let referencePanelId: string | null = null;
   let referenceAcquisitionId: string | null = null;
-  if (!isCurrentInitial && initialStage) {
+  // Verrou d'éligibilité P2 : une acquisition scientifiquement interdite
+  // (ADHÉSION hors matrice, PERSOZ/T) ne reçoit NI referenceRaw NI trace.
+  // La résolution refRecord n'intervient qu'après ce contrôle.
+  // Panneau ou jalon introuvable : repli conservateur (résolution par IDs,
+  // comportement historique) pour ne pas casser les appels directs partiels.
+  const currentBatch = trial.batches?.find((b) => b.id === record.batchId);
+  const currentPanel = currentBatch?.panels?.find((p) => p.id === record.panelId);
+  const currentStage = trial.stages?.find((s) => s.id === record.stageId);
+  let acquisitionEligible = true;
+  if (currentPanel && currentStage) {
+    if (record.familyId === 'ADHESION') {
+      acquisitionEligible = isAdhesionEligiblePanel(currentPanel, currentStage);
+    } else if (record.familyId === 'PERSOZ') {
+      acquisitionEligible = isPersozEligiblePanel(currentPanel);
+    }
+  }
+  if (!isCurrentInitial && initialStage && acquisitionEligible) {
     // Règle ADHESION : la référence T0 est celle du panneau TÉMOIN du lot
     // (T non exposé), jamais celle du panneau exposé lui-même.
     // Les autres familles conservent la référence T0 du même panneau.
