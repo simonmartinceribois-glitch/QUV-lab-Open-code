@@ -61,7 +61,9 @@ function buildLockTrial(): Trial {
           // Variantes d'identification du témoin (un seul marqueur chacune).
           { id: `${trialId}-p-W1`, batchId, index: 5, label: 'X', role: 'WITNESS' as const, roleCode: 'E' as const, status: 'ACTIVE' as const },
           { id: `${trialId}-p-W2`, batchId, index: 6, label: 'X', role: 'EXPOSED_1' as const, roleCode: 'T' as const, status: 'ACTIVE' as const },
-          { id: `${trialId}-p-W3`, batchId, index: 7, label: 'T', role: 'EXPOSED_1' as const, roleCode: 'E' as const, status: 'ACTIVE' as const }
+          { id: `${trialId}-p-W3`, batchId, index: 7, label: 'T', role: 'EXPOSED_1' as const, roleCode: 'E' as const, status: 'ACTIVE' as const },
+          // Panneau ambigu : exposé générique non identifiable E1/E2/E3 → refusé.
+          { id: `${trialId}-p-W4`, batchId, index: 8, label: 'X', role: 'EXPOSED_1' as const, roleCode: 'E' as const, status: 'ACTIVE' as const }
         ]
       }
     ],
@@ -278,6 +280,79 @@ export function runPersozWitnessLockTests(): {
       okCount === 3,
       '3/3 acceptés avec calcul',
       `${okCount}/3 acceptés`
+    );
+  }
+
+  // --- PZ-T-15 : E1/E2/E3 à T0 acceptés ---
+  {
+    const trial = buildLockTrial();
+    const stage = trial.stages.find((s) => s.cycleIndex === 0)!;
+    const batchId = trial.batches[0].id;
+    let okCount = 0;
+    (['E1', 'E2', 'E3'] as const).forEach((suffix) => {
+      try {
+        globalTrialStore.recordAcquisition({
+          trialId: trial.id,
+          stageId: stage.id,
+          batchId,
+          panelId: `${trial.id}-p-${suffix}`,
+          familyId: 'PERSOZ',
+          raw: persozRaw(),
+          operatorId: 'TEST_OP'
+        });
+        okCount += 1;
+      } catch {
+        // compté comme échec via okCount
+      }
+    });
+    record(
+      'PZ-T-15',
+      'PERSOZ E1/E2/E3 à T0 → acceptés',
+      okCount === 3,
+      '3/3 acceptés à T0',
+      `${okCount}/3 acceptés`
+    );
+  }
+
+  // --- PZ-T-16 : jalon intermédiaire C6 accepté sur exposé ---
+  {
+    const trial = buildLockTrial();
+    const r = (() => {
+      const stage = trial.stages.find((s) => s.cycleIndex === 6)!;
+      try {
+        globalTrialStore.recordAcquisition({
+          trialId: trial.id,
+          stageId: stage.id,
+          batchId: trial.batches[0].id,
+          panelId: `${trial.id}-p-E2`,
+          familyId: 'PERSOZ',
+          raw: persozRaw(),
+          operatorId: 'TEST_OP'
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+    record(
+      'PZ-T-16',
+      'PERSOZ E2 à C6 (intermédiaire) → accepté',
+      r,
+      'Accepté à C6',
+      r ? 'accepté' : 'rejet inattendu'
+    );
+  }
+
+  // --- PZ-T-17 : panneau non identifiable E1/E2/E3 → rejet ---
+  {
+    const trial = buildLockTrial();
+    const r = attemptPersoz(trial, 12, 'W4');
+    record(
+      'PZ-T-17',
+      "Panneau ambigu (code 'E' générique) → rejet IntegrityViolationError",
+      r.threw && r.isIntegrity && r.code === 'INTEGRITY_VIOLATION',
+      'Rejet (non identifiable E1/E2/E3)',
+      `threw=${String(r.threw)}, integrity=${String(r.isIntegrity)}, code=${r.code}`
     );
   }
 

@@ -7,7 +7,7 @@
 import { CheckCircle2 } from 'lucide-react';
 import type { MeasurementFamilyId } from '../../types/scientific';
 import type { Trial } from '../../types/trial';
-import { isWitnessPanel } from '../../scientific/panelUtils';
+import { isPersozEligiblePanel } from '../../scientific/panelUtils';
 import type { PanelListItem } from './benchTypes';
 
 interface Props {
@@ -69,9 +69,10 @@ export function BenchPanelGrid({
           const isDone = !!rec && !!rec.computed;
           const hasWarning = rec?.status === 'WARNING';
           const hasError = rec?.status === 'ERROR';
-          // Verrou UI PERSOZ/Témoin : T n'est jamais une cible PERSOZ valide.
+          // Verrou UI PERSOZ (E1/E2/E3 strict) : seuls les exposés identifiés
+          // sont des cibles PERSOZ valides.
           // Le verrou runtime (recordAcquisition) reste le rempart décisif.
-          const isPersozLocked = selectedFamilyId === 'PERSOZ' && isWitnessPanel(panel);
+          const isPersozLocked = selectedFamilyId === 'PERSOZ' && !isPersozEligiblePanel(panel);
 
           return (
             <button

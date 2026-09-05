@@ -208,7 +208,7 @@ suite15.results.forEach((r) => {
 });
 
 console.log('\n================================================================');
-console.log('16. EXÉCUTION DU VERROU PERSOZ/TÉMOIN (15 TESTS)');
+console.log('16. EXÉCUTION DU VERROU PERSOZ/TÉMOIN (18 TESTS)');
 console.log('================================================================');
 const suite16 = runPersozWitnessLockTests();
 console.log(`Résultats Verrou PERSOZ/T : ${suite16.summary.passed} / ${suite16.summary.total} réussis.`);

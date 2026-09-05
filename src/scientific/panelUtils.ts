@@ -51,6 +51,23 @@ export function getActiveExposedPanels<T extends { label?: string; roleCode?: st
 }
 
 /**
+ * Éligibilité stricte PERSOZ (verrou PERSOZ/Témoin renforcé) : seules les
+ * éprouvettes exposées E1, E2 et E3, identifiées SANS ambiguïté par le modèle
+ * métier (roleCode E1/E2/E3 ET role EXPOSED_1/2/3), sont acceptées.
+ * T (témoin) et tout panneau non identifiable (code 'E' générique,
+ * EXPOSED_CUSTOM, marqueurs incohérents) sont refusés.
+ */
+export function isPersozEligiblePanel(panel: {
+  roleCode?: string;
+  role?: string;
+}): boolean {
+  if (!panel) return false;
+  const codeOk = panel.roleCode === 'E1' || panel.roleCode === 'E2' || panel.roleCode === 'E3';
+  const roleOk = panel.role === 'EXPOSED_1' || panel.role === 'EXPOSED_2' || panel.role === 'EXPOSED_3';
+  return codeOk && roleOk;
+}
+
+/**
  * Récupère l'éprouvette Témoin T d'un lot
  */
 export function getWitnessPanel<T extends { label?: string; roleCode?: string; role?: string }>(

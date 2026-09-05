@@ -28,7 +28,7 @@ import {
   normalizeAdhesionMeasurements,
   resolveAdhesionCountConfig
 } from '../../scientific/adhesionEngine';
-import { isFamilyScheduledForStage, getActiveFamiliesForStage, isWitnessPanel
+import { isFamilyScheduledForStage, getActiveFamiliesForStage, isPersozEligiblePanel
 } from '../../scientific/panelUtils';
 import { BenchTopBar } from '../bench/BenchTopBar';
 import { BenchPanelGrid } from '../bench/BenchPanelGrid';
@@ -253,9 +253,9 @@ export function Tab06MeasurementsBench({
       alert("Ce jalon a été exclu du plan de mesurage ; aucune acquisition n'est autorisée.");
       return;
     }
-    // Verrou UI PERSOZ/Témoin : aucun RAW créé, aucun appel recordAcquisition.
+    // Verrou UI PERSOZ (E1/E2/E3 strict) : aucun RAW créé, aucun appel recordAcquisition.
     // Le verrou runtime (recordAcquisition) rejette de toute façon en dernier rempart.
-    if (selectedFamilyId === 'PERSOZ' && isWitnessPanel(currentPanel)) {
+    if (selectedFamilyId === 'PERSOZ' && !isPersozEligiblePanel(currentPanel)) {
       alert("PERSOZ interdit sur l'éprouvette témoin T : mesure réservée aux éprouvettes exposées (E1, E2, E3).");
       return;
     }
@@ -357,7 +357,7 @@ export function Tab06MeasurementsBench({
       // Chercher d'abord le prochain incomplet (T exclu d'office en campagne PERSOZ)
       const nextIncomplete = activePanelsList.find((item, idx) => {
         if (idx <= currentIdx) return false;
-        if (selectedFamilyId === 'PERSOZ' && isWitnessPanel(item.panel)) return false;
+        if (selectedFamilyId === 'PERSOZ' && !isPersozEligiblePanel(item.panel)) return false;
         const key = `${currentStage.id}__${item.panel.id}__${selectedFamilyId}`;
         const r = trial.acquisitions[key];
         return !r || !r.computed;
@@ -366,7 +366,7 @@ export function Tab06MeasurementsBench({
       if (nextIncomplete) {
         setSelectedPanelId(nextIncomplete.panel.id);
       } else if (currentIdx < activePanelsList.length - 1) {
-        const following = activePanelsList.slice(currentIdx + 1).find((item) => selectedFamilyId !== 'PERSOZ' || !isWitnessPanel(item.panel));
+        const following = activePanelsList.slice(currentIdx + 1).find((item) => selectedFamilyId !== 'PERSOZ' || isPersozEligiblePanel(item.panel));
         if (following) setSelectedPanelId(following.panel.id);
       }
     }
@@ -454,11 +454,11 @@ export function Tab06MeasurementsBench({
         currentStageId={currentStage.id}
         acquisitions={trial.acquisitions}
         onSelectPanel={(panelId) => {
-          // Verrou UI PERSOZ/Témoin : T non sélectionnable en campagne PERSOZ
-          // (un état hérité pointant T reste bloqué au save par le verrou runtime).
+          // Verrou UI PERSOZ (E1/E2/E3 strict) : T et panneaux non identifiés
+          // non sélectionnables en campagne PERSOZ.
           if (selectedFamilyId === 'PERSOZ') {
             const target = activePanelsList.find((item) => item.panel.id === panelId);
-            if (target && isWitnessPanel(target.panel)) return;
+            if (target && !isPersozEligiblePanel(target.panel)) return;
           }
           setSelectedPanelId(panelId);
         }}
