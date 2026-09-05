@@ -18,6 +18,7 @@ import { runAdhesionTargetLockTests } from './src/scientific/tests/adhesion_targ
 import { runAdhesionQualityCompletenessTests } from './src/scientific/tests/adhesion_quality_completeness.test';
 import { runExposedE1E2E3Tests } from './src/scientific/tests/exposed_e1e2e3_predicate.test';
 import { runAdhesionFamilyRestitutionTests } from './src/scientific/tests/adhesion_family_restitution.test';
+import { runColorAdhesionStatisticsTests } from './src/scientific/tests/color_adhesion_statistics.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -276,6 +277,19 @@ suite20.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('21. EXÉCUTION DES STATISTIQUES COLOR + ADHÉSION ISO 2409 (13 TESTS)');
+console.log('================================================================');
+const suite21 = runColorAdhesionStatisticsTests();
+console.log(`Résultats Stats COLOR/ADHÉSION : ${suite21.summary.passed} / ${suite21.summary.total} réussis.`);
+suite21.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Color-Adh Stats] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -296,7 +310,8 @@ const totalFailed =
   suite17.summary.failed +
   suite18.summary.failed +
   suite19.summary.failed +
-  suite20.summary.failed;
+  suite20.summary.failed +
+  suite21.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -317,7 +332,8 @@ const totalCount =
   suite17.summary.total +
   suite18.summary.total +
   suite19.summary.total +
-  suite20.summary.total;
+  suite20.summary.total +
+  suite21.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

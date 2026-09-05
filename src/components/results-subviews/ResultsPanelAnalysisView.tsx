@@ -388,9 +388,9 @@ export function ResultsPanelAnalysisView({
                           </td>
                           <td className="p-2.5 font-mono text-slate-600">{compAdh?.gridSpacingUsedMm ? `${compAdh.gridSpacingUsedMm} mm` : '—'}</td>
                           <td className="p-2.5 font-mono text-slate-600">{compAdh?.elapsedTimeHours ? `${compAdh.elapsedTimeHours} h` : '—'}</td>
-                          <td className="p-2.5 font-mono text-indigo-950 font-bold bg-indigo-50/40">
+                          <td className="p-2.5 font-mono text-indigo-950 font-bold bg-indigo-50/40" title={isMulti ? 'Δ classement moyen — indicateur complémentaire (non normatif ISO 2409)' : undefined}>
                             {compAdh?.deltaAdhesionClass !== null && compAdh?.deltaAdhesionClass !== undefined
-                              ? `${compAdh.deltaAdhesionClass > 0 ? '+' : ''}${compAdh.deltaAdhesionClass}`
+                              ? `${compAdh.deltaAdhesionClass > 0 ? '+' : ''}${compAdh.deltaAdhesionClass}${isMulti ? ' (compl.)' : ''}`
                               : 'RÉF'}
                           </td>
                           <td className="p-2.5 text-xs text-slate-700">{compAdh?.classDescription || '—'}</td>

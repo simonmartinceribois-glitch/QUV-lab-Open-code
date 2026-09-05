@@ -368,11 +368,14 @@ export function calculateAdhesion(
     validClasses.length > 0
       ? Math.round((validClasses.reduce((a, b) => a + b, 0) / validClasses.length) * 10) / 10
       : null;
+  // ISO 2409 = classification en 6 classes, PAS une mesure quantitative.
+  // Une moyenne numérique (panelMean) ne doit JAMAIS être reconvertie en classe
+  // (ni description ISO) par arrondi : elle reste un indicateur décimal.
   const classDescription =
     adhesionClass !== null
       ? ISO2409_CLASSES[adhesionClass]?.description || `Classe ${adhesionClass}`
       : panelMean !== null
-        ? ISO2409_CLASSES[Math.round(panelMean)]?.description || `Classe ${panelMean}`
+        ? `Moyenne panneau : ${panelMean} — indicateur numérique complémentaire (hors classification ISO 2409)`
         : 'Non mesurée';
 
   // 2. Contrôle du délai d'application

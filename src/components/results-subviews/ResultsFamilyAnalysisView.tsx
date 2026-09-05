@@ -126,7 +126,7 @@ export function ResultsFamilyAnalysisView({ trial, ruleSet }: Props) {
           }
         });
         if (adhList.length > 0) {
-          point[`${batch.reference} (Classe)`] = +(
+          point[`${batch.reference} (Moy. panneau)`] = +(
             adhList.reduce((a, b) => a + b, 0) / adhList.length
           ).toFixed(1);
         }
@@ -215,7 +215,7 @@ export function ResultsFamilyAnalysisView({ trial, ruleSet }: Props) {
                         ? 'Rétention (%) / GU'
                         : activeFamily === 'PERSOZ'
                         ? 'Damping Time (s)'
-                        : 'Classe Quadrillage (0 à 5)',
+                        : 'Moy. panneau (classes ISO 2409, 0 à 5)',
                     angle: -90,
                     position: 'insideLeft',
                     fontSize: 11,
@@ -284,7 +284,7 @@ export function ResultsFamilyAnalysisView({ trial, ruleSet }: Props) {
                       <Line
                         key={batch.id}
                         type="monotone"
-                        dataKey={`${batch.reference} (Classe)`}
+                        dataKey={`${batch.reference} (Moy. panneau)`}
                         stroke={strokeColor}
                         strokeWidth={2.5}
                         dot={{ r: 4, strokeWidth: 2 }}

@@ -499,6 +499,17 @@ export interface BatchAggregationStats {
   meanDeltaE?: number | null;
   meanDeltaGloss?: number | null;
   meanGlossRetentionPercent?: number | null;
+  // Consolidation COLOR (inter-panneaux E1/E2/E3) : moyennes et écarts-types
+  // échantillon (n-1) des moyennes panneau L*/a*/b*, à 3 décimales comme ΔE.
+  // Complète (ne remplace pas) la consolidation ΔE*ab existante.
+  color?: {
+    meanL?: number | null;
+    stdDevL?: number | null;
+    meanA?: number | null;
+    stdDevA?: number | null;
+    meanB?: number | null;
+    stdDevB?: number | null;
+  };
   // Agrégation ADHESION (Gate 57) : moyennes des panneaux exposés uniquement (témoin exclu
   // par l'appelant, conformément au contrat Gate 55 D-8). Champ optionnel dédié.
   adhesion?: {
