@@ -25,6 +25,7 @@ import { runExportComputedPopulationTests } from './src/scientific/tests/export_
 import { runReferenceTraceabilityTests } from './src/scientific/tests/reference_traceability.test';
 import { runEligibleAlertsTests } from './src/scientific/tests/qualityengine_eligible_alerts.test';
 import { runTrialEligibleAlertsTests } from './src/scientific/tests/qualityengine_trial_eligible_alerts.test';
+import { runImportRobustnessTests } from './src/scientific/tests/import_robustness.test';
 import { runReferenceEligibilityTests } from './src/scientific/tests/reference_trace_eligibility.test';
 
 console.log('================================================================');
@@ -388,6 +389,19 @@ suite28.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('29. EXÉCUTION DE LA ROBUSTESSE IMPORTS (56 TESTS)');
+console.log('================================================================');
+const suite29 = runImportRobustnessTests();
+console.log(`Résultats Robustesse Imports : ${suite29.summary.passed} / ${suite29.summary.total} réussis.`);
+suite29.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Import Robustness] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -416,7 +430,8 @@ const totalFailed =
   suite25.summary.failed +
   suite26.summary.failed +
   suite27.summary.failed +
-  suite28.summary.failed;
+  suite28.summary.failed +
+  suite29.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -445,7 +460,8 @@ const totalCount =
   suite25.summary.total +
   suite26.summary.total +
   suite27.summary.total +
-  suite28.summary.total;
+  suite28.summary.total +
+  suite29.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

@@ -6,6 +6,201 @@ import { Trial } from '../types/trial';
 import { UUID } from '../types/scientific';
 
 /**
+ * Familles de mesure canoniques (P2 robustesse imports) : toute autre valeur
+ * est rejetée avant pipeline (jamais stockée comme acquisition EMPTY silencieuse).
+ */
+const KNOWN_MEASUREMENT_FAMILIES: readonly string[] = [
+  'COLOR',
+  'GLOSS',
+  'PERSOZ',
+  'ADHESION',
+  'OBSERVATIONS'
+];
+
+/**
+ * Valide la famille d'une acquisition entrante (import/saisie/API).
+ * Rejette explicitement toute famille inconnue avant tout effet de bord.
+ */
+export function validateAcquisitionFamily(familyId: unknown): void {
+  if (typeof familyId !== 'string' || !KNOWN_MEASUREMENT_FAMILIES.includes(familyId)) {
+    throw new IntegrityViolationError(
+      `Famille de mesure inconnue : ${JSON.stringify(familyId)}. Familles attendues : ${KNOWN_MEASUREMENT_FAMILIES.join(', ')}.`,
+      { familyId: typeof familyId === 'string' ? familyId : 'NON_STRING' }
+    );
+  }
+}
+
+/**
+ * Valide la structure minimale d'un RAW entrant (import/saisie/API).
+ * Le RAW doit être un objet non nul (jamais null, primitif ni tableau) :
+ * les moteurs aval classent ensuite chaque mesure (VALID/MISSING/INVALID)
+ * sans jamais fabriquer de valeur. Rejet explicite avant tout effet de bord.
+ */
+export function validateAcquisitionRaw(raw: unknown): void {
+  if (raw === null || raw === undefined || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new IntegrityViolationError(
+      `Donnée brute (RAW) mal formée : objet de mesures attendu, reçu ${Array.isArray(raw) ? 'tableau' : typeof raw}. Aucune valeur par défaut fabriquée.`,
+      { rawType: Array.isArray(raw) ? 'array' : typeof raw }
+    );
+  }
+}
+
+/**
+ * Vérifie la structure minimale d'un essai chargé (localStorage/import) :
+ * garde-fou structurel strict (jamais d'exception, jamais de fabrication).
+ *
+ * Refuse : null/primitif/tableau, id absent/non-string/vide, stages ou batches
+ * absents/non-array, acquisitions absente/non-objet/tableau, config
+ * absente/non-objet/tableau, stage sans id/cycleIndex valide, batch sans
+ * id/panels valides, panel sans id (ni batchId/index/label/status requis du
+ * modèle), acquisition sans clés métier (id, trialId, stageId, batchId,
+ * panelId, familyId, raw présent, status, alerts, trace).
+ * Aucune validation scientifique ici (NF EN 927-6, populations, calendrier :
+ * couches métier existantes).
+ */
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
+}
+
+export function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isValidStageElement(stage: unknown): boolean {
+  if (!isPlainRecord(stage)) return false;
+  if (!isNonEmptyString(stage['id'])) return false;
+  const cycleIndex = stage['cycleIndex'];
+  if (typeof cycleIndex !== 'number' || !Number.isFinite(cycleIndex)) return false;
+  return true;
+}
+
+function isValidPanelElement(panel: unknown): boolean {
+  if (!isPlainRecord(panel)) return false;
+  if (!isNonEmptyString(panel['id'])) return false;
+  if (!isNonEmptyString(panel['batchId'])) return false;
+  if (typeof panel['index'] !== 'number' || !Number.isFinite(panel['index'])) return false;
+  if (typeof panel['label'] !== 'string') return false;
+  if (typeof panel['status'] !== 'string') return false;
+  return true;
+}
+
+function isValidBatchElement(batch: unknown): boolean {
+  if (!isPlainRecord(batch)) return false;
+  if (!isNonEmptyString(batch['id'])) return false;
+  if (!Array.isArray(batch['panels'])) return false;
+  return (batch['panels'] as unknown[]).every(isValidPanelElement);
+}
+
+interface RelationalContext {
+  trialId: string;
+  stageIds: Set<string>;
+  batches: Map<string, Map<string, string>>;
+}
+
+/**
+ * Cohérence relationnelle d'une acquisition persistée (aucune transformation,
+ * aucune correction, aucun déplacement, aucune fabrication) :
+ * - acquisition.trialId === essai courant ;
+ * - stageId présent dans trial.stages ;
+ * - batchId présent dans trial.batches ;
+ * - panelId présent dans le batch indiqué par acquisition.batchId (pas un autre) ;
+ * - panel.batchId === acquisition.batchId.
+ * Toute incohérence invalide le Trial entier (rejet complet au chargement).
+ */
+function isRelationallyCoherentAcquisition(entry: Record<string, unknown>, ctx: RelationalContext): boolean {
+  if (entry['trialId'] !== ctx.trialId) return false;
+  if (typeof entry['stageId'] !== 'string' || !ctx.stageIds.has(entry['stageId'])) return false;
+  if (typeof entry['batchId'] !== 'string') return false;
+  const panels = ctx.batches.get(entry['batchId'] as string);
+  if (!panels) return false;
+  if (typeof entry['panelId'] !== 'string') return false;
+  const panelBatchId = panels.get(entry['panelId'] as string);
+  if (panelBatchId === undefined) return false;
+  if (panelBatchId !== entry['batchId']) return false;
+  return true;
+}
+
+function isValidAcquisitionEntry(entry: unknown): boolean {
+  if (!isPlainRecord(entry)) return false;
+  const requiredIds = ['id', 'trialId', 'stageId', 'batchId', 'panelId'];
+  for (const key of requiredIds) {
+    if (!isNonEmptyString(entry[key])) return false;
+  }
+  // familyId : chaîne non vide ET famille canonique (jamais UNKNOWN/vide/numérique).
+  // Structurel uniquement : les règles scientifiques des familles restent aux moteurs.
+  if (typeof entry['familyId'] !== 'string' || !KNOWN_MEASUREMENT_FAMILIES.includes(entry['familyId'])) return false;
+  // RAW : même règle structurelle qu'à l'import — objet non-null non-tableau.
+  // `{}` reste accepté (mesure MISSING = moteurs) ; null/primitif/tableau refusés.
+  // Jamais de 0 fabriqué, jamais de normalisation silencieuse.
+  const raw = entry['raw'];
+  if (raw === null || raw === undefined || typeof raw !== 'object' || Array.isArray(raw)) return false;
+  if (typeof entry['status'] !== 'string') return false;
+  if (!Array.isArray(entry['alerts'])) return false;
+  if (!isPlainRecord(entry['trace'])) return false;
+  return true;
+}
+
+export function isStructurallyValidTrial(trial: unknown): trial is Trial {
+  if (!isPlainRecord(trial)) return false;
+  if (!isNonEmptyString(trial['id'])) return false;
+  if (!Array.isArray(trial['stages']) || !(trial['stages'] as unknown[]).every(isValidStageElement)) return false;
+  if (!Array.isArray(trial['batches']) || !(trial['batches'] as unknown[]).every(isValidBatchElement)) return false;
+  if (!isPlainRecord(trial['acquisitions'])) return false;
+  if (!isPlainRecord(trial['config'])) return false;
+  // Unicité des IDs structurels (aucun écrasement silencieux / "last one wins") :
+  // stages uniques, batches uniques (et rattachés à l'essai via batch.trialId,
+  // champ réel du modèle renseigné à la création), panels globalement uniques
+  // dans tout l'essai (pas seulement par batch).
+  const trialId = trial['id'];
+  const seenStageIds = new Set<string>();
+  for (const stage of trial['stages'] as unknown[]) {
+    const id = (stage as Record<string, unknown>)['id'] as string;
+    if (seenStageIds.has(id)) return false;
+    seenStageIds.add(id);
+  }
+  const seenBatchIds = new Set<string>();
+  const seenPanelIds = new Set<string>();
+  for (const batch of trial['batches'] as unknown[]) {
+    const b = batch as Record<string, unknown>;
+    const batchId = b['id'] as string;
+    if (seenBatchIds.has(batchId)) return false;
+    seenBatchIds.add(batchId);
+    if (b['trialId'] !== trialId) return false;
+    for (const panel of b['panels'] as unknown[]) {
+      const panelId = (panel as Record<string, unknown>)['id'] as string;
+      if (seenPanelIds.has(panelId)) return false;
+      seenPanelIds.add(panelId);
+    }
+  }
+  const ctx: RelationalContext = {
+    trialId: trial['id'],
+    stageIds: new Set(
+      (trial['stages'] as unknown[])
+        .filter(isPlainRecord)
+        .map((s) => s['id'])
+        .filter((id): id is string => typeof id === 'string')
+    ),
+    batches: new Map(
+      (trial['batches'] as unknown[]).filter(isPlainRecord).map((b) => [
+        b['id'] as string,
+        new Map(
+          (Array.isArray(b['panels']) ? (b['panels'] as unknown[]) : [])
+            .filter(isPlainRecord)
+            .map((p) => [p['id'], p['batchId']] as [unknown, unknown])
+            .filter((pair): pair is [string, string] =>
+              typeof pair[0] === 'string' && typeof pair[1] === 'string')
+        )
+      ])
+    )
+  };
+  for (const entry of Object.values(trial['acquisitions'] as Record<string, unknown>)) {
+    if (!isValidAcquisitionEntry(entry)) return false;
+    if (!isRelationallyCoherentAcquisition(entry as Record<string, unknown>, ctx)) return false;
+  }
+  return true;
+}
+
+/**
  * Erreur spécifique de violation d'intégrité relationnelle du modèle QUV (Gate 3.1)
  */
 export class IntegrityViolationError extends Error {
