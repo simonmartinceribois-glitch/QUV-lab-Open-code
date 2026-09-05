@@ -25,6 +25,7 @@ import { runExportComputedPopulationTests } from './src/scientific/tests/export_
 import { runReferenceTraceabilityTests } from './src/scientific/tests/reference_traceability.test';
 import { runEligibleAlertsTests } from './src/scientific/tests/qualityengine_eligible_alerts.test';
 import { runTrialEligibleAlertsTests } from './src/scientific/tests/qualityengine_trial_eligible_alerts.test';
+import { runReferenceEligibilityTests } from './src/scientific/tests/reference_trace_eligibility.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -374,6 +375,19 @@ suite27.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('28. EXÉCUTION DU VERROU RÉFÉRENCES recalculator (13 TESTS)');
+console.log('================================================================');
+const suite28 = runReferenceEligibilityTests();
+console.log(`Résultats Verrou Références : ${suite28.summary.passed} / ${suite28.summary.total} réussis.`);
+suite28.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Reference Lock] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -401,7 +415,8 @@ const totalFailed =
   suite24.summary.failed +
   suite25.summary.failed +
   suite26.summary.failed +
-  suite27.summary.failed;
+  suite27.summary.failed +
+  suite28.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -429,7 +444,8 @@ const totalCount =
   suite24.summary.total +
   suite25.summary.total +
   suite26.summary.total +
-  suite27.summary.total;
+  suite27.summary.total +
+  suite28.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
