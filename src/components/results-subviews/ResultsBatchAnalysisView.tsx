@@ -157,6 +157,9 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                 <th className="p-2.5 text-center">Exposés E1..E3</th>
                 <th className="p-2.5 bg-indigo-50/60 text-indigo-950">Moyenne ΔE* Exposés</th>
                 <th className="p-2.5 bg-indigo-50/60 text-indigo-950">s inter (ΔE*)</th>
+                <th className="p-2.5 bg-indigo-50/60 text-indigo-950">L* Moy. ± s</th>
+                <th className="p-2.5 bg-indigo-50/60 text-indigo-950">a* Moy. ± s</th>
+                <th className="p-2.5 bg-indigo-50/60 text-indigo-950">b* Moy. ± s</th>
                 <th className="p-2.5 bg-blue-50/60 text-blue-950">Brillance Moyenne (60°)</th>
                 <th className="p-2.5 bg-blue-50/60 text-blue-950">s inter (Gloss)</th>
                 <th className="p-2.5 bg-emerald-50/60 text-emerald-950 font-black">Rétention Moyenne %</th>
@@ -209,7 +212,7 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                       <td className="p-2.5 font-bold font-mono text-slate-600">
                         {formatStageShort(stage)}
                       </td>
-                      <td colSpan={10} className="p-2.5 text-slate-400 italic">
+                      <td colSpan={13} className="p-2.5 text-slate-400 italic">
                         Aucun relevé validé à cette étape pour ce lot.
                       </td>
                     </tr>
@@ -249,6 +252,16 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                     </td>
                     <td className="p-2.5 font-mono text-slate-600 bg-indigo-50/30">
                       {stage.cycleIndex === 0 ? '—' : colorAgg.interPanelStdDev !== null ? colorAgg.interPanelStdDev?.toFixed(2) : '—'}
+                    </td>
+                    {/* Restitution COLOR L, a, b : valeurs directes de colorAgg.color (aucun recalcul UI). */}
+                    <td className="p-2.5 font-mono text-indigo-950 bg-indigo-50/30">
+                      {colorAgg.color?.meanL !== null && colorAgg.color?.meanL !== undefined ? `${colorAgg.color.meanL.toFixed(3)} ± ${colorAgg.color.stdDevL?.toFixed(3) ?? '—'}` : '—'}
+                    </td>
+                    <td className="p-2.5 font-mono text-indigo-950 bg-indigo-50/30">
+                      {colorAgg.color?.meanA !== null && colorAgg.color?.meanA !== undefined ? `${colorAgg.color.meanA.toFixed(3)} ± ${colorAgg.color.stdDevA?.toFixed(3) ?? '—'}` : '—'}
+                    </td>
+                    <td className="p-2.5 font-mono text-indigo-950 bg-indigo-50/30">
+                      {colorAgg.color?.meanB !== null && colorAgg.color?.meanB !== undefined ? `${colorAgg.color.meanB.toFixed(3)} ± ${colorAgg.color.stdDevB?.toFixed(3) ?? '—'}` : '—'}
                     </td>
                     <td className="p-2.5 font-mono text-blue-950 font-bold bg-blue-50/30">
                       {glossAgg.interPanelMean !== null ? `${glossAgg.interPanelMean.toFixed(1)} GU` : '—'}

@@ -19,6 +19,7 @@ import { runAdhesionQualityCompletenessTests } from './src/scientific/tests/adhe
 import { runExposedE1E2E3Tests } from './src/scientific/tests/exposed_e1e2e3_predicate.test';
 import { runAdhesionFamilyRestitutionTests } from './src/scientific/tests/adhesion_family_restitution.test';
 import { runColorAdhesionStatisticsTests } from './src/scientific/tests/color_adhesion_statistics.test';
+import { runColorRestitutionTests } from './src/scientific/tests/color_statistics_restitution.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -290,6 +291,19 @@ suite21.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('22. EXÉCUTION DE LA RESTITUTION COLOR L*/a*/b* (8 TESTS)');
+console.log('================================================================');
+const suite22 = runColorRestitutionTests();
+console.log(`Résultats Restitution COLOR : ${suite22.summary.passed} / ${suite22.summary.total} réussis.`);
+suite22.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Color Restitution] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -311,7 +325,8 @@ const totalFailed =
   suite18.summary.failed +
   suite19.summary.failed +
   suite20.summary.failed +
-  suite21.summary.failed;
+  suite21.summary.failed +
+  suite22.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -333,7 +348,8 @@ const totalCount =
   suite18.summary.total +
   suite19.summary.total +
   suite20.summary.total +
-  suite21.summary.total;
+  suite21.summary.total +
+  suite22.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
