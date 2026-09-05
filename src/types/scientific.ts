@@ -343,8 +343,32 @@ export interface PersozComputedData {
 // --- ADHÉRENCE — QUADRILLAGE (NF EN ISO 2409:2020) ---
 export type AdhesionClassRating = 0 | 1 | 2 | 3 | 4 | 5;
 
+/**
+ * Mesure individuelle d'adhérence (Gate 57) : le RAW conserve uniquement les observations
+ * individuelles réellement saisies — jamais de moyenne (voir D-07/GO : une seule source de vérité).
+ */
+export interface AdhesionMeasurement {
+  measurementIndex: number; // 1..N dans l'ordre de saisie
+  adhesionClass: AdhesionClassRating | number | null; // 0 à 5, entier ISO 2409
+  observation?: string;
+}
+
+/**
+ * Résultat individuel calculé (Gate 57) : recopie tracée d'une mesure RAW,
+ * enrichie du delta vs la mesure T0 témoin de même index (null si non comparable).
+ */
+export interface AdhesionIndividualResult {
+  measurementIndex: number;
+  adhesionClass: number | null;
+  deltaAdhesionClass?: number | null;
+}
+
 export interface AdhesionRawData {
-  adhesionClass: AdhesionClassRating | number | null; // 0 à 5
+  // Forme historique (scalaire) : conservée pour compatibilité de lecture des acquisitions
+  // existantes. Les nouvelles saisies utilisent `measurements` (scalaire omis).
+  adhesionClass?: AdhesionClassRating | number | null; // 0 à 5
+  // Forme standard (Gate 57) : 2 mesures indépendantes/panneau (1 si adaptation justifiée).
+  measurements?: AdhesionMeasurement[];
   observation?: string;
   measurementDateTime: ISODateString;
   applicationDateTime?: string; // Récupéré de batch.applicationDate
@@ -362,9 +386,19 @@ export interface AdhesionRawData {
 }
 
 export interface AdhesionComputedData {
+  // En mono-mesure (ou RAW historique scalaire), la classe unique. En multi-mesures,
+  // null : la moyenne fait foi via `panelMean` (une classe ISO reste un entier).
   adhesionClass: number | null;
+  // Résultats individuels recopiés du RAW (traçabilité), dans l'ordre de saisie.
+  // `deltaAdhesionClass` = écart de la mesure vs la mesure T0 témoin de même
+  // `measurementIndex` ; null quand non comparable (jamais de mesure inventée).
+  individualResults?: AdhesionIndividualResult[];
+  // Moyenne du panneau (moyenne arithmétique des classes valides), affichée à 1 décimale.
+  panelMean?: number | null;
   classDescription: string;
   initialAdhesionClass?: number | null;
+  // Moyenne T0 du panneau témoin (Gate 5.6) : référence des deltas.
+  initialPanelMean?: number | null;
   deltaAdhesionClass?: number | null; // Variation d'adhérence vs T0
   elapsedTimeHours: number | null;
   delayCompliance: 'CONFORME' | 'NON_CONFORME' | 'NON_EVALUE';
@@ -465,6 +499,13 @@ export interface BatchAggregationStats {
   meanDeltaE?: number | null;
   meanDeltaGloss?: number | null;
   meanGlossRetentionPercent?: number | null;
+  // Agrégation ADHESION (Gate 57) : moyennes des panneaux exposés uniquement (témoin exclu
+  // par l'appelant, conformément au contrat Gate 55 D-8). Champ optionnel dédié.
+  adhesion?: {
+    panelMeans: (number | null)[];
+    overallMean: number | null;
+    standardDeviation?: number | null;
+  };
   computation: ComputationMetadata;
 }
 

@@ -376,7 +376,13 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
               deltaStr = compPersoz.deltaDampingTime !== null && compPersoz.deltaDampingTime !== undefined ? `${compPersoz.deltaDampingTime.toFixed(1)} s` : 'RÉF (T0)';
             } else if (fam === 'ADHESION') {
               const compAdh = acq.computed as AdhesionComputedData;
-              valStr = compAdh.adhesionClass !== null && compAdh.adhesionClass !== undefined ? `Classe ${compAdh.adhesionClass}` : '—';
+              // Gate 57 : mesures individuelles + moyenne visibles ; repli scalaire legacy.
+              const indiv = compAdh && Array.isArray(compAdh.individualResults) ? compAdh.individualResults : [];
+              if (indiv.length > 1) {
+                valStr = `${indiv.map((m) => `M${m.measurementIndex}=${m.adhesionClass ?? '—'}`).join(', ')} (moy. ${compAdh.panelMean ?? '—'})`;
+              } else {
+                valStr = compAdh.adhesionClass !== null && compAdh.adhesionClass !== undefined ? `Classe ${compAdh.adhesionClass}` : '—';
+              }
               stdStr = compAdh.gridSpacingUsedMm ? `Peigne ${compAdh.gridSpacingUsedMm} mm` : '—';
               deltaStr = compAdh.deltaAdhesionClass !== null && compAdh.deltaAdhesionClass !== undefined ? `ΔClasse=${compAdh.deltaAdhesionClass >= 0 ? '+' : ''}${compAdh.deltaAdhesionClass}` : 'RÉF (T0)';
               retStr = compAdh.delayCompliance || '—';
@@ -450,10 +456,20 @@ export function exportRawDataToCsv(trial: Trial): string {
                   `"${st.id}";"${st.name}";${st.cycleIndex};"${b.id}";"${b.reference}";"${p.id}";"${p.label}";PERSOZ;${r.pointIndex};${r.dampingTimeSeconds ?? ''};;;;${src};"${op}";"${dt}"`
                 );
               });
-            } else if (fam === 'ADHESION' && raw.adhesionClass !== undefined) {
-              lines.push(
-                `"${st.id}";"${st.name}";${st.cycleIndex};"${b.id}";"${b.reference}";"${p.id}";"${p.label}";ADHESION;"Classe ${raw.adhesionClass ?? ''}";${raw.coatingThicknessMicrons ?? ''};${raw.gridSpacingMm ?? ''};${raw.elapsedTimeHours ?? ''};"${raw.observation || ''}";${src};"${op}";"${dt}"`
-              );
+            } else if (fam === 'ADHESION' && (Array.isArray(raw.measurements) || raw.adhesionClass !== undefined)) {
+              // Gate 57 : branche explicite multi-mesures, fallback scalaire legacy.
+              // Une acquisition multi-mesures n'est jamais perdue dans le CSV.
+              if (Array.isArray(raw.measurements)) {
+                raw.measurements.forEach((m: any) => {
+                  lines.push(
+                    `"${st.id}";"${st.name}";${st.cycleIndex};"${b.id}";"${b.reference}";"${p.id}";"${p.label}";ADHESION;"Mesure ${m.measurementIndex ?? ''} Classe ${m.adhesionClass ?? ''}";${raw.coatingThicknessMicrons ?? ''};${raw.gridSpacingMm ?? ''};;"${m.observation || ''}";${src};"${op}";"${dt}"`
+                  );
+                });
+              } else {
+                lines.push(
+                  `"${st.id}";"${st.name}";${st.cycleIndex};"${b.id}";"${b.reference}";"${p.id}";"${p.label}";ADHESION;"Classe ${raw.adhesionClass ?? ''}";${raw.coatingThicknessMicrons ?? ''};${raw.gridSpacingMm ?? ''};${raw.elapsedTimeHours ?? ''};"${raw.observation || ''}";${src};"${op}";"${dt}"`
+                );
+              }
             } else if (fam === 'OBSERVATIONS' && Array.isArray(raw.observations)) {
               raw.observations.forEach((obs: any) => {
                 lines.push(

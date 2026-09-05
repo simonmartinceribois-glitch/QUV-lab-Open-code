@@ -24,9 +24,9 @@ import {
 } from '../../types/scientific';
 import { globalTrialStore, generateUUID } from '../../services/trialStore';
 import {
-  ISO2409_CLASSES,
   getApplicableGridSpacing,
-  calculateDelayCompliance
+  normalizeAdhesionMeasurements,
+  resolveAdhesionCountConfig
 } from '../../scientific/adhesionEngine';
 import { isFamilyScheduledForStage, getActiveFamiliesForStage } from '../../scientific/panelUtils';
 import { BenchTopBar } from '../bench/BenchTopBar';
@@ -35,7 +35,7 @@ import { BenchComputedPanel } from '../bench/BenchComputedPanel';
 import { BenchColorForm } from '../bench/BenchColorForm';
 import { BenchGlossForm } from '../bench/BenchGlossForm';
 import { BenchPersozForm } from '../bench/BenchPersozForm';
-import { BenchAdhesionForm } from '../bench/BenchAdhesionForm';
+import { BenchAdhesionForm, AdhesionBenchEntry } from '../bench/BenchAdhesionForm';
 import { BenchObservationsForm } from '../bench/BenchObservationsForm';
 import {
   PlayCircle,
@@ -161,9 +161,14 @@ export function Tab06MeasurementsBench({
     { category: 'GENERAL_APPEARANCE', categoryLabel: 'Aspect général', rating: 0, status: 'CONFORME', comment: 'Aspect uniforme' }
   ]);
 
-  // Adhérence au quadrillage : classe (0 à 5) et observation
-  const [adhesionClass, setAdhesionClass] = useState<number | null>(0);
-  const [adhesionObservation, setAdhesionObservation] = useState<string>('');
+  // Adhérence au quadrillage (Gate 57) : N mesures indépendantes selon le protocole.
+  // Le protocole configuré est la source de vérité (standard 2 ; historique 1/1
+  // via resolveAdhesionCountConfig quand aucun countConfig n'est enregistré).
+  const adhExpectedCount =
+    selectedFamilyId === 'ADHESION'
+      ? resolveAdhesionCountConfig(famConfig?.countConfig).configuredCount
+      : 2;
+  const [adhEntries, setAdhEntries] = useState<AdhesionBenchEntry[]>([]);
 
   // Synchronisation lors du changement de panneau ou famille
   useEffect(() => {
@@ -210,14 +215,20 @@ export function Tab06MeasurementsBench({
         setPersozValues(Array.from({ length: persozCount }, () => ''));
       }
     } else if (selectedFamilyId === 'ADHESION') {
-      const raw = rec?.raw as AdhesionRawData;
-      if (raw && raw.adhesionClass !== undefined && raw.adhesionClass !== null) {
-        setAdhesionClass(raw.adhesionClass);
-        setAdhesionObservation(raw.observation || '');
-      } else {
-        setAdhesionClass(0);
-        setAdhesionObservation('');
-      }
+      const raw = rec?.raw as AdhesionRawData | undefined;
+      const norm = raw ? normalizeAdhesionMeasurements(raw) : [];
+      // Anti-perte Gate 57 : on ne tronque JAMAIS les mesures existantes au
+      // nombre attendu. Si le RAW contient plus de mesures (ex. réduction 2→1
+      // ultérieure), elles restent affichées et seront ré-enregistrées telles quelles.
+      const entryCount = Math.max(adhExpectedCount, norm.length, 1);
+      const sized: AdhesionBenchEntry[] = Array.from({ length: entryCount }, (_, i) => {
+        const m = norm[i];
+        return {
+          cls: typeof m?.adhesionClass === 'number' ? m.adhesionClass : null,
+          obs: typeof m?.observation === 'string' ? m.observation : ''
+        };
+      });
+      setAdhEntries(sized);
     } else if (selectedFamilyId === 'OBSERVATIONS') {
       const raw = rec?.raw as VisualObservationsRawData;
       if (raw && Array.isArray(raw.observations)) {
@@ -232,7 +243,7 @@ export function Tab06MeasurementsBench({
         ]);
       }
     }
-  }, [selectedPanelId, selectedFamilyId, currentStage.id]);
+  }, [selectedPanelId, selectedFamilyId, currentStage.id, adhExpectedCount]);
 
   // Fonction d'enregistrement du panneau courant
   const handleSaveCurrentPanel = (autoAdvance = true) => {
@@ -279,16 +290,38 @@ export function Tab06MeasurementsBench({
       if (currentBatch.dryFilmThicknessMicrons === undefined || currentBatch.dryFilmThicknessMicrons === null || currentBatch.dryFilmThicknessMicrons > 250) {
         return;
       }
-      rawPayload = {
-        adhesionClass: adhesionClass !== null ? adhesionClass : 0,
-        gridSpacingMm: spacingInfo.gridSpacingMm || 2,
-        coatingThicknessMicrons: currentBatch.dryFilmThicknessMicrons,
-        measurementDateTime: new Date().toISOString(),
-        applicationDateTime: currentBatch.applicationDate,
-        requiredMinimumDelayHours: 168,
-        normReference: 'NF EN ISO 2409:2020',
-        observation: adhesionObservation.trim() || undefined
-      } as AdhesionRawData;
+      // Gate 57 : une seule acquisition par stage/panneau/famille ; les mesures
+      // individuelles vivent dans `measurements`. Aucune moyenne dans RAW.
+      // Anti-migration : un RAW legacy scalaire ré-enregistré à 1 mesure conserve
+      // sa forme scalaire historique (jamais de conversion auto en tableau).
+      const prevAdhRaw = currentRecord?.raw as AdhesionRawData | undefined;
+      const isPrevLegacyScalar =
+        !!prevAdhRaw && !Array.isArray(prevAdhRaw.measurements) && adhEntries.length <= 1;
+      const firstEntry = adhEntries[0] || { cls: null, obs: '' };
+      rawPayload = isPrevLegacyScalar
+        ? {
+            adhesionClass: firstEntry.cls,
+            gridSpacingMm: spacingInfo.gridSpacingMm || 2,
+            coatingThicknessMicrons: currentBatch.dryFilmThicknessMicrons,
+            measurementDateTime: new Date().toISOString(),
+            applicationDateTime: currentBatch.applicationDate,
+            requiredMinimumDelayHours: 168,
+            normReference: 'NF EN ISO 2409:2020',
+            ...(firstEntry.obs.trim() ? { observation: firstEntry.obs.trim() } : {})
+          } as AdhesionRawData
+        : {
+            measurements: adhEntries.map((e, idx) => ({
+              measurementIndex: idx + 1,
+              adhesionClass: e.cls,
+              ...(e.obs.trim() ? { observation: e.obs.trim() } : {})
+            })),
+            gridSpacingMm: spacingInfo.gridSpacingMm || 2,
+            coatingThicknessMicrons: currentBatch.dryFilmThicknessMicrons,
+            measurementDateTime: new Date().toISOString(),
+            applicationDateTime: currentBatch.applicationDate,
+            requiredMinimumDelayHours: 168,
+            normReference: 'NF EN ISO 2409:2020'
+          } as AdhesionRawData;
     } else if (selectedFamilyId === 'OBSERVATIONS') {
       rawPayload = {
         observations,
@@ -346,6 +379,13 @@ export function Tab06MeasurementsBench({
       ]);
     } else if (selectedFamilyId === 'PERSOZ') {
       setPersozValues(['85.2', '84.8', '85.5']);
+    } else if (selectedFamilyId === 'ADHESION') {
+      setAdhEntries(
+        Array.from({ length: Math.max(adhExpectedCount, 1) }, (_, i) => ({
+          cls: (i + 1) % 6,
+          obs: ''
+        }))
+      );
     }
   };
 
@@ -469,10 +509,9 @@ export function Tab06MeasurementsBench({
                 currentPanel={currentPanel}
                 currentStage={currentStage}
                 isInitialStage={isInitialStage}
-                adhesionClass={adhesionClass}
-                onAdhesionClassChange={setAdhesionClass}
-                adhesionObservation={adhesionObservation}
-                onAdhesionObservationChange={setAdhesionObservation}
+                expectedCount={adhExpectedCount}
+                entries={adhEntries}
+                onEntriesChange={setAdhEntries}
               />
             )}
 

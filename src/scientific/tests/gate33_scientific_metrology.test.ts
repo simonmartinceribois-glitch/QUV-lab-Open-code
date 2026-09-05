@@ -20,7 +20,8 @@ import { calculateColor } from '../colorEngine';
 import { calculateGloss } from '../glossEngine';
 import { calculatePersoz } from '../persozEngine';
 import { calculateObservations } from '../observationsEngine';
-import { calculateAdhesion, getApplicableGridSpacing, calculateDelayCompliance, ISO2409_CLASSES } from '../adhesionEngine';
+import { calculateAdhesion, getApplicableGridSpacing,
+calculateDelayCompliance, ISO2409_CLASSES, resolveAdhesionCountConfig } from '../adhesionEngine';
 import {
   calculateMean,
   calculateSampleStdDev,
@@ -949,21 +950,79 @@ export function runGate33ScientificMetrologyTests(): {
       referenceRaw: rawT0
     });
 
+    // Gate 57 / D4 : le RAW scalaire legacy reste 1/1 GOOD — le référentiel live
+    // ne rétrograde jamais l'historique (legacy 1/1 vs nouveau protocole 1/2, voir G33-ADH-04).
     const adhPassed =
       adhResult.computed.adhesionClass === 1 &&
       adhResult.computed.initialAdhesionClass === 0 &&
       adhResult.computed.deltaAdhesionClass === 1 &&
       adhResult.computed.gridSpacingUsedMm === 2 &&
       typeof (adhResult.computed as any).adhesionForceMpa === 'undefined' &&
-      adhResult.computed.qualityAssessment.status === 'GOOD';
+      adhResult.computed.qualityAssessment.status === 'GOOD' &&
+      adhResult.computed.qualityAssessment.expectedCount === 1 &&
+      adhResult.computed.qualityAssessment.completenessPercent === 100;
 
     record(
       'G33-ADH-03',
       'Adhérence ISO 2409 : Préservation stricte de l\'échelle qualitative (Classe 0 à 5), non-conversion en MPa et calcul du delta vs T0',
       'STATISTICAL_RIGOR',
       adhPassed,
-      'Classe 1, delta vs T0 = +1, aucune unité MPa, statut GOOD',
+      'Classe 1, delta vs T0 = +1, aucune unité MPa, legacy 1/1 GOOD',
       `Classe=${adhResult.computed.adhesionClass}, Delta=${adhResult.computed.deltaAdhesionClass}, Spacing=${adhResult.computed.gridSpacingUsedMm}mm, ForceMpa=${(adhResult.computed as any).adhesionForceMpa}`
+    );
+
+    // D. Distinction legacy 1/1 vs nouveau protocole 1/2 (Gate 57 / D4).
+    // Même contenu métrologique, configuration standard 2/2 explicite : 1 mesure
+    // fournie = incomplet WARNING + MEASUREMENT_MISSING, sans toucher classes/delta.
+    const rawC12New: AdhesionRawData = {
+      measurements: [{ measurementIndex: 1, adhesionClass: 1, observation: 'Léger détachement aux intersections' }],
+      gridSpacingMm: 2,
+      coatingThicknessMicrons: 65,
+      measurementDateTime: '2026-10-24T00:00:00Z',
+      applicationDateTime: '2026-08-01T00:00:00Z',
+      requiredMinimumDelayHours: 168,
+      normReference: 'NF EN ISO 2409:2020'
+    };
+    const rawT0New: AdhesionRawData = {
+      measurements: [
+        { measurementIndex: 1, adhesionClass: 0, observation: 'Incisions nettes' },
+        { measurementIndex: 2, adhesionClass: 0, observation: 'Incisions nettes' }
+      ],
+      gridSpacingMm: 2,
+      coatingThicknessMicrons: 65,
+      measurementDateTime: '2026-08-01T00:00:00Z',
+      requiredMinimumDelayHours: 168,
+      normReference: 'NF EN ISO 2409:2020'
+    };
+    const adhStandard2 = createCountConfiguration('ADHESION', 2, ruleSet);
+    const adhNewResult = calculateAdhesion(rawC12New, adhStandard2, ruleSet, {
+      referenceRaw: rawT0New
+    });
+    const adhNewPassed =
+      adhNewResult.computed.panelMean === 1 &&
+      adhNewResult.computed.initialPanelMean === 0 &&
+      adhNewResult.computed.deltaAdhesionClass === 1 &&
+      adhNewResult.computed.qualityAssessment.status === 'WARNING' &&
+      adhNewResult.computed.qualityAssessment.expectedCount === 2 &&
+      adhNewResult.computed.qualityAssessment.completenessPercent === 50 &&
+      adhNewResult.alerts.some((a) => a.code === 'MEASUREMENT_MISSING' && a.severity === 'WARNING') &&
+      Array.isArray(adhNewResult.computed.individualResults) &&
+      adhNewResult.computed.individualResults.length === 1 &&
+      adhNewResult.computed.individualResults[0].deltaAdhesionClass === 1;
+
+    // D4 explicite : sans countConfig enregistré, l'historique reste 1/1 STANDARD.
+    const adhHistorical = resolveAdhesionCountConfig(undefined);
+
+    record(
+      'G33-ADH-04',
+      'Adhérence Gate 57 : distinction legacy 1/1 vs nouveau protocole — 1/2 = WARNING + MEASUREMENT_MISSING, historique sans countConfig = 1/1 STANDARD',
+      'STATISTICAL_RIGOR',
+      adhNewPassed &&
+        adhHistorical.configuredCount === 1 &&
+        adhHistorical.standardRecommendedCount === 1 &&
+        adhHistorical.deviationFromStandard === false,
+      'Nouveau 1/2 WARNING 50 % + MEASUREMENT_MISSING ; historique 1/1 STANDARD',
+      `PanelMean=${adhNewResult.computed.panelMean}, Delta=${adhNewResult.computed.deltaAdhesionClass}, Status=${adhNewResult.computed.qualityAssessment.status}, Hist=${adhHistorical.configuredCount}/${adhHistorical.standardRecommendedCount}`
     );
   }
 

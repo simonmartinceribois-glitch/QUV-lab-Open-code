@@ -18,7 +18,7 @@ import {
 import { calculateColor } from './colorEngine';
 import { calculateGloss } from './glossEngine';
 import { calculatePersoz } from './persozEngine';
-import { calculateAdhesion } from './adhesionEngine';
+import { calculateAdhesion, resolveAdhesionCountConfig } from './adhesionEngine';
 import { calculateObservations } from './observationsEngine';
 import { getWitnessPanel } from './panelUtils';
 import { VisualObservationsRawData, AdhesionRawData } from '../types/scientific';
@@ -122,7 +122,11 @@ export function recalculateAcquisition(
     computed = res.computed;
     alerts = res.alerts;
   } else if (record.familyId === 'ADHESION') {
-    const countConfig = famConfig?.countConfig || ruleSet.measurementConfigurations.ADHESION;
+    // Gate 57 / D4 : une configuration ADHESION sans `countConfig` enregistré
+    // (essais pré-Gate 57) est interprétée comme le protocole historique 1/1,
+    // SANS modifier la configuration stockée. Le référentiel live ne rétrograde
+    // jamais un essai historique en 1/2 WARNING.
+    const countConfig = resolveAdhesionCountConfig(famConfig?.countConfig);
     const res = calculateAdhesion(
       record.raw as AdhesionRawData,
       countConfig,

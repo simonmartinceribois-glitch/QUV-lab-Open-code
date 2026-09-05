@@ -77,8 +77,15 @@ export function evaluateCountProtocolCompliance(
     };
   }
 
+  // Compatibilité historique (Gate 57 / D-10 GO) : le standard de référence est celui
+  // enregistré dans la configuration au moment de sa création, pas le standard live du
+  // référentiel. Ainsi les configs 1/1/STANDARD antérieures au Gate 57 restent STANDARD
+  // au lieu de basculer artificiellement en adaptation. Les nouvelles configs portent le
+  // standard courant via createCountConfiguration(), donc le comportement est identique
+  // pour tout ce qui est construit après le changement de standard.
   const standardRef = ruleSet.measurementConfigurations[config.familyId];
-  const standardRecommended = standardRef?.standardRecommendedCount ?? 4;
+  const standardRecommended =
+    config.standardRecommendedCount ?? standardRef?.standardRecommendedCount ?? 4;
   const isAdapted = config.configuredCount !== standardRecommended || config.mode === 'CUSTOM_JUSTIFIED';
 
   const alerts: MeasurementAlert[] = [];

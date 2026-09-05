@@ -113,7 +113,10 @@ export function ResultsFamilyAnalysisView({ trial, ruleSet }: Props) {
           const key = `${stage.id}__${p.id}__ADHESION`;
           const acq = trial.acquisitions[key];
           if (acq?.computed) {
-            const aVal = (acq.computed as AdhesionComputedData).adhesionClass;
+            // Gate 57 : moyenne panneau (multi-mesures) puis repli scalaire legacy.
+            // La cinétique trace la moyenne des moyennes panneau, comme l'agrégation lot.
+            const compAdh = acq.computed as AdhesionComputedData;
+            const aVal = compAdh.panelMean ?? compAdh.adhesionClass;
             if (typeof aVal === 'number') adhList.push(aVal);
           }
         });

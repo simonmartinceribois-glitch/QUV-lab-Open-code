@@ -9,8 +9,8 @@
 
 import React, { useState } from 'react';
 import { Trial, BatchDefinition } from '../../types/trial';
-import { ScientificRuleSet, ColorComputedData, GlossComputedData } from '../../types/scientific';
-import { aggregateBatchColor, aggregateBatchGloss } from '../../scientific/aggregations';
+import { ScientificRuleSet, ColorComputedData, GlossComputedData, AdhesionComputedData } from '../../types/scientific';
+import { aggregateBatchColor, aggregateBatchGloss, aggregateBatchAdhesion } from '../../scientific/aggregations';
 import {
   Layers,
   Sparkles,
@@ -161,6 +161,7 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                 <th className="p-2.5 bg-blue-50/60 text-blue-950">s inter (Gloss)</th>
                 <th className="p-2.5 bg-emerald-50/60 text-emerald-950 font-black">Rétention Moyenne %</th>
                 <th className="p-2.5 bg-amber-50/60 text-amber-950">Dureté Persoz Moy. (s)</th>
+                <th className="p-2.5 bg-indigo-50/60 text-indigo-950">Adhérence Moy. (Ø panneaux)</th>
                 <th className="p-2.5 bg-slate-100 text-slate-800 border-l border-slate-300 font-black">Témoin T (Obscurité)</th>
               </tr>
             </thead>
@@ -170,6 +171,8 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                 const colorComputedList: any[] = [];
                 const glossComputedList: any[] = [];
                 const persozComputedList: any[] = [];
+                // Gate 57 : adhérence des exposés uniquement (témoin exclu par construction).
+                const adhComputedList: AdhesionComputedData[] = [];
 
                 exposedActivePanels.forEach((p) => {
                   const cAcq = trial.acquisitions[`${stage.id}__${p.id}__COLOR`];
@@ -180,6 +183,9 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
 
                   const pAcq = trial.acquisitions[`${stage.id}__${p.id}__PERSOZ`];
                   if (pAcq?.computed) persozComputedList.push(pAcq.computed);
+
+                  const aAcq = trial.acquisitions[`${stage.id}__${p.id}__ADHESION`];
+                  if (aAcq?.computed) adhComputedList.push(aAcq.computed as AdhesionComputedData);
                 });
 
                 // Témoin T (individuel, non-agrégé)
@@ -196,13 +202,13 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                   }
                 }
 
-                if (colorComputedList.length === 0 && glossComputedList.length === 0) {
+                if (colorComputedList.length === 0 && glossComputedList.length === 0 && adhComputedList.length === 0) {
                   return (
                     <tr key={stage.id} className="text-slate-400">
                       <td className="p-2.5 font-bold font-mono text-slate-600">
                         {formatStageShort(stage)}
                       </td>
-                      <td colSpan={8} className="p-2.5 text-slate-400 italic">
+                      <td colSpan={9} className="p-2.5 text-slate-400 italic">
                         Aucun relevé validé à cette étape pour ce lot.
                       </td>
                     </tr>
@@ -212,6 +218,8 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                 // Utilisation des fonctions d'agrégation du moteur scientifique sur les exposés E1..E3
                 const colorAgg = aggregateBatchColor(activeBatch.id, stage.id, colorComputedList);
                 const glossAgg = aggregateBatchGloss(activeBatch.id, stage.id, glossComputedList);
+                // Gate 57 : agrégation adhérence = moyenne des moyennes panneau (témoin exclu).
+                const adhAgg = aggregateBatchAdhesion(activeBatch.id, stage.id, adhComputedList);
 
                 // Moyenne Persoz
                 const persozMeans = persozComputedList
@@ -249,6 +257,12 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                     </td>
                     <td className="p-2.5 font-mono text-amber-950 bg-amber-50/30">
                       {meanPersozVal !== '—' ? `${meanPersozVal} s` : '—'}
+                    </td>
+                    <td
+                      className="p-2.5 font-mono text-indigo-950 bg-indigo-50/30"
+                      title={adhAgg.adhesion && adhAgg.adhesion.standardDeviation !== null && adhAgg.adhesion.standardDeviation !== undefined ? `s inter-panneaux = ${adhAgg.adhesion.standardDeviation}` : 'Moyenne des moyennes panneau (exposés E1..E3, témoin exclu)'}
+                    >
+                      {adhAgg.adhesion?.overallMean !== null && adhAgg.adhesion?.overallMean !== undefined ? `${adhAgg.adhesion.overallMean}` : '—'}
                     </td>
                     <td className="p-2.5 font-mono text-slate-700 bg-slate-50 border-l border-slate-200">
                       <span className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-800 font-bold text-[10px] mr-1">T</span>

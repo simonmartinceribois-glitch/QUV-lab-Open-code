@@ -188,6 +188,10 @@ export function CreateTrialWizardModal({
   const [persozReps, setPersozReps] = useState<number>(3);
   const [persozJustification, setPersozJustification] = useState<string>('');
 
+  // Adhérence (Gate 57) : standard 2 mesures/panneau, adaptation à 1 justifiée uniquement.
+  const [adhCount, setAdhCount] = useState<number>(2);
+  const [adhJustification, setAdhJustification] = useState<string>('');
+
   // Gestion des familles
   const toggleFamily = (fam: MeasurementFamilyId) => {
     if (activeFamilies.includes(fam)) {
@@ -239,9 +243,13 @@ export function CreateTrialWizardModal({
   const isPersozAdapted = persozReps !== 3;
   const isPersozAdaptationInvalid = isPersozAdapted && persozJustification.trim().length === 0;
 
+  const isAdhAdapted = adhCount !== 2;
+  const isAdhAdaptationInvalid =
+    (isAdhAdapted && adhJustification.trim().length === 0) || (adhCount !== 1 && adhCount !== 2);
+
   const isStep1Valid = Boolean(reference.trim() && createdBy.trim());
   const isStep3Valid = batches.length > 0 && batches.every((b) => b.reference.trim().length > 0);
-  const isStep5Valid = !isColorAdaptationInvalid && !isGlossAdaptationInvalid && !isPersozAdaptationInvalid;
+  const isStep5Valid = !isColorAdaptationInvalid && !isGlossAdaptationInvalid && !isPersozAdaptationInvalid && !isAdhAdaptationInvalid;
   const isFinalStepValid = Boolean(createdBy.trim());
 
   // Calcul du nombre total de panneaux
@@ -304,6 +312,10 @@ export function CreateTrialWizardModal({
       ? createCountConfiguration('PERSOZ', persozReps, ruleSet, { justification: persozJustification, operatorId: trimmedCreatedBy })
       : createCountConfiguration('PERSOZ', 3, ruleSet);
 
+    const adhConfig = isAdhAdapted
+      ? createCountConfiguration('ADHESION', adhCount, ruleSet, { justification: adhJustification, operatorId: trimmedCreatedBy })
+      : createCountConfiguration('ADHESION', 2, ruleSet);
+
     const createdTrial = globalTrialStore.createTrial({
       metadata,
       commonCharacteristics,
@@ -327,7 +339,7 @@ export function CreateTrialWizardModal({
         COLOR: { familyId: 'COLOR', enabled: activeFamilies.includes('COLOR'), countConfig: colorConfig },
         GLOSS: { familyId: 'GLOSS', enabled: activeFamilies.includes('GLOSS'), seriesConfig: glossConfig },
         PERSOZ: { familyId: 'PERSOZ', enabled: activeFamilies.includes('PERSOZ'), countConfig: persozConfig },
-        ADHESION: { familyId: 'ADHESION', enabled: activeFamilies.includes('ADHESION') },
+        ADHESION: { familyId: 'ADHESION', enabled: activeFamilies.includes('ADHESION'), countConfig: adhConfig },
         OBSERVATIONS: { familyId: 'OBSERVATIONS', enabled: activeFamilies.includes('OBSERVATIONS') }
       },
       selectedMeasurementCycles
@@ -477,6 +489,11 @@ export function CreateTrialWizardModal({
               persozJustification={persozJustification}
               onPersozJustificationChange={setPersozJustification}
               isPersozAdapted={isPersozAdapted}
+              adhCount={adhCount}
+              onAdhCountChange={setAdhCount}
+              adhJustification={adhJustification}
+              onAdhJustificationChange={setAdhJustification}
+              isAdhAdapted={isAdhAdapted}
             />
           )}
 
@@ -509,6 +526,8 @@ export function CreateTrialWizardModal({
               glossSeriesCount={glossSeriesCount}
               glossReadingsPerSeries={glossReadingsPerSeries}
               persozReps={persozReps}
+              adhCount={adhCount}
+              isAdhAdapted={isAdhAdapted}
               selectedMeasurementCycles={selectedMeasurementCycles}
             />
           )}
