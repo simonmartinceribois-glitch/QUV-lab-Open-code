@@ -18,7 +18,7 @@ import {
   VisualObservationsComputedData
 } from '../types/scientific';
 import { generateUUID } from './trialIds';
-import { getActiveExposedPanels } from '../scientific/panelUtils';
+import { getActiveE1E2E3Panels } from '../scientific/panelUtils';
 
 export const REPORT_SCHEMA_VERSION = '1.2.0';
 export const REPORT_GENERATOR_VERSION = 'v1.2.0';
@@ -170,10 +170,10 @@ export function buildScientificReport(
   const protocolStatus =
     adaptedFamilies.length > 0 ? 'ADAPTED_JUSTIFIED' : 'STANDARD';
 
-  // GATE 55 — SÉGRÉGATION TÉMOIN / EXPOSÉ :
+  // GATE 55 — SÉGRÉGATION TÉMOIN / EXPOSÉ (population E1/E2/E3 normalisée) :
   // Le panneau Témoin T, conservé à l'obscurité, ne doit JAMAIS entrer dans les calculs
   // statistiques ou agrégations des panneaux exposés E1, E2, E3.
-  const activeExposedPanels = getActiveExposedPanels(allPanels);
+  const activeExposedPanels = getActiveE1E2E3Panels(allPanels);
   const activeExposedPanelIds = new Set(activeExposedPanels.map((p) => p.id));
 
   // Synthèse des calculs sans JAMAIS recalculer localement

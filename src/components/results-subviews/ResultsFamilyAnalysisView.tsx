@@ -27,7 +27,7 @@ import {
   AlertTriangle,
   CheckCircle2
 } from 'lucide-react';
-import { getActiveExposedPanels, formatStageShort } from '../../scientific/panelUtils';
+import { getActiveE1E2E3Panels, isAdhesionEligiblePanel, formatStageShort } from '../../scientific/panelUtils';
 
 interface Props {
   trial: Trial;
@@ -52,8 +52,8 @@ export function ResultsFamilyAnalysisView({ trial, ruleSet }: Props) {
     };
 
     trial.batches.forEach((batch, bIdx) => {
-      // EXCLUSION STRICTE DU TÉMOIN T DES MOYENNES DU LOT
-      const activePanels = getActiveExposedPanels(batch.panels);
+      // EXCLUSION STRICTE DU TÉMOIN T DES MOYENNES DU LOT (population E1/E2/E3 normalisée)
+      const activePanels = getActiveE1E2E3Panels(batch.panels);
 
       if (activeFamily === 'COLOR') {
         const deltaEList: number[] = [];
@@ -108,8 +108,13 @@ export function ResultsFamilyAnalysisView({ trial, ruleSet }: Props) {
           ).toFixed(1);
         }
       } else if (activeFamily === 'ADHESION') {
+        // ADHÉSION : population dépendante du jalon (matrice T0/T, C12/E1-E3),
+        // jamais la population exposée générique (T0/T disparaîtrait).
         const adhList: number[] = [];
-        activePanels.forEach((p) => {
+        const adhPanels = batch.panels.filter(
+          (p) => p.status === 'ACTIVE' && isAdhesionEligiblePanel(p, stage)
+        );
+        adhPanels.forEach((p) => {
           const key = `${stage.id}__${p.id}__ADHESION`;
           const acq = trial.acquisitions[key];
           if (acq?.computed) {

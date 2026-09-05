@@ -39,7 +39,7 @@ export const AGGREGATION_CALCULATION_VERSION = '1.1.0';
  * Les données transmises dans `panelComputedList` doivent provenir EXCLUSIVEMENT des
  * panneaux exposés actifs (E1, E2, E3). Le panneau Témoin T, conservé à l'obscurité,
  * ne doit JAMAIS être injecté dans cette liste d'agrégation.
- * Le filtrage doit être garanti en amont par l'appelant à l'aide de `getActiveExposedPanels()`.
+ * Le filtrage doit être garanti en amont par l'appelant à l'aide de `getActiveE1E2E3Panels()`.
  *
  * @param batchId Identifiant du lot
  * @param stageId Identifiant de l'étape
@@ -83,7 +83,7 @@ export function aggregateBatchColor(
  * Les données transmises dans `panelComputedList` doivent provenir EXCLUSIVEMENT des
  * panneaux exposés actifs (E1, E2, E3). Le panneau Témoin T, conservé à l'obscurité,
  * ne doit JAMAIS être injecté dans cette liste d'agrégation.
- * Le filtrage doit être garanti en amont par l'appelant à l'aide de `getActiveExposedPanels()`.
+ * Le filtrage doit être garanti en amont par l'appelant à l'aide de `getActiveE1E2E3Panels()`.
  *
  * @param batchId Identifiant du lot
  * @param stageId Identifiant de l'étape
@@ -137,7 +137,7 @@ export function aggregateBatchGloss(
  * CONTRAT SCIENTIFIQUE IMPÉRATIF (identique GATE 55 — D-8) :
  * `panelComputedList` doit provenir EXCLUSIVEMENT des panneaux exposés actifs
  * (E1, E2, E3). Le panneau Témoin T ne doit JAMAIS y figurer.
- * Le filtrage doit être garanti en amont par l'appelant à l'aide de `getActiveExposedPanels()`.
+ * Le filtrage doit être garanti en amont par l'appelant à l'aide de `getActiveE1E2E3Panels()`.
  *
  * Valeur inter-panneaux : `meanDampingTime` (moyenne intra-panneau déjà calculée
  * par persozEngine — jamais recalculée ici, RAW jamais touché).

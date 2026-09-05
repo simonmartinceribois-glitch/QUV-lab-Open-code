@@ -23,7 +23,7 @@ import {
   FileSpreadsheet,
   Eye
 } from 'lucide-react';
-import { getActiveExposedPanels, getWitnessPanel, getActiveStages, formatStageShort } from '../../scientific/panelUtils';
+import { getActiveE1E2E3Panels, getWitnessPanel, getActiveStages, formatStageShort } from '../../scientific/panelUtils';
 
 interface Props {
   trial: Trial;
@@ -42,8 +42,8 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
     );
   }
 
-  // EXCLUSION ABSOLUE DU TÉMOIN T DES AGRÉGATIONS DU LOT
-  const exposedActivePanels = getActiveExposedPanels(activeBatch.panels);
+  // EXCLUSION ABSOLUE DU TÉMOIN T DES AGRÉGATIONS DU LOT (population E1/E2/E3 normalisée)
+  const exposedActivePanels = getActiveE1E2E3Panels(activeBatch.panels);
   const witnessPanel = getWitnessPanel(activeBatch.panels);
   const excludedPanels = activeBatch.panels.filter((p) => p.status === 'EXCLUDED');
   const activeStages = getActiveStages(trial.stages);
@@ -225,6 +225,14 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                 // Gate 58 : agrégation PERSOZ canonique (moyenne + s inter, témoin exclu).
                 const persozAgg = aggregateBatchPersoz(activeBatch.id, stage.id, persozComputedList);
 
+                // Restitution T0 : la référence témoin T (seule donnée ADHÉSION à T0,
+                // jamais agrégée avec des exposés — contrat aggregateBatchAdhesion préservé).
+                const wAdhAcq = witnessPanel
+                  ? trial.acquisitions[`${stage.id}__${witnessPanel.id}__ADHESION`]
+                  : undefined;
+                const wAdhComp = wAdhAcq?.computed as AdhesionComputedData | undefined;
+                const wAdhRef = wAdhComp ? (wAdhComp.panelMean ?? wAdhComp.adhesionClass) : null;
+
                 return (
                   <tr key={stage.id} className="hover:bg-slate-50">
                     <td className="p-2.5 font-bold text-slate-900 flex items-center gap-1.5">
@@ -259,9 +267,11 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                     </td>
                     <td
                       className="p-2.5 font-mono text-indigo-950 bg-indigo-50/30"
-                      title={adhAgg.adhesion && adhAgg.adhesion.standardDeviation !== null && adhAgg.adhesion.standardDeviation !== undefined ? `s inter-panneaux = ${adhAgg.adhesion.standardDeviation}` : 'Moyenne des moyennes panneau (exposés E1..E3, témoin exclu)'}
+                      title={stage.cycleIndex === 0 ? 'Référence T0 — témoin T (E1-E3 non mesurés à T0)' : (adhAgg.adhesion && adhAgg.adhesion.standardDeviation !== null && adhAgg.adhesion.standardDeviation !== undefined ? `s inter-panneaux = ${adhAgg.adhesion.standardDeviation}` : 'Moyenne des moyennes panneau (exposés E1..E3, témoin exclu)')}
                     >
-                      {adhAgg.adhesion?.overallMean !== null && adhAgg.adhesion?.overallMean !== undefined ? `${adhAgg.adhesion.overallMean}` : '—'}
+                      {stage.cycleIndex === 0
+                        ? (typeof wAdhRef === 'number' ? `${wAdhRef} (T)` : '—')
+                        : (adhAgg.adhesion?.overallMean !== null && adhAgg.adhesion?.overallMean !== undefined ? `${adhAgg.adhesion.overallMean}` : '—')}
                     </td>
                     <td className="p-2.5 font-mono text-slate-700 bg-slate-50 border-l border-slate-200">
                       <span className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-800 font-bold text-[10px] mr-1">T</span>
