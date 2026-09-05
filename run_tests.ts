@@ -23,6 +23,7 @@ import { runColorRestitutionTests } from './src/scientific/tests/color_statistic
 import { runPersozQualityPopulationTests } from './src/scientific/tests/persoz_quality_population.test';
 import { runExportComputedPopulationTests } from './src/scientific/tests/export_computed_population.test';
 import { runReferenceTraceabilityTests } from './src/scientific/tests/reference_traceability.test';
+import { runEligibleAlertsTests } from './src/scientific/tests/qualityengine_eligible_alerts.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -346,6 +347,19 @@ suite25.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('26. EXÉCUTION DES ALERTES ÉLIGIBLES qualityEngine (15 TESTS)');
+console.log('================================================================');
+const suite26 = runEligibleAlertsTests();
+console.log(`Résultats Alertes Éligibles : ${suite26.summary.passed} / ${suite26.summary.total} réussis.`);
+suite26.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Eligible Alerts] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -371,7 +385,8 @@ const totalFailed =
   suite22.summary.failed +
   suite23.summary.failed +
   suite24.summary.failed +
-  suite25.summary.failed;
+  suite25.summary.failed +
+  suite26.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -397,7 +412,8 @@ const totalCount =
   suite22.summary.total +
   suite23.summary.total +
   suite24.summary.total +
-  suite25.summary.total;
+  suite25.summary.total +
+  suite26.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
