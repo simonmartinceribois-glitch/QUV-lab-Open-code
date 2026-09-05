@@ -39,7 +39,7 @@ import { recalculateAcquisition } from '../scientific/recalculator';
 import { getQualityStatus } from '../scientific/validity';
 import { createConfigChangeEvent } from '../scientific/auditEngine';
 import { buildScientificReport } from './reportGenerator';
-import { isFamilyScheduledForStage, isPersozEligiblePanel } from '../scientific/panelUtils';
+import { isFamilyScheduledForStage, isPersozEligiblePanel, isAdhesionEligiblePanel } from '../scientific/panelUtils';
 import { generateUUID } from './trialIds';
 import { IntegrityViolationError, validateAcquisitionTarget, validatePhotoTarget } from './trialIntegrity';
 import { generateStandardExposureStages } from './trialStages';
@@ -588,6 +588,27 @@ export class TrialStoreService {
       throw new Error(
         `La mesure d'adhérence au quadrillage (NF EN ISO 2409) est strictement interdite aux étapes intermédiaires (C1 à C11). Elle est planifiée uniquement à T0 et C12.`
       );
+    }
+
+    // Verrou métier ADHÉSION (matrice T0/T, C12/E1-E3) : la cible panneau est
+    // vérifiée en plus du calendrier. T0 → témoin T uniquement ;
+    // C12 → E1/E2/E3 strictement ; C1..C11 → aucun.
+    // Rejet AVANT toute mutation : ni trial.acquisitions, ni lock, ni audit, ni save.
+    if (params.familyId === 'ADHESION') {
+      const targetBatch = trial.batches?.find((b) => b.id === params.batchId);
+      const targetPanel = targetBatch?.panels?.find((p) => p.id === params.panelId);
+      if (!targetPanel || !isAdhesionEligiblePanel(targetPanel, targetStage)) {
+        throw new IntegrityViolationError(
+          `ADHÉSION interdite sur cette cible : T0 autorisé uniquement sur le témoin T, C12 uniquement sur E1/E2/E3, C1 à C11 interdits.`,
+          {
+            trialId: trial.id,
+            stageId: params.stageId,
+            batchId: params.batchId,
+            panelId: params.panelId,
+            familyId: 'ADHESION'
+          }
+        );
+      }
     }
 
     const now = new Date().toISOString();

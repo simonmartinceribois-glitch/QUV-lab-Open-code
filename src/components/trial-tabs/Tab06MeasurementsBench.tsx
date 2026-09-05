@@ -28,7 +28,7 @@ import {
   normalizeAdhesionMeasurements,
   resolveAdhesionCountConfig
 } from '../../scientific/adhesionEngine';
-import { isFamilyScheduledForStage, getActiveFamiliesForStage, isPersozEligiblePanel
+import { isFamilyScheduledForStage, getActiveFamiliesForStage, isPersozEligiblePanel, isAdhesionEligiblePanel
 } from '../../scientific/panelUtils';
 import { BenchTopBar } from '../bench/BenchTopBar';
 import { BenchPanelGrid } from '../bench/BenchPanelGrid';
@@ -110,8 +110,16 @@ export function Tab06MeasurementsBench({
     b.panels.filter((p) => p.status === 'ACTIVE').map((p) => ({ batch: b, panel: p }))
   );
 
+  // Verrou UI ADHÉSION (matrice T0/T, C12/E1-E3) : la liste de travail est
+  // restreinte aux cibles éligibles au jalon courant (vide à C1-C11).
+  // Autres familles : liste inchangée. Le runtime reste l'autorité finale.
+  const benchPanelsList =
+    selectedFamilyId === 'ADHESION'
+      ? activePanelsList.filter((item) => isAdhesionEligiblePanel(item.panel, currentStage))
+      : activePanelsList;
+
   const [selectedPanelId, setSelectedPanelId] = useState<string>(
-    activePanelsList.length > 0 ? activePanelsList[0].panel.id : ''
+    benchPanelsList.length > 0 ? benchPanelsList[0].panel.id : ''
   );
 
   const [operatorId, setOperatorId] = useState<string>('Simon Martin (Technicien)');
@@ -119,7 +127,7 @@ export function Tab06MeasurementsBench({
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
 
   // Panneau actif sélectionné
-  const currentPanelItem = activePanelsList.find((item) => item.panel.id === selectedPanelId) || activePanelsList[0];
+  const currentPanelItem = benchPanelsList.find((item) => item.panel.id === selectedPanelId) || benchPanelsList[0];
   const currentBatch = currentPanelItem?.batch;
   const currentPanel = currentPanelItem?.panel;
 
@@ -256,7 +264,13 @@ export function Tab06MeasurementsBench({
     // Verrou UI PERSOZ (E1/E2/E3 strict) : aucun RAW créé, aucun appel recordAcquisition.
     // Le verrou runtime (recordAcquisition) rejette de toute façon en dernier rempart.
     if (selectedFamilyId === 'PERSOZ' && !isPersozEligiblePanel(currentPanel)) {
-      alert("PERSOZ interdit sur l'éprouvette témoin T : mesure réservée aux éprouvettes exposées (E1, E2, E3).");
+      alert("PERSOZ interdit sur cette éprouvette : mesure réservée aux éprouvettes exposées E1, E2, E3.");
+      return;
+    }
+    // Verrou UI ADHÉSION (matrice T0/T, C12/E1-E3) : aucun RAW créé, aucun appel
+    // recordAcquisition sur cible interdite. Le runtime reste l'autorité finale.
+    if (selectedFamilyId === 'ADHESION' && !isAdhesionEligiblePanel(currentPanel, currentStage)) {
+      alert("ADHÉSION interdite sur cette cible : T0 autorisé uniquement sur le témoin T, C12 uniquement sur E1/E2/E3.");
       return;
     }
 
@@ -353,9 +367,9 @@ export function Tab06MeasurementsBench({
 
     // NEXT automatique vers le panneau suivant incomplet
     if (autoAdvance) {
-      const currentIdx = activePanelsList.findIndex((item) => item.panel.id === currentPanel.id);
+      const currentIdx = benchPanelsList.findIndex((item) => item.panel.id === currentPanel.id);
       // Chercher d'abord le prochain incomplet (T exclu d'office en campagne PERSOZ)
-      const nextIncomplete = activePanelsList.find((item, idx) => {
+      const nextIncomplete = benchPanelsList.find((item, idx) => {
         if (idx <= currentIdx) return false;
         if (selectedFamilyId === 'PERSOZ' && !isPersozEligiblePanel(item.panel)) return false;
         const key = `${currentStage.id}__${item.panel.id}__${selectedFamilyId}`;
@@ -365,8 +379,8 @@ export function Tab06MeasurementsBench({
 
       if (nextIncomplete) {
         setSelectedPanelId(nextIncomplete.panel.id);
-      } else if (currentIdx < activePanelsList.length - 1) {
-        const following = activePanelsList.slice(currentIdx + 1).find((item) => selectedFamilyId !== 'PERSOZ' || isPersozEligiblePanel(item.panel));
+      } else if (currentIdx < benchPanelsList.length - 1) {
+        const following = benchPanelsList.slice(currentIdx + 1).find((item) => selectedFamilyId !== 'PERSOZ' || isPersozEligiblePanel(item.panel));
         if (following) setSelectedPanelId(following.panel.id);
       }
     }
@@ -401,13 +415,13 @@ export function Tab06MeasurementsBench({
   const computed: unknown = currentRecord?.computed;
 
   // Calcul du résumé de la campagne pour la famille
-  const completedPanelsCount = activePanelsList.filter((item) => {
+  const completedPanelsCount = benchPanelsList.filter((item) => {
     const k = `${currentStage.id}__${item.panel.id}__${selectedFamilyId}`;
     const r = trial.acquisitions[k];
     return r && r.computed;
   }).length;
 
-  const totalPanelsCount = activePanelsList.length;
+  const totalPanelsCount = benchPanelsList.length;
   const isFamilyCampaignComplete = completedPanelsCount === totalPanelsCount && totalPanelsCount > 0;
 
   const currentMeasuredIndex = measuredStages.findIndex((s) => s.id === currentStage.id);
@@ -449,7 +463,7 @@ export function Tab06MeasurementsBench({
         totalPanelsCount={totalPanelsCount}
         isFamilyCampaignComplete={isFamilyCampaignComplete}
         selectedFamilyId={selectedFamilyId}
-        activePanelsList={activePanelsList}
+        activePanelsList={benchPanelsList}
         currentPanelId={currentPanel?.id}
         currentStageId={currentStage.id}
         acquisitions={trial.acquisitions}
@@ -457,7 +471,7 @@ export function Tab06MeasurementsBench({
           // Verrou UI PERSOZ (E1/E2/E3 strict) : T et panneaux non identifiés
           // non sélectionnables en campagne PERSOZ.
           if (selectedFamilyId === 'PERSOZ') {
-            const target = activePanelsList.find((item) => item.panel.id === panelId);
+            const target = benchPanelsList.find((item) => item.panel.id === panelId);
             if (target && !isPersozEligiblePanel(target.panel)) return;
           }
           setSelectedPanelId(panelId);

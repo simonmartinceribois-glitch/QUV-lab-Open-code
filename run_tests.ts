@@ -14,6 +14,7 @@ import { runGate56AdhesionWitnessTests } from './src/scientific/tests/gate56_adh
 import { runGate57AdhesionTwoMeasurementsTests } from './src/scientific/tests/gate57_adhesion_two_measurements.test';
 import { runGate58PersozAggregationTests } from './src/scientific/tests/gate58_persoz_aggregation.test';
 import { runPersozWitnessLockTests } from './src/scientific/tests/persoz_witness_lock.test';
+import { runAdhesionTargetLockTests } from './src/scientific/tests/adhesion_target_lock.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -220,6 +221,19 @@ suite16.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('17. EXÉCUTION DU VERROU ADHÉSION T0/C12 (11 TESTS)');
+console.log('================================================================');
+const suite17 = runAdhesionTargetLockTests();
+console.log(`Résultats Verrou ADHÉSION : ${suite17.summary.passed} / ${suite17.summary.total} réussis.`);
+suite17.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Adhesion Lock] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -236,7 +250,8 @@ const totalFailed =
   suite13.summary.failed +
   suite14.summary.failed +
   suite15.summary.failed +
-  suite16.summary.failed;
+  suite16.summary.failed +
+  suite17.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -253,7 +268,8 @@ const totalCount =
   suite13.summary.total +
   suite14.summary.total +
   suite15.summary.total +
-  suite16.summary.total;
+  suite16.summary.total +
+  suite17.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

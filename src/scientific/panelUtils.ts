@@ -68,6 +68,29 @@ export function isPersozEligiblePanel(panel: {
 }
 
 /**
+ * Éligibilité métier ADHÉSION (verrou ADHÉSION T0/C12) : matrice canonique.
+ * - T0 (cycleIndex 0) : témoin T UNIQUEMENT.
+ * - C12 (cycleIndex 12) : E1/E2/E3 strictement (même sévérité que PERSOZ).
+ * - C1..C11 : aucun panneau.
+ * `stage` est identifié par son cycleIndex physique (0 = T0, 12 = C12/2016h).
+ */
+export function isAdhesionEligiblePanel(
+  panel: {
+    label?: string;
+    roleCode?: string;
+    role?: string;
+  },
+  stage: {
+    cycleIndex?: number;
+  }
+): boolean {
+  if (!panel || !stage) return false;
+  if (stage.cycleIndex === 0) return isWitnessPanel(panel);
+  if (stage.cycleIndex === 12) return isPersozEligiblePanel(panel);
+  return false;
+}
+
+/**
  * Récupère l'éprouvette Témoin T d'un lot
  */
 export function getWitnessPanel<T extends { label?: string; roleCode?: string; role?: string }>(
