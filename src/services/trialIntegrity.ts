@@ -91,6 +91,35 @@ function isValidBatchElement(batch: unknown): boolean {
   return (batch['panels'] as unknown[]).every(isValidPanelElement);
 }
 
+interface RelationalContext {
+  trialId: string;
+  stageIds: Set<string>;
+  batches: Map<string, Map<string, string>>;
+}
+
+/**
+ * Cohérence relationnelle d'une acquisition persistée (aucune transformation,
+ * aucune correction, aucun déplacement, aucune fabrication) :
+ * - acquisition.trialId === essai courant ;
+ * - stageId présent dans trial.stages ;
+ * - batchId présent dans trial.batches ;
+ * - panelId présent dans le batch indiqué par acquisition.batchId (pas un autre) ;
+ * - panel.batchId === acquisition.batchId.
+ * Toute incohérence invalide le Trial entier (rejet complet au chargement).
+ */
+function isRelationallyCoherentAcquisition(entry: Record<string, unknown>, ctx: RelationalContext): boolean {
+  if (entry['trialId'] !== ctx.trialId) return false;
+  if (typeof entry['stageId'] !== 'string' || !ctx.stageIds.has(entry['stageId'])) return false;
+  if (typeof entry['batchId'] !== 'string') return false;
+  const panels = ctx.batches.get(entry['batchId'] as string);
+  if (!panels) return false;
+  if (typeof entry['panelId'] !== 'string') return false;
+  const panelBatchId = panels.get(entry['panelId'] as string);
+  if (panelBatchId === undefined) return false;
+  if (panelBatchId !== entry['batchId']) return false;
+  return true;
+}
+
 function isValidAcquisitionEntry(entry: unknown): boolean {
   if (!isPlainRecord(entry)) return false;
   const requiredIds = ['id', 'trialId', 'stageId', 'batchId', 'panelId'];
@@ -118,8 +147,30 @@ export function isStructurallyValidTrial(trial: unknown): trial is Trial {
   if (!Array.isArray(trial['batches']) || !(trial['batches'] as unknown[]).every(isValidBatchElement)) return false;
   if (!isPlainRecord(trial['acquisitions'])) return false;
   if (!isPlainRecord(trial['config'])) return false;
+  const ctx: RelationalContext = {
+    trialId: trial['id'],
+    stageIds: new Set(
+      (trial['stages'] as unknown[])
+        .filter(isPlainRecord)
+        .map((s) => s['id'])
+        .filter((id): id is string => typeof id === 'string')
+    ),
+    batches: new Map(
+      (trial['batches'] as unknown[]).filter(isPlainRecord).map((b) => [
+        b['id'] as string,
+        new Map(
+          (Array.isArray(b['panels']) ? (b['panels'] as unknown[]) : [])
+            .filter(isPlainRecord)
+            .map((p) => [p['id'], p['batchId']] as [unknown, unknown])
+            .filter((pair): pair is [string, string] =>
+              typeof pair[0] === 'string' && typeof pair[1] === 'string')
+        )
+      ])
+    )
+  };
   for (const entry of Object.values(trial['acquisitions'] as Record<string, unknown>)) {
     if (!isValidAcquisitionEntry(entry)) return false;
+    if (!isRelationallyCoherentAcquisition(entry as Record<string, unknown>, ctx)) return false;
   }
   return true;
 }

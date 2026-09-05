@@ -700,6 +700,166 @@ export function runImportRobustnessTests(): {
       ok, '0 conservé', `valeur=${String(rawAfter)}`);
   }
 
+  // Acquisition relationnellement cohérente de référence pour IR-40..50.
+  const coherentEntry = (trial: Trial) => {
+    const stage = trial.stages.find((s) => s.cycleIndex === 0)!;
+    return {
+      id: 'acq-rel-1',
+      trialId: trial.id,
+      stageId: stage.id,
+      batchId: trial.batches[0].id,
+      panelId: `${trial.id}-p-E1`,
+      familyId: 'PERSOZ',
+      raw: { readings: [{ pointIndex: 1, dampingTimeSeconds: 85 }] },
+      status: 'COMPLETE',
+      alerts: [],
+      trace: { createdBy: 'TEST_OP', createdAt: '2026-09-05T00:00:00Z', source: 'MANUAL_KEYPAD' }
+    };
+  };
+  const withOneAcq = (trial: Trial, entry: unknown) => ({
+    ...trial,
+    acquisitions: { k1: entry }
+  });
+
+  // --- IR-40 : trialId différent → invalide ---
+  {
+    const trial = buildTrial();
+    const entry = { ...coherentEntry(trial), trialId: 'autre-essai' };
+    const ok = !isStructurallyValidTrial(withOneAcq(trial, entry));
+    record('IR-40', 'Acquisition trialId ≠ essai → Trial invalide',
+      ok, 'false', String(ok ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+  }
+
+  // --- IR-41 : stageId inexistant → invalide ---
+  {
+    const trial = buildTrial();
+    const entry = { ...coherentEntry(trial), stageId: 'stage-inexistant' };
+    const ok = !isStructurallyValidTrial(withOneAcq(trial, entry));
+    record('IR-41', 'Acquisition stageId inexistant → Trial invalide',
+      ok, 'false', String(ok ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+  }
+
+  // --- IR-42 : batchId inexistant → invalide ---
+  {
+    const trial = buildTrial();
+    const entry = { ...coherentEntry(trial), batchId: 'batch-inexistant' };
+    const ok = !isStructurallyValidTrial(withOneAcq(trial, entry));
+    record('IR-42', 'Acquisition batchId inexistant → Trial invalide',
+      ok, 'false', String(ok ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+  }
+
+  // --- IR-43 : panelId inexistant dans le batch → invalide ---
+  {
+    const trial = buildTrial();
+    const entry = { ...coherentEntry(trial), panelId: `${trial.id}-p-FANTOME` };
+    const ok = !isStructurallyValidTrial(withOneAcq(trial, entry));
+    record('IR-43', 'Acquisition panelId inexistant → Trial invalide',
+      ok, 'false', String(ok ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+  }
+
+  // --- IR-44 : panel d'un AUTRE batch → invalide ---
+  {
+    const trial = buildTrial();
+    const batch1 = trial.batches[0];
+    const batch2 = {
+      ...batch1,
+      id: `${trial.id}-batch-2`,
+      panels: batch1.panels.map((p) => ({ ...p, id: `${p.id}-b2`, batchId: `${trial.id}-batch-2` }))
+    };
+    const trial2 = { ...trial, batches: [batch1, batch2] };
+    const entry = {
+      ...coherentEntry(trial),
+      batchId: batch1.id,
+      panelId: `${trial.id}-p-E1-b2`
+    };
+    const ok = !isStructurallyValidTrial(withOneAcq(trial2, entry));
+    record('IR-44', 'Panel existant mais dans un autre batch → Trial invalide',
+      ok, 'false', String(ok ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+  }
+
+  // --- IR-45 : panel.batchId ≠ acquisition.batchId → invalide ---
+  {
+    const trial = buildTrial();
+    const batch = {
+      ...trial.batches[0],
+      panels: trial.batches[0].panels.map((p) =>
+        p.id === `${trial.id}-p-E1` ? { ...p, batchId: 'batch-menteur' } : p)
+    };
+    const trial2 = { ...trial, batches: [batch] };
+    const entry = coherentEntry(trial);
+    const ok = !isStructurallyValidTrial(withOneAcq(trial2, entry));
+    record('IR-45', 'panel.batchId ≠ acquisition.batchId → Trial invalide',
+      ok, 'false', String(ok ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+  }
+
+  // --- IR-46 : acquisition cohérente → valide ---
+  {
+    const trial = buildTrial();
+    const ok = isStructurallyValidTrial(withOneAcq(trial, coherentEntry(trial)));
+    record('IR-46', 'Acquisition relationnellement valide → Trial valide',
+      ok, 'true', String(ok));
+  }
+
+  // --- IR-47 : 2 valides + 1 corrompue → Trial rejeté entièrement ---
+  {
+    const trial = buildTrial();
+    const good = coherentEntry(trial);
+    const bad = { ...coherentEntry(trial), id: 'acq-rel-2', stageId: 'stage-inexistant' };
+    const candidate = {
+      ...trial,
+      acquisitions: { k1: good, k2: { ...good, id: 'acq-rel-3' }, k3: bad }
+    };
+    const ok = !isStructurallyValidTrial(candidate);
+    record('IR-47', 'Une acquisition corrompue invalide tout le Trial',
+      ok, 'false', String(ok ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+  }
+
+  // --- IR-48 : [A valide, B corrompu relationnel, C valide] au chargement ---
+  {
+    const trialA = buildTrial();
+    const trialC = buildTrial();
+    const trialB = buildTrial();
+    const badEntry = { ...coherentEntry(trialB), panelId: `${trialB.id}-p-FANTOME` };
+    const trialBCorrupt = withOneAcq(trialB, badEntry);
+    const payload = JSON.stringify([trialA, trialBCorrupt, trialC]);
+    const out = withMockStorage(payload, () => new TrialStoreService());
+    const fresh = out.result;
+    const ok = !out.threw &&
+      Boolean(fresh.getTrial(trialA.id)) &&
+      Boolean(fresh.getTrial(trialC.id)) &&
+      fresh.getTrial(trialB.id) === undefined &&
+      out.warns.length > 0 &&
+      out.box.sets === 0;
+    record('IR-48', 'A+C chargés, B relationnellement corrompu ignoré, 0 écriture',
+      ok, 'A+C chargés, B ignoré, sets=0',
+      `A=${String(Boolean(fresh.getTrial(trialA.id)))}, C=${String(Boolean(fresh.getTrial(trialC.id)))}, B=${String(fresh.getTrial(trialB.id) !== undefined)}, warns=${out.warns.length}, sets=${out.box.sets}`);
+  }
+
+  // --- IR-49 : aucune correction silencieuse des IDs ---
+  {
+    const trial = buildTrial();
+    const entry = { ...coherentEntry(trial), panelId: `${trial.id}-p-FANTOME` };
+    const before = JSON.stringify(entry);
+    const valid = isStructurallyValidTrial(withOneAcq(trial, entry));
+    const after = JSON.stringify(entry);
+    record('IR-49', 'Aucune correction silencieuse (rejet + objet intact)',
+      !valid && before === after, 'rejeté, intact', `rejeté=${String(!valid)}, intact=${String(before === after)}`);
+  }
+
+  // --- IR-50 : RAW inchangé sur acquisition relationnellement valide ---
+  {
+    const trial = buildTrial();
+    const entry = coherentEntry(trial);
+    const before = JSON.stringify(entry.raw);
+    const payload = JSON.stringify([withOneAcq(trial, entry)]);
+    const out = withMockStorage(payload, () => new TrialStoreService());
+    const key = Object.keys(out.result.getTrial(trial.id)?.acquisitions || {})[0];
+    const after = JSON.stringify(out.result.getTrial(trial.id)?.acquisitions[key]?.raw);
+    const ok = !out.threw && before === after;
+    record('IR-50', 'RAW strictement inchangé après rechargement valide',
+      ok, 'identique', String(ok));
+  }
+
   const passed = results.filter((r) => r.passed).length;
   return { results, summary: { total: results.length, passed, failed: results.length - passed } };
 }
