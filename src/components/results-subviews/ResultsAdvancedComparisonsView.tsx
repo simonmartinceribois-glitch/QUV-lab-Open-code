@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { Trial, BatchDefinition, ExposureStage } from '../../types/trial';
 import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
-import { aggregateBatchColor, aggregateBatchGloss } from '../../scientific/aggregations';
+import { aggregateBatchColor, aggregateBatchGloss, aggregateBatchPersoz } from '../../scientific/aggregations';
 import { GitCompare, Layers, TrendingUp, Info, CheckCircle2 } from 'lucide-react';
 import { getActiveExposedPanels, getActiveStages, formatStageOption, formatStageShort } from '../../scientific/panelUtils';
 
@@ -165,14 +165,8 @@ export function ResultsAdvancedComparisonsView({ trial, ruleSet }: Props) {
 
                 const colorAgg = aggregateBatchColor(batch.id, activeStage.id, colorComputedList);
                 const glossAgg = aggregateBatchGloss(batch.id, activeStage.id, glossComputedList);
-
-                const persozValues = persozComputedList
-                  .map((p) => p.meanDampingTime)
-                  .filter((v): v is number => typeof v === 'number');
-                const meanP =
-                  persozValues.length > 0
-                    ? (persozValues.reduce((a, b) => a + b, 0) / persozValues.length).toFixed(1)
-                    : '—';
+                // Gate 58 : agrégation PERSOZ canonique (remplace le calcul inline).
+                const persozAgg = aggregateBatchPersoz(batch.id, activeStage.id, persozComputedList);
 
                 return (
                   <tr key={batch.id} className="hover:bg-slate-50">
@@ -231,10 +225,10 @@ export function ResultsAdvancedComparisonsView({ trial, ruleSet }: Props) {
                     {comparisonFamily === 'PERSOZ' && (
                       <>
                         <td className="p-2.5 font-mono text-amber-950 font-bold bg-amber-50/40">
-                          {meanP !== '—' ? `${meanP} s` : '—'}
+                          {persozAgg.interPanelMean !== null ? `${persozAgg.interPanelMean.toFixed(1)} s` : '—'}
                         </td>
                         <td className="p-2.5 font-mono text-slate-600 bg-amber-50/40">
-                          {persozComputedList[0]?.interPanelStdDev !== undefined ? persozComputedList[0]?.interPanelStdDev : '—'}
+                          {persozAgg.interPanelStdDev !== null ? persozAgg.interPanelStdDev.toFixed(1) : '—'}
                         </td>
                         <td className="p-2.5 font-mono text-slate-700">
                           {persozComputedList[0]?.relativeHardnessVariationPercent !== undefined

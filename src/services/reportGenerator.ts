@@ -462,7 +462,7 @@ export function exportRawDataToCsv(trial: Trial): string {
               if (Array.isArray(raw.measurements)) {
                 raw.measurements.forEach((m: any) => {
                   lines.push(
-                    `"${st.id}";"${st.name}";${st.cycleIndex};"${b.id}";"${b.reference}";"${p.id}";"${p.label}";ADHESION;"Mesure ${m.measurementIndex ?? ''} Classe ${m.adhesionClass ?? ''}";${raw.coatingThicknessMicrons ?? ''};${raw.gridSpacingMm ?? ''};;"${m.observation || ''}";${src};"${op}";"${dt}"`
+                    `"${st.id}";"${st.name}";${st.cycleIndex};"${b.id}";"${b.reference}";"${p.id}";"${p.label}";ADHESION;"Mesure ${m.measurementIndex ?? ''} Classe ${m.adhesionClass ?? ''}";${raw.coatingThicknessMicrons ?? ''};${raw.gridSpacingMm ?? ''};${raw.elapsedTimeHours ?? ''};"${m.observation || ''}";${src};"${op}";"${dt}"`
                   );
                 });
               } else {
