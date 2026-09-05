@@ -13,7 +13,9 @@ import {
   GlossRawData,
   PersozRawData,
   AcquisitionStatus,
-  MeasurementAlert
+  MeasurementAlert,
+  ReferenceTrace,
+  ReferenceRule
 } from '../types/scientific';
 import { calculateColor } from './colorEngine';
 import { calculateGloss } from './glossEngine';
@@ -47,22 +49,29 @@ export function recalculateAcquisition(
   const isCurrentInitial = record.stageId === initialStage?.id;
 
   let referenceRaw: unknown = null;
+  // Identité de l'acquisition source (traçabilité explicite, jamais inventée).
+  let referenceStageId: string | null = null;
+  let referencePanelId: string | null = null;
+  let referenceAcquisitionId: string | null = null;
   if (!isCurrentInitial && initialStage) {
     // Règle ADHESION : la référence T0 est celle du panneau TÉMOIN du lot
     // (T non exposé), jamais celle du panneau exposé lui-même.
     // Les autres familles conservent la référence T0 du même panneau.
-    let referencePanelId = record.panelId;
+    let resolvedReferencePanelId = record.panelId;
     if (record.familyId === 'ADHESION') {
       const batch = trial.batches?.find((b) => b.id === record.batchId);
       const witness = batch ? getWitnessPanel(batch.panels || []) : undefined;
       if (witness) {
-        referencePanelId = witness.id;
+        resolvedReferencePanelId = witness.id;
       }
     }
-    const refKey = `${initialStage.id}__${referencePanelId}__${record.familyId}`;
+    const refKey = `${initialStage.id}__${resolvedReferencePanelId}__${record.familyId}`;
     const refRecord = trial.acquisitions[refKey];
     if (refRecord) {
       referenceRaw = refRecord.raw;
+      referenceStageId = initialStage.id;
+      referencePanelId = resolvedReferencePanelId;
+      referenceAcquisitionId = refRecord.id;
     }
   }
 
@@ -163,6 +172,29 @@ export function recalculateAcquisition(
     status = 'WARNING';
   } else if (!computed) {
     status = 'EMPTY';
+  }
+
+  // Traçabilité explicite : la règle décrit la sélection réellement appliquée
+  // ci-dessus ; les identifiants sont ceux de l'acquisition source trouvée,
+  // null quand aucune référence n'est utilisée (jamais inventés).
+  // OBSERVATIONS ne consomme aucune référence (moteur sans referenceRaw).
+  const consumesReference =
+    record.familyId === 'COLOR' ||
+    record.familyId === 'GLOSS' ||
+    record.familyId === 'PERSOZ' ||
+    record.familyId === 'ADHESION';
+  let referenceRule: ReferenceRule = 'NONE';
+  if (consumesReference && referenceAcquisitionId !== null) {
+    referenceRule = record.familyId === 'ADHESION' ? 'T0_WITNESS_REFERENCE' : 'SAME_PANEL_T0';
+  }
+  const referenceTrace: ReferenceTrace = {
+    referenceStageId: consumesReference ? referenceStageId : null,
+    referencePanelId: consumesReference ? referencePanelId : null,
+    referenceAcquisitionId: consumesReference ? referenceAcquisitionId : null,
+    referenceRule
+  };
+  if (computed !== null && typeof computed === 'object') {
+    computed = { ...(computed as Record<string, unknown>), referenceTrace };
   }
 
   // Vérification de l'immuabilité
