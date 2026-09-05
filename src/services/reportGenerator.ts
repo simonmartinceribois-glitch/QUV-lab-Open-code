@@ -19,6 +19,7 @@ import {
 } from '../types/scientific';
 import { generateUUID } from './trialIds';
 import { getActiveE1E2E3Panels } from '../scientific/panelUtils';
+import { aggregateBatchColor } from '../scientific/aggregations';
 
 export const REPORT_SCHEMA_VERSION = '1.2.0';
 export const REPORT_GENERATOR_VERSION = 'v1.2.0';
@@ -402,6 +403,33 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
           }
         });
       });
+    });
+  });
+
+  lines.push(``);
+  lines.push(`=== COULEUR — STATISTIQUES INTER-PANNEAUX DES EXPOSÉS E1-E3 ===`);
+  lines.push(
+    `Étape;Heures Planifiées;Lot;COLOR_L_moy;COLOR_L_SD;COLOR_a_moy;COLOR_a_SD;COLOR_b_moy;COLOR_b_SD;DeltaE_moy;DeltaE_SD`
+  );
+
+  // Restitution des statistiques calculées par aggregateBatchColor (aucun recalcul
+  // local) : moyennes des moyennes panneau E1/E2/E3, écarts-types échantillon n−1.
+  // Étapes/panneaux sans données : champs vides, jamais de valeur fabriquée.
+  trial.stages.forEach((st) => {
+    trial.batches.forEach((b) => {
+      const exposedPanels = getActiveE1E2E3Panels(b.panels);
+      const colorList: ColorComputedData[] = [];
+      exposedPanels.forEach((p) => {
+        const acq = trial.acquisitions[`${st.id}__${p.id}__COLOR`];
+        if (acq?.computed) colorList.push(acq.computed as ColorComputedData);
+      });
+      if (colorList.length === 0) return;
+      const agg = aggregateBatchColor(b.id, st.id, colorList);
+      const fmt = (v: number | null | undefined, decimals: number): string =>
+        v !== null && v !== undefined ? v.toFixed(decimals) : '';
+      lines.push(
+        `"${st.name}";${st.scheduledExposureHours};"${b.reference}";${fmt(agg.color?.meanL, 3)};${fmt(agg.color?.stdDevL, 3)};${fmt(agg.color?.meanA, 3)};${fmt(agg.color?.stdDevA, 3)};${fmt(agg.color?.meanB, 3)};${fmt(agg.color?.stdDevB, 3)};${fmt(agg.meanDeltaE, 2)};${fmt(agg.interPanelStdDev, 2)}`
+      );
     });
   });
 
