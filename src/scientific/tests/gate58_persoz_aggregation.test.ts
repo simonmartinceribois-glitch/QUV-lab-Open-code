@@ -185,7 +185,7 @@ export function runGate58PersozAggregationTests(): {
   }
 
   // --- G58-AGG-03 : témoin exclu (contrat d'appel) ---
-  // Le témoin (120 s, valeur leurre qui fausserait la moyenne à 101.7) est
+  // Le témoin (120 s, valeur leurre qui fausserait la moyenne à 97) est
   // filtré en amont par getActiveExposedPanels ; l'agrégation ne reçoit que E1/E2.
   {
     const panels = [
@@ -210,7 +210,7 @@ export function runGate58PersozAggregationTests(): {
       exposed.length === 2 &&
         agg.panelsCount === 2 &&
         agg.interPanelMean === 85.5,
-      '2 exposés, mean=85.5 (pas 101.7 avec témoin)',
+      '2 exposés, mean=85.5 (pas 97 avec témoin)',
       `${exposed.length} exposés, mean=${String(agg.interPanelMean)}`
     );
   }
