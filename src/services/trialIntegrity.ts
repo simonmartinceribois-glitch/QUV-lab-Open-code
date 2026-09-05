@@ -93,11 +93,18 @@ function isValidBatchElement(batch: unknown): boolean {
 
 function isValidAcquisitionEntry(entry: unknown): boolean {
   if (!isPlainRecord(entry)) return false;
-  const requiredIds = ['id', 'trialId', 'stageId', 'batchId', 'panelId', 'familyId'];
+  const requiredIds = ['id', 'trialId', 'stageId', 'batchId', 'panelId'];
   for (const key of requiredIds) {
     if (!isNonEmptyString(entry[key])) return false;
   }
-  if (!('raw' in entry)) return false;
+  // familyId : chaîne non vide ET famille canonique (jamais UNKNOWN/vide/numérique).
+  // Structurel uniquement : les règles scientifiques des familles restent aux moteurs.
+  if (typeof entry['familyId'] !== 'string' || !KNOWN_MEASUREMENT_FAMILIES.includes(entry['familyId'])) return false;
+  // RAW : même règle structurelle qu'à l'import — objet non-null non-tableau.
+  // `{}` reste accepté (mesure MISSING = moteurs) ; null/primitif/tableau refusés.
+  // Jamais de 0 fabriqué, jamais de normalisation silencieuse.
+  const raw = entry['raw'];
+  if (raw === null || raw === undefined || typeof raw !== 'object' || Array.isArray(raw)) return false;
   if (typeof entry['status'] !== 'string') return false;
   if (!Array.isArray(entry['alerts'])) return false;
   if (!isPlainRecord(entry['trace'])) return false;

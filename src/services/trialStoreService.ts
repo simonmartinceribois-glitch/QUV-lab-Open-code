@@ -146,47 +146,75 @@ export class TrialStoreService {
     return trial;
   }
 
-  private loadFromStorage(): void {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed: unknown = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          parsed.forEach((entry: unknown) => {
-            // Validation structurelle D'ABORD (avant tout accès métier tel que
-            // entry.id) : un id non-string (ex. 123) ne doit jamais faire
-            // planter le chargement. Entrée corrompue → ignorée + warning,
-            // les autres essais se chargent normalement (try/catch par essai).
-            if (!isStructurallyValidTrial(entry)) {
-              const rawId: unknown = isPlainRecord(entry) ? (entry as Record<string, unknown>)['id'] : undefined;
-              console.warn(
-                `[QUV-Lab] Essai ignoré au chargement : structure invalide (id=${typeof rawId === 'string' ? rawId : 'absent/invalide'}).`
-              );
-              return;
-            }
-            // Éliminer préventivement toute pollution issue d'anciens mocks de test (Gate 55 - D-6)
-            if (entry.id.startsWith('MOCK_TEST_')) return;
-            try {
-              const migrated = this.migrateTrialTerminology(entry);
-              this.trials.set(migrated.id, migrated);
-            } catch (err) {
-              console.warn(`[QUV-Lab] Essai ignoré au chargement : migration impossible (id=${entry.id}).`, err);
-            }
-          });
-          return;
-        }
-      }
-    } catch (err) {
-      // Erreur de lecture/parse remontée explicitement (plus de silence).
-      console.warn('[QUV-Lab] Chargement local impossible, essais de démonstration initialisés.', err);
-    }
-
-    // Initialisation avec démo et essai de validation si vide
+  /**
+   * Initialise le store mémoire avec les essais de démonstration.
+   * @param persist true uniquement au premier lancement (stockage vide) ;
+   * false après une corruption (mémoire utilisable, JAMAIS d'écrasement
+   * des données persistées existantes par des données DEMO).
+   */
+  private seedDemoTrials(persist: boolean): void {
     const demo = createDemoTrial(this.ruleSet);
     const valTrial = createValidationTrial(this.ruleSet);
     this.trials.set(demo.id, demo);
     this.trials.set(valTrial.id, valTrial);
-    this.saveToStorage();
+    if (persist) {
+      this.saveToStorage();
+    }
+  }
+
+  private loadFromStorage(): void {
+    let stored: string | null = null;
+    try {
+      stored = localStorage.getItem(STORAGE_KEY);
+    } catch (err) {
+      // Lecture impossible : mémoire utilisable, AUCUNE écriture.
+      console.warn('[QUV-Lab] Lecture du stockage local impossible, essais de démonstration en mémoire uniquement.', err);
+      this.seedDemoTrials(false);
+      return;
+    }
+    // Stockage vide : premier lancement, comportement existant (seed + persist).
+    if (!stored) {
+      this.seedDemoTrials(true);
+      return;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(stored);
+    } catch (err) {
+      // JSON corrompu : warning, mémoire utilisable, AUCUNE écriture —
+      // les données existantes ne sont jamais remplacées par DEMO.
+      console.warn('[QUV-Lab] Stockage local illisible (JSON corrompu), données conservées telles quelles, aucun écrasement.', err);
+      this.seedDemoTrials(false);
+      return;
+    }
+    if (!Array.isArray(parsed)) {
+      console.warn('[QUV-Lab] Stockage local inattendu (tableau attendu), essais de démonstration en mémoire uniquement.');
+      this.seedDemoTrials(false);
+      return;
+    }
+    // Tableau lisible (même vide ou entièrement corrompu) : charger les essais
+    // valides un par un, ignorer les autres. Ne JAMAIS réécrire le stockage ici.
+    parsed.forEach((entry: unknown) => {
+      // Validation structurelle D'ABORD (avant tout accès métier tel que
+      // entry.id) : un id non-string (ex. 123) ne doit jamais faire
+      // planter le chargement. Entrée corrompue → ignorée + warning,
+      // les autres essais se chargent normalement (try/catch par essai).
+      if (!isStructurallyValidTrial(entry)) {
+        const rawId: unknown = isPlainRecord(entry) ? (entry as Record<string, unknown>)['id'] : undefined;
+        console.warn(
+          `[QUV-Lab] Essai ignoré au chargement : structure invalide (id=${typeof rawId === 'string' ? rawId : 'absent/invalide'}).`
+        );
+        return;
+      }
+      // Éliminer préventivement toute pollution issue d'anciens mocks de test (Gate 55 - D-6)
+      if (entry.id.startsWith('MOCK_TEST_')) return;
+      try {
+        const migrated = this.migrateTrialTerminology(entry);
+        this.trials.set(migrated.id, migrated);
+      } catch (err) {
+        console.warn(`[QUV-Lab] Essai ignoré au chargement : migration impossible (id=${entry.id}).`, err);
+      }
+    });
   }
 
   private saveToStorage(): void {

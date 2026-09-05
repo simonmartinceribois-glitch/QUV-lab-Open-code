@@ -13,7 +13,7 @@ import {
   isStructurallyValidTrial,
   TrialStoreService
 } from '../../services/trialStore';
-import type { Trial } from '../../types/trial';
+import type { Trial, PanelAcquisitionRecord } from '../../types/trial';
 
 export interface ImportRobustnessTestResult {
   id: string;
@@ -538,6 +538,166 @@ export function runImportRobustnessTests(): {
     }
     record('IR-28', 'RAW valide strictement inchangé après rechargement',
       before !== undefined && before === after, 'identique', String(before === after));
+  }
+
+  // Helpers acquisitions persistées : entrée structurellement complète.
+  const persistedEntry = (trial: Trial, raw: unknown, familyId: unknown) => {
+    const stage = trial.stages.find((s) => s.cycleIndex === 0)!;
+    return {
+      id: 'acq-persist-1',
+      trialId: trial.id,
+      stageId: stage.id,
+      batchId: trial.batches[0].id,
+      panelId: `${trial.id}-p-E1`,
+      familyId,
+      raw,
+      status: 'COMPLETE',
+      alerts: [],
+      trace: { createdBy: 'TEST_OP', createdAt: '2026-09-05T00:00:00Z', source: 'MANUAL_KEYPAD' }
+    };
+  };
+  const withPersisted = (trial: Trial, entry: unknown) => ({
+    ...trial,
+    acquisitions: { k1: entry }
+  });
+
+  // --- IR-29/30/31 : RAW persisté mal formé → Trial invalide ---
+  ([[null, '29', 'null'], [[], '30', '[]'], ['texte', '31', '"texte"']] as const).forEach(
+    ([raw, num, label]) => {
+      const trial = buildTrial();
+      const ok = !isStructurallyValidTrial(withPersisted(trial, persistedEntry(trial, raw, 'PERSOZ')));
+      record(`IR-${num}`, `Acquisition persistée raw=${label} → Trial invalide`,
+        ok, 'false', String(ok ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+    }
+  );
+
+  // --- IR-32 : RAW primitifs (42, true) → Trial invalide ---
+  {
+    const trial = buildTrial();
+    const ok42 = !isStructurallyValidTrial(withPersisted(trial, persistedEntry(trial, 42, 'PERSOZ')));
+    const trial2 = buildTrial();
+    const okTrue = !isStructurallyValidTrial(withPersisted(trial2, persistedEntry(trial2, true, 'PERSOZ')));
+    record('IR-32', 'Acquisition persistée raw=42/true → Trial invalide',
+      ok42 && okTrue, 'false/false', `42=${String(ok42 ? 'rejeté' : 'fuite')}, true=${String(okTrue ? 'rejeté' : 'fuite')}`);
+  }
+
+  // --- IR-33/34 : familyId persisté invalide → Trial invalide ---
+  {
+    const trial = buildTrial();
+    const okUnknown = !isStructurallyValidTrial(
+      withPersisted(trial, persistedEntry(trial, { readings: [] }, 'UNKNOWN')));
+    const trial2 = buildTrial();
+    const okNum = !isStructurallyValidTrial(
+      withPersisted(trial2, persistedEntry(trial2, { readings: [] }, 123)));
+    record('IR-33', 'familyId "UNKNOWN" persisté → Trial invalide',
+      okUnknown, 'false', String(okUnknown ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+    record('IR-34', 'familyId 123 persisté → Trial invalide',
+      okNum, 'false', String(okNum ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+  }
+
+  // Mock localStorage avec suivi d'écriture.
+  const mockStorage = (initial: string) => {
+    const box: { text: string; sets: number } = { text: initial, sets: 0 };
+    return {
+      box,
+      api: {
+        getItem: () => box.text,
+        setItem: (_k: string, v: string) => { box.text = v; box.sets += 1; }
+      }
+    };
+  };
+  const withMockStorage = <T>(initial: string, fn: (box: { text: string; sets: number }) => T): { result: T; box: { text: string; sets: number }; warns: unknown[][]; threw: boolean } => {
+    const g = globalThis as unknown as Record<string, unknown>;
+    const previousStorage = g['localStorage'];
+    const warns: unknown[][] = [];
+    const consoleTarget = console as unknown as { warn: (...args: unknown[]) => void };
+    const originalWarn = consoleTarget.warn;
+    const mock = mockStorage(initial);
+    let result: T | undefined;
+    let threw = false;
+    try {
+      g['localStorage'] = mock.api;
+      consoleTarget.warn = (...args: unknown[]) => { warns.push(args); };
+      result = fn(mock.box);
+    } catch {
+      threw = true;
+    } finally {
+      consoleTarget.warn = originalWarn;
+      if (previousStorage === undefined) {
+        delete g['localStorage'];
+      } else {
+        g['localStorage'] = previousStorage;
+      }
+    }
+    return { result: result as T, box: mock.box, warns, threw };
+  };
+
+  // --- IR-35 : JSON corrompu → warn, aucune écriture, contenu identique ---
+  {
+    const before = '{ this is not valid JSON';
+    const out = withMockStorage(before, () => new TrialStoreService());
+    const ok = !out.threw && out.warns.length > 0 && out.box.sets === 0 && out.box.text === before;
+    record('IR-35', 'JSON corrompu : warn, 0 écriture, contenu identique',
+      ok, 'warn + sets=0 + identique',
+      `throw=${String(out.threw)}, warns=${out.warns.length}, sets=${out.box.sets}, identique=${String(out.box.text === before)}`);
+  }
+
+  // --- IR-36 : [A valide, B corrompu, C valide] ---
+  {
+    const trialA = buildTrial();
+    const trialC = buildTrial();
+    const payload = JSON.stringify([trialA, { id: 'B', stages: 'x' }, trialC]);
+    const out = withMockStorage(payload, () => new TrialStoreService());
+    const fresh = out.result;
+    const ok = !out.threw &&
+      Boolean(fresh.getTrial(trialA.id)) &&
+      Boolean(fresh.getTrial(trialC.id)) &&
+      out.warns.length > 0 &&
+      out.box.sets === 0;
+    record('IR-36', 'Mixte : A+C chargés, B ignoré+warn, aucune réécriture',
+      ok, 'A+C chargés, warn, sets=0',
+      `A=${String(Boolean(fresh.getTrial(trialA.id)))}, C=${String(Boolean(fresh.getTrial(trialC.id)))}, warns=${out.warns.length}, sets=${out.box.sets}`);
+  }
+
+  // --- IR-37 : tableau entièrement corrompu ---
+  {
+    const payload = JSON.stringify([null, {}, { id: 123 }, { id: 'BAD', stages: [] }]);
+    const out = withMockStorage(payload, () => new TrialStoreService());
+    const fresh = out.result;
+    // Aucun des corrompus ne doit être chargé (ni demos persistées par-dessus).
+    const loadedBad = fresh.getTrial('BAD');
+    const ok = !out.threw && loadedBad === undefined && out.warns.length > 0 && out.box.sets === 0;
+    record('IR-37', 'Tout-corrompu : rien chargé, warn, aucun écrasement',
+      ok, '0 chargé, warn, sets=0',
+      `BAD=${String(loadedBad !== undefined)}, warns=${out.warns.length}, sets=${out.box.sets}`);
+  }
+
+  // --- IR-38 : raw {} reste chargeable ---
+  {
+    const trial = buildTrial();
+    const ok = isStructurallyValidTrial(withPersisted(trial, persistedEntry(trial, {}, 'PERSOZ')));
+    record('IR-38', 'raw {} : structurellement valide (MISSING = moteurs)',
+      ok, 'true', String(ok));
+  }
+
+  // --- IR-39 : vraie valeur 0 intacte au rechargement ---
+  {
+    const trial = buildTrial();
+    const stage = trial.stages.find((s) => s.cycleIndex === 0)!;
+    const key = `${stage.id}__${trial.id}-p-E1__PERSOZ`;
+    trial.acquisitions[key] = {
+      id: 'acq-zero', trialId: trial.id, stageId: stage.id, batchId: trial.batches[0].id,
+      panelId: `${trial.id}-p-E1`, familyId: 'PERSOZ',
+      raw: { readings: [{ pointIndex: 1, dampingTimeSeconds: 0 }] },
+      computed: null, status: 'COMPLETE', alerts: [],
+      trace: { createdBy: 'TEST_OP', createdAt: '2026-09-05T00:00:00Z', source: 'MANUAL_KEYPAD' }, mediaIds: []
+    } as PanelAcquisitionRecord;
+    const payload = JSON.stringify([trial]);
+    const out = withMockStorage(payload, () => new TrialStoreService());
+    const rawAfter = (out.result.getTrial(trial.id)?.acquisitions[key]?.raw as { readings?: { dampingTimeSeconds?: unknown }[] } | undefined)?.readings?.[0]?.dampingTimeSeconds;
+    const ok = !out.threw && rawAfter === 0;
+    record('IR-39', 'Vraie valeur 0 intacte après rechargement (pas missing)',
+      ok, '0 conservé', `valeur=${String(rawAfter)}`);
   }
 
   const passed = results.filter((r) => r.passed).length;
