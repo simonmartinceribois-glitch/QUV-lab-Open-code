@@ -265,57 +265,52 @@ export function runGate54CalendarMeasurementPlanTests(): {
   );
 
   // --------------------------------------------------------------------------
-  // G54-CAL-08 : ADHESION présente à T0 et C12
+  // G54-CAL-08 : ADHESION verrouillée T0/T et C12/E1-E3 (matrice métier)
   // --------------------------------------------------------------------------
   const trial8 = createTestTrial({ reference: 'CAL-2026-08' });
-  const panel8 = trial8.batches[0].panels[0];
+  const panelT8 = trial8.batches[0].panels[0];
+  const panelE8 = trial8.batches[0].panels[1];
   const stT0_8 = trial8.stages.find((s) => s.cycleIndex === 0)!;
   const stC12_8 = trial8.stages.find((s) => s.cycleIndex === 12)!;
-  let adhT0Recorded = false;
-  let adhC12Recorded = false;
 
-  try {
-    const rawAdh: AdhesionRawData = {
-      gridSpacingMm: 1,
-      adhesionClass: 0,
-      measurementDateTime: new Date().toISOString(),
-      applicationDateTime: trial8.batches[0].applicationDate,
-      requiredMinimumDelayHours: 168,
-      normReference: 'NF EN ISO 2409:2020'
-    };
+  const tryAdh = (stageId: string, panelId: string): boolean => {
+    try {
+      const rawAdh: AdhesionRawData = {
+        gridSpacingMm: 1,
+        adhesionClass: 0,
+        measurementDateTime: new Date().toISOString(),
+        applicationDateTime: trial8.batches[0].applicationDate,
+        requiredMinimumDelayHours: 168,
+        normReference: 'NF EN ISO 2409:2020'
+      };
+      globalTrialStore.recordAcquisition({
+        trialId: trial8.id,
+        stageId,
+        batchId: trial8.batches[0].id,
+        panelId,
+        familyId: 'ADHESION',
+        raw: rawAdh,
+        operatorId: 'Auditeur'
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
 
-    globalTrialStore.recordAcquisition({
-      trialId: trial8.id,
-      stageId: stT0_8.id,
-      batchId: trial8.batches[0].id,
-      panelId: panel8.id,
-      familyId: 'ADHESION',
-      raw: rawAdh,
-      operatorId: 'Auditeur'
-    });
-    adhT0Recorded = true;
-
-    globalTrialStore.recordAcquisition({
-      trialId: trial8.id,
-      stageId: stC12_8.id,
-      batchId: trial8.batches[0].id,
-      panelId: panel8.id,
-      familyId: 'ADHESION',
-      raw: rawAdh,
-      operatorId: 'Auditeur'
-    });
-    adhC12Recorded = true;
-  } catch (e) {
-    //
-  }
+  // T0 + T → OK ; T0 + E1 → KO ; C12 + T → KO ; C12 + E1 → OK.
+  const adhT0T = tryAdh(stT0_8.id, panelT8.id);
+  const adhT0E = tryAdh(stT0_8.id, panelE8.id);
+  const adhC12T = tryAdh(stC12_8.id, panelT8.id);
+  const adhC12E = tryAdh(stC12_8.id, panelE8.id);
 
   record(
     'G54-CAL-08',
-    'Acquisitions ADHESION autorisées et enregistrées avec succès à T0 et C12',
+    'Acquisitions ADHESION verrouillées : T0/T OK, T0/E1 KO, C12/T KO, C12/E1 OK',
     'CALENDAR_PLAN_INTEGRITY',
-    adhT0Recorded && adhC12Recorded,
-    'Adhésion enregistrée sans erreur à T0 et C12',
-    `adhT0=${adhT0Recorded}, adhC12=${adhC12Recorded}`
+    adhT0T && !adhT0E && !adhC12T && adhC12E,
+    'T0/T=true, T0/E1=false, C12/T=false, C12/E1=true',
+    `T0/T=${adhT0T}, T0/E1=${adhT0E}, C12/T=${adhC12T}, C12/E1=${adhC12E}`
   );
 
   // --------------------------------------------------------------------------
