@@ -131,41 +131,56 @@ export function recalculateAcquisition(
       alerts = res.alerts;
     }
   } else if (record.familyId === 'PERSOZ') {
-    const countConfig = famConfig?.countConfig || ruleSet.measurementConfigurations.PERSOZ;
-    const res = calculatePersoz(
-      record.raw as PersozRawData,
-      countConfig,
-      ruleSet,
-      {
-        referenceRaw: referenceRaw as PersozRawData | null,
-        referenceStageId: initialStage?.id,
-        panelId: record.panelId,
-        stageId: record.stageId,
-        calculationVersion: options?.customCalculationVersion
-      }
-    );
-    computed = res.computed;
-    alerts = res.alerts;
+    // Verrou population P1 : une acquisition PERSOZ non éligible (T ou panneau
+    // non identifiable) ne produit AUCUN computed exploitable — aucun appel moteur,
+    // aucune référence. computed reste null → statut EMPTY (logique ci-dessous).
+    if (!acquisitionEligible) {
+      computed = null;
+      alerts = [];
+    } else {
+      const countConfig = famConfig?.countConfig || ruleSet.measurementConfigurations.PERSOZ;
+      const res = calculatePersoz(
+        record.raw as PersozRawData,
+        countConfig,
+        ruleSet,
+        {
+          referenceRaw: referenceRaw as PersozRawData | null,
+          referenceStageId: initialStage?.id,
+          panelId: record.panelId,
+          stageId: record.stageId,
+          calculationVersion: options?.customCalculationVersion
+        }
+      );
+      computed = res.computed;
+      alerts = res.alerts;
+    }
   } else if (record.familyId === 'ADHESION') {
-    // Gate 57 / D4 : une configuration ADHESION sans `countConfig` enregistré
-    // (essais pré-Gate 57) est interprétée comme le protocole historique 1/1,
-    // SANS modifier la configuration stockée. Le référentiel live ne rétrograde
-    // jamais un essai historique en 1/2 WARNING.
-    const countConfig = resolveAdhesionCountConfig(famConfig?.countConfig);
-    const res = calculateAdhesion(
-      record.raw as AdhesionRawData,
-      countConfig,
-      ruleSet,
-      {
-        referenceRaw: referenceRaw as AdhesionRawData | null,
-        referenceStageId: initialStage?.id,
-        panelId: record.panelId,
-        stageId: record.stageId,
-        calculationVersion: options?.customCalculationVersion
-      }
-    );
-    computed = res.computed;
-    alerts = res.alerts;
+    // Verrou population P1 : même règle (matrice T0/T, C12/E1-E3).
+    // T0/T et C12/E1-E3 calculés normalement ; tout autre couple → aucun computed.
+    if (!acquisitionEligible) {
+      computed = null;
+      alerts = [];
+    } else {
+      // Gate 57 / D4 : une configuration ADHESION sans `countConfig` enregistré
+      // (essais pré-Gate 57) est interprétée comme le protocole historique 1/1,
+      // SANS modifier la configuration stockée. Le référentiel live ne rétrograde
+      // jamais un essai historique en 1/2 WARNING.
+      const countConfig = resolveAdhesionCountConfig(famConfig?.countConfig);
+      const res = calculateAdhesion(
+        record.raw as AdhesionRawData,
+        countConfig,
+        ruleSet,
+        {
+          referenceRaw: referenceRaw as AdhesionRawData | null,
+          referenceStageId: initialStage?.id,
+          panelId: record.panelId,
+          stageId: record.stageId,
+          calculationVersion: options?.customCalculationVersion
+        }
+      );
+      computed = res.computed;
+      alerts = res.alerts;
+    }
   } else if (record.familyId === 'OBSERVATIONS') {
     const res = calculateObservations(
       record.raw as VisualObservationsRawData,
