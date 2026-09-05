@@ -27,6 +27,7 @@ import { runEligibleAlertsTests } from './src/scientific/tests/qualityengine_eli
 import { runTrialEligibleAlertsTests } from './src/scientific/tests/qualityengine_trial_eligible_alerts.test';
 import { runImportRobustnessTests } from './src/scientific/tests/import_robustness.test';
 import { runRecalculatorPopulationTests, runRecalculatorContextTests } from './src/scientific/tests/recalculator_population_lock.test';
+import { runAggregatorPopulationLockTests } from './src/scientific/tests/aggregator_population_lock.test';
 import { runReferenceEligibilityTests } from './src/scientific/tests/reference_trace_eligibility.test';
 
 console.log('================================================================');
@@ -429,6 +430,19 @@ suite31.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('32. EXÉCUTION DU VERROU POPULATION AGRÉGATEURS (32 TESTS)');
+console.log('================================================================');
+const suite32 = runAggregatorPopulationLockTests();
+console.log(`Résultats Verrou Agrégateurs : ${suite32.summary.passed} / ${suite32.summary.total} réussis.`);
+suite32.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Aggregator Lock] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -460,7 +474,8 @@ const totalFailed =
   suite28.summary.failed +
   suite29.summary.failed +
   suite30.summary.failed +
-  suite31.summary.failed;
+  suite31.summary.failed +
+  suite32.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -492,7 +507,8 @@ const totalCount =
   suite28.summary.total +
   suite29.summary.total +
   suite30.summary.total +
-  suite31.summary.total;
+  suite31.summary.total +
+  suite32.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

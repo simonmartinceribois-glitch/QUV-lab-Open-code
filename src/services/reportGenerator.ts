@@ -24,7 +24,7 @@ import {
   isAdhesionEligiblePanel,
   isExposedE1E2E3Panel
 } from '../scientific/panelUtils';
-import { aggregateBatchColor } from '../scientific/aggregations';
+import { aggregateBatchColorExposed, PanelComputedItem } from '../scientific/aggregations';
 import type { MeasurementFamilyId } from '../types/scientific';
 
 /**
@@ -454,13 +454,13 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
   trial.stages.forEach((st) => {
     trial.batches.forEach((b) => {
       const exposedPanels = getActiveE1E2E3Panels(b.panels);
-      const colorList: ColorComputedData[] = [];
+      const colorItems: PanelComputedItem<ColorComputedData>[] = [];
       exposedPanels.forEach((p) => {
         const acq = trial.acquisitions[`${st.id}__${p.id}__COLOR`];
-        if (acq?.computed) colorList.push(acq.computed as ColorComputedData);
+        if (acq?.computed) colorItems.push({ panel: p, computed: acq.computed as ColorComputedData });
       });
-      if (colorList.length === 0) return;
-      const agg = aggregateBatchColor(b.id, st.id, colorList);
+      if (colorItems.length === 0) return;
+      const agg = aggregateBatchColorExposed(b.id, st.id, colorItems);
       const fmt = (v: number | null | undefined, decimals: number): string =>
         v !== null && v !== undefined ? v.toFixed(decimals) : '';
       lines.push(

@@ -29,8 +29,35 @@ import {
   calculateSampleStdDev,
   roundMetric
 } from './statistics';
+import { isExposedE1E2E3Panel } from './panelUtils';
 
 export const AGGREGATION_CALCULATION_VERSION = '1.1.0';
+
+/**
+ * Couple panneau + résultat calculé pour les points d'entrée stricts.
+ * Le panneau porte l'identité métier (roleCode/role/status) permettant
+ * le filtrage E1/E2/E3 — information absente des types COMPUTED purs.
+ */
+export interface PanelComputedItem<TComputed> {
+  panel: {
+    id: string;
+    roleCode?: string;
+    role?: string;
+    status?: string;
+  };
+  computed: TComputed;
+}
+
+/**
+ * Filtre strict partagé : E1/E2/E3 actifs uniquement (T, custom, inactifs,
+ * incohérents exclus). Aucune statistique, aucune mutation, aucun arrondi ici.
+ */
+function filterStrictExposed<TComputed>(items: PanelComputedItem<TComputed>[]): TComputed[] {
+  return items
+    .filter((item) => item && item.panel && item.computed !== null && item.computed !== undefined)
+    .filter((item) => (!item.panel.status || item.panel.status === 'ACTIVE') && isExposedE1E2E3Panel(item.panel))
+    .map((item) => item.computed);
+}
 
 /**
  * Calcule l'agrégation des mesures d'un lot pour la famille Couleur (inter-panneaux).
@@ -245,4 +272,43 @@ export function aggregateBatchAdhesion(
     },
     computation
   };
+}
+
+/**
+ * Points d'entrée STRICTS (défense en profondeur P2) : filtrent E1/E2/E3 actifs
+ * AVANT délégation aux agrégateurs canoniques (formules et signatures intactes).
+ * T, custom, inactifs et incohérents sont exclus ici même si l'appelant a failli.
+ * Pour ADHÉSION : population C12/E1-E3 (le T0/T, référence, n'y entre jamais —
+ * le filtrage amont par jalon reste requis, voir isAdhesionEligiblePanel).
+ */
+export function aggregateBatchColorExposed(
+  batchId: UUID,
+  stageId: UUID,
+  items: PanelComputedItem<ColorComputedData>[]
+): BatchAggregationStats {
+  return aggregateBatchColor(batchId, stageId, filterStrictExposed(items));
+}
+
+export function aggregateBatchGlossExposed(
+  batchId: UUID,
+  stageId: UUID,
+  items: PanelComputedItem<GlossComputedData>[]
+): BatchAggregationStats {
+  return aggregateBatchGloss(batchId, stageId, filterStrictExposed(items));
+}
+
+export function aggregateBatchPersozExposed(
+  batchId: UUID,
+  stageId: UUID,
+  items: PanelComputedItem<PersozComputedData>[]
+): BatchAggregationStats {
+  return aggregateBatchPersoz(batchId, stageId, filterStrictExposed(items));
+}
+
+export function aggregateBatchAdhesionExposed(
+  batchId: UUID,
+  stageId: UUID,
+  items: PanelComputedItem<AdhesionComputedData>[]
+): BatchAggregationStats {
+  return aggregateBatchAdhesion(batchId, stageId, filterStrictExposed(items));
 }

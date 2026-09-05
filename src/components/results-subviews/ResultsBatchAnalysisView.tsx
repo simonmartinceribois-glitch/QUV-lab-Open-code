@@ -9,8 +9,8 @@
 
 import React, { useState } from 'react';
 import { Trial, BatchDefinition } from '../../types/trial';
-import { ScientificRuleSet, ColorComputedData, GlossComputedData, AdhesionComputedData } from '../../types/scientific';
-import { aggregateBatchColor, aggregateBatchGloss, aggregateBatchAdhesion, aggregateBatchPersoz } from '../../scientific/aggregations';
+import { ScientificRuleSet, ColorComputedData, GlossComputedData, PersozComputedData, AdhesionComputedData } from '../../types/scientific';
+import { aggregateBatchColorExposed, aggregateBatchGlossExposed, aggregateBatchAdhesionExposed, aggregateBatchPersozExposed, PanelComputedItem } from '../../scientific/aggregations';
 import {
   Layers,
   Sparkles,
@@ -171,25 +171,26 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
               {activeStages.map((stage) => {
-                // Collecter les computed pour Couleur DES EXPOSÉS UNIQUEMENT
-                const colorComputedList: any[] = [];
-                const glossComputedList: any[] = [];
-                const persozComputedList: any[] = [];
+                // Collecter les computed pour Couleur DES EXPOSÉS UNIQUEMENT,
+                // sous forme typée panneau + computed (points d'entrée stricts).
+                const colorItems: PanelComputedItem<ColorComputedData>[] = [];
+                const glossItems: PanelComputedItem<GlossComputedData>[] = [];
+                const persozItems: PanelComputedItem<PersozComputedData>[] = [];
                 // Gate 57 : adhérence des exposés uniquement (témoin exclu par construction).
-                const adhComputedList: AdhesionComputedData[] = [];
+                const adhItems: PanelComputedItem<AdhesionComputedData>[] = [];
 
                 exposedActivePanels.forEach((p) => {
                   const cAcq = trial.acquisitions[`${stage.id}__${p.id}__COLOR`];
-                  if (cAcq?.computed) colorComputedList.push(cAcq.computed);
+                  if (cAcq?.computed) colorItems.push({ panel: p, computed: cAcq.computed as ColorComputedData });
 
                   const gAcq = trial.acquisitions[`${stage.id}__${p.id}__GLOSS`];
-                  if (gAcq?.computed) glossComputedList.push(gAcq.computed);
+                  if (gAcq?.computed) glossItems.push({ panel: p, computed: gAcq.computed as GlossComputedData });
 
                   const pAcq = trial.acquisitions[`${stage.id}__${p.id}__PERSOZ`];
-                  if (pAcq?.computed) persozComputedList.push(pAcq.computed);
+                  if (pAcq?.computed) persozItems.push({ panel: p, computed: pAcq.computed as PersozComputedData });
 
                   const aAcq = trial.acquisitions[`${stage.id}__${p.id}__ADHESION`];
-                  if (aAcq?.computed) adhComputedList.push(aAcq.computed as AdhesionComputedData);
+                  if (aAcq?.computed) adhItems.push({ panel: p, computed: aAcq.computed as AdhesionComputedData });
                 });
 
                 // Témoin T (individuel, non-agrégé)
@@ -206,7 +207,7 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                   }
                 }
 
-                if (colorComputedList.length === 0 && glossComputedList.length === 0 && adhComputedList.length === 0) {
+                if (colorItems.length === 0 && glossItems.length === 0 && adhItems.length === 0) {
                   return (
                     <tr key={stage.id} className="text-slate-400">
                       <td className="p-2.5 font-bold font-mono text-slate-600">
@@ -219,14 +220,14 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                   );
                 }
 
-                // Utilisation des fonctions d'agrégation du moteur scientifique sur les exposés E1..E3
-                const colorAgg = aggregateBatchColor(activeBatch.id, stage.id, colorComputedList);
-                const glossAgg = aggregateBatchGloss(activeBatch.id, stage.id, glossComputedList);
+                // Utilisation des points d'entrée stricts sur les exposés E1..E3
+                const colorAgg = aggregateBatchColorExposed(activeBatch.id, stage.id, colorItems);
+                const glossAgg = aggregateBatchGlossExposed(activeBatch.id, stage.id, glossItems);
                 // Gate 57 : agrégation adhérence = moyenne des moyennes panneau (témoin exclu).
-                const adhAgg = aggregateBatchAdhesion(activeBatch.id, stage.id, adhComputedList);
+                const adhAgg = aggregateBatchAdhesionExposed(activeBatch.id, stage.id, adhItems);
 
                 // Gate 58 : agrégation PERSOZ canonique (moyenne + s inter, témoin exclu).
-                const persozAgg = aggregateBatchPersoz(activeBatch.id, stage.id, persozComputedList);
+                const persozAgg = aggregateBatchPersozExposed(activeBatch.id, stage.id, persozItems);
 
                 // Restitution T0 : la référence témoin T (seule donnée ADHÉSION à T0,
                 // jamais agrégée avec des exposés — contrat aggregateBatchAdhesion préservé).
@@ -245,7 +246,7 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                       <span>{stage.cycleIndex === 0 ? 'T0 Initiale' : stage.cycleIndex === 12 ? '2016h Finale' : `Cycle ${stage.cycleIndex}`}</span>
                     </td>
                     <td className="p-2.5 text-center font-bold text-slate-700">
-                      {colorComputedList.length} / {exposedActivePanels.length}
+                      {colorItems.length} / {exposedActivePanels.length}
                     </td>
                     <td className="p-2.5 font-mono text-indigo-950 font-bold bg-indigo-50/30">
                       {stage.cycleIndex === 0 ? 'RÉF (0.00)' : colorAgg.meanDeltaE !== null ? colorAgg.meanDeltaE?.toFixed(2) : '—'}
