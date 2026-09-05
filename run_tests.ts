@@ -26,7 +26,7 @@ import { runReferenceTraceabilityTests } from './src/scientific/tests/reference_
 import { runEligibleAlertsTests } from './src/scientific/tests/qualityengine_eligible_alerts.test';
 import { runTrialEligibleAlertsTests } from './src/scientific/tests/qualityengine_trial_eligible_alerts.test';
 import { runImportRobustnessTests } from './src/scientific/tests/import_robustness.test';
-import { runRecalculatorPopulationTests } from './src/scientific/tests/recalculator_population_lock.test';
+import { runRecalculatorPopulationTests, runRecalculatorContextTests } from './src/scientific/tests/recalculator_population_lock.test';
 import { runReferenceEligibilityTests } from './src/scientific/tests/reference_trace_eligibility.test';
 
 console.log('================================================================');
@@ -416,6 +416,19 @@ suite30.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('31. EXÉCUTION DU VERROU CONTEXTE recalculator (20 TESTS)');
+console.log('================================================================');
+const suite31 = runRecalculatorContextTests();
+console.log(`Résultats Verrou Contexte : ${suite31.summary.passed} / ${suite31.summary.total} réussis.`);
+suite31.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Recalc Context] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -446,7 +459,8 @@ const totalFailed =
   suite27.summary.failed +
   suite28.summary.failed +
   suite29.summary.failed +
-  suite30.summary.failed;
+  suite30.summary.failed +
+  suite31.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -477,7 +491,8 @@ const totalCount =
   suite27.summary.total +
   suite28.summary.total +
   suite29.summary.total +
-  suite30.summary.total;
+  suite30.summary.total +
+  suite31.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

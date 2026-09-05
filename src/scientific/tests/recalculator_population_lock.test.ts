@@ -236,3 +236,189 @@ export function runRecalculatorPopulationTests(): {
   const passed = results.filter((r) => r.passed).length;
   return { results, summary: { total: results.length, passed, failed: results.length - passed } };
 }
+
+export interface RecalculatorContextTestResult {
+  id: string;
+  name: string;
+  passed: boolean;
+  expected: string;
+  actual: string;
+}
+
+function recalcDirect(
+  trial: Trial,
+  stageId: string,
+  panelId: string,
+  familyId: string,
+  raw: unknown
+): PanelAcquisitionRecord {
+  const rec: PanelAcquisitionRecord = {
+    id: `acq-ctx-${stageId}-${panelId}`,
+    trialId: trial.id, stageId, batchId: trial.batches[0].id,
+    panelId, familyId,
+    raw, computed: null, status: 'COMPLETE', alerts: [],
+    trace: { createdBy: 'TEST_OP', createdAt: '2026-09-05T00:00:00Z', source: 'MANUAL_KEYPAD' }, mediaIds: []
+  };
+  const { updatedRecord, rawUnchanged } = recalculateAcquisition(rec, trial, getDefaultScientificRuleSet());
+  if (!rawUnchanged) throw new Error('RAW muté pendant le recalcul');
+  trial.acquisitions[`${stageId}__${panelId}__${familyId}`] = updatedRecord;
+  return updatedRecord;
+}
+
+function stageIdOf(trial: Trial, cycleIndex: number): string {
+  return trial.stages.find((s) => s.cycleIndex === cycleIndex)!.id;
+}
+
+function panelIdOf(trial: Trial, suffix: string): string {
+  return `${trial.id}-p-${suffix}`;
+}
+
+function dropPanel(trial: Trial, suffix: string): void {
+  const batch = trial.batches[0];
+  batch.panels = batch.panels.filter((p) => p.id !== panelIdOf(trial, suffix));
+}
+
+function dropStage(trial: Trial, cycleIndex: number): void {
+  const id = stageIdOf(trial, cycleIndex);
+  trial.stages = trial.stages.filter((s) => s.id !== id);
+}
+
+export function runRecalculatorContextTests(): {
+  results: RecalculatorContextTestResult[];
+  summary: { total: number; passed: number; failed: number };
+} {
+  const results: RecalculatorContextTestResult[] = [];
+  const record = (id: string, name: string, passed: boolean, expected: string, actual: string) => {
+    results.push({ id, name, passed, expected, actual });
+  };
+  const blocked = (rec: PanelAcquisitionRecord): boolean =>
+    rec.computed === null && rec.status === 'EMPTY';
+  const computedOk = (rec: PanelAcquisitionRecord): boolean =>
+    rec.computed !== null && rec.status !== 'EMPTY';
+
+  // --- PERSOZ 1-3 : E résolu → COMPUTED ---
+  (['E1', 'E2', 'E3'] as const).forEach((sfx, i) => {
+    const trial = buildTrial();
+    const rec = recalcDirect(trial, stageIdOf(trial, 12), panelIdOf(trial, sfx), 'PERSOZ', persozRaw());
+    record(`RPL2-0${1 + i}`, `PERSOZ ${sfx} + panel résolu → COMPUTED`,
+      computedOk(rec), 'computed présent', `status=${rec.status}`);
+  });
+
+  // --- PERSOZ 4-6 : T / sans panel / panelId inexistant → EMPTY ---
+  {
+    const trial = buildTrial();
+    const rec = recalcDirect(trial, stageIdOf(trial, 12), panelIdOf(trial, 'T'), 'PERSOZ', persozRaw());
+    record('RPL2-04', 'PERSOZ T + panel résolu → EMPTY',
+      blocked(rec), 'null + EMPTY', `status=${rec.status}`);
+  }
+  {
+    const trial = buildTrial();
+    dropPanel(trial, 'E1');
+    const rec = recalcDirect(trial, stageIdOf(trial, 12), panelIdOf(trial, 'E1'), 'PERSOZ', persozRaw());
+    record('RPL2-05', 'PERSOZ sans panel résolu → EMPTY',
+      blocked(rec), 'null + EMPTY', `status=${rec.status}`);
+  }
+  {
+    const trial = buildTrial();
+    const rec = recalcDirect(trial, stageIdOf(trial, 12), 'panel-inexistant', 'PERSOZ', persozRaw());
+    record('RPL2-06', 'PERSOZ panelId inexistant → EMPTY',
+      blocked(rec), 'null + EMPTY', `status=${rec.status}`);
+  }
+
+  // --- ADHÉSION 7-10 : cas valides → COMPUTED ---
+  {
+    const trial = buildTrial();
+    const rec = recalcDirect(trial, stageIdOf(trial, 0), panelIdOf(trial, 'T'), 'ADHESION', adhRaw(0));
+    const cls = (rec.computed as { adhesionClass?: unknown } | null)?.adhesionClass;
+    record('RPL2-07', 'ADHÉSION T0/T + contexte complet → COMPUTED',
+      cls === 0, 'classe 0', `classe=${String(cls)}`);
+  }
+  (['E1', 'E2', 'E3'] as const).forEach((sfx, i) => {
+    const trial = buildTrial();
+    recalcDirect(trial, stageIdOf(trial, 0), panelIdOf(trial, 'T'), 'ADHESION', adhRaw(0));
+    const rec = recalcDirect(trial, stageIdOf(trial, 12), panelIdOf(trial, sfx), 'ADHESION', adhRaw(2));
+    const cls = (rec.computed as { adhesionClass?: unknown } | null)?.adhesionClass;
+    record(`RPL2-${8 + i}`, `ADHÉSION C12/${sfx} + contexte complet → COMPUTED`,
+      cls === 2, 'classe 2', `classe=${String(cls)}`);
+  });
+
+  // --- ADHÉSION 11-16 : interdits/incomplets → EMPTY ---
+  {
+    const trial = buildTrial();
+    const rec = recalcDirect(trial, stageIdOf(trial, 6), panelIdOf(trial, 'E1'), 'ADHESION', adhRaw(2));
+    record('RPL2-11', 'ADHÉSION C1-C11 → EMPTY',
+      blocked(rec), 'null + EMPTY', `status=${rec.status}`);
+  }
+  {
+    const trial = buildTrial();
+    recalcDirect(trial, stageIdOf(trial, 0), panelIdOf(trial, 'T'), 'ADHESION', adhRaw(0));
+    const rec = recalcDirect(trial, stageIdOf(trial, 12), panelIdOf(trial, 'T'), 'ADHESION', adhRaw(1));
+    record('RPL2-12', 'ADHÉSION C12/T → EMPTY',
+      blocked(rec), 'null + EMPTY', `status=${rec.status}`);
+  }
+  {
+    const trial = buildTrial();
+    dropPanel(trial, 'E1');
+    const rec = recalcDirect(trial, stageIdOf(trial, 12), panelIdOf(trial, 'E1'), 'ADHESION', adhRaw(2));
+    record('RPL2-13', 'ADHÉSION sans panel résolu → EMPTY',
+      blocked(rec), 'null + EMPTY', `status=${rec.status}`);
+  }
+  {
+    const trial = buildTrial();
+    const c12 = stageIdOf(trial, 12);
+    dropStage(trial, 12);
+    const rec = recalcDirect(trial, c12, panelIdOf(trial, 'E1'), 'ADHESION', adhRaw(2));
+    record('RPL2-14', 'ADHÉSION sans stage résolu → EMPTY',
+      blocked(rec), 'null + EMPTY', `status=${rec.status}`);
+  }
+  {
+    const trial = buildTrial();
+    const rec = recalcDirect(trial, stageIdOf(trial, 12), 'panel-inexistant', 'ADHESION', adhRaw(2));
+    record('RPL2-15', 'ADHÉSION panelId inexistant → EMPTY',
+      blocked(rec), 'null + EMPTY', `status=${rec.status}`);
+  }
+  {
+    const trial = buildTrial();
+    const c12 = stageIdOf(trial, 12);
+    const rec = recalcDirect(trial, 'stage-inexistant', panelIdOf(trial, 'E1'), 'ADHESION', adhRaw(2));
+    void c12;
+    record('RPL2-16', 'ADHÉSION stageId inexistant → EMPTY',
+      blocked(rec), 'null + EMPTY', `status=${rec.status}`);
+  }
+
+  // --- Références 17-20 ---
+  {
+    const trial = buildTrial();
+    recalcDirect(trial, stageIdOf(trial, 0), panelIdOf(trial, 'E1'), 'PERSOZ', persozRaw());
+    const rec = recalcDirect(trial, stageIdOf(trial, 12), panelIdOf(trial, 'E1'), 'PERSOZ', persozRaw());
+    const t = traceOf(rec);
+    record('RPL2-17', 'PERSOZ E1 valide → SAME_PANEL_T0',
+      t?.referenceRule === 'SAME_PANEL_T0', 'SAME_PANEL_T0', String(t?.referenceRule));
+  }
+  {
+    const trial = buildTrial();
+    dropPanel(trial, 'E1');
+    const rec = recalcDirect(trial, stageIdOf(trial, 12), panelIdOf(trial, 'E1'), 'PERSOZ', persozRaw());
+    record('RPL2-18', 'PERSOZ sans contexte → aucune référence',
+      blocked(rec) && traceOf(rec) === undefined, 'null, sans trace', `status=${rec.status}`);
+  }
+  {
+    const trial = buildTrial();
+    recalcDirect(trial, stageIdOf(trial, 0), panelIdOf(trial, 'T'), 'ADHESION', adhRaw(1));
+    const rec = recalcDirect(trial, stageIdOf(trial, 12), panelIdOf(trial, 'E1'), 'ADHESION', adhRaw(3));
+    const t = traceOf(rec);
+    record('RPL2-19', 'ADHÉSION C12/E1 valide → T0_WITNESS_REFERENCE',
+      t?.referenceRule === 'T0_WITNESS_REFERENCE', 'T0_WITNESS_REFERENCE', String(t?.referenceRule));
+  }
+  {
+    const trial = buildTrial();
+    const c12 = stageIdOf(trial, 12);
+    dropStage(trial, 12);
+    const rec = recalcDirect(trial, c12, panelIdOf(trial, 'E1'), 'ADHESION', adhRaw(3));
+    record('RPL2-20', 'ADHÉSION sans contexte → aucune référence',
+      blocked(rec) && traceOf(rec) === undefined, 'null, sans trace', `status=${rec.status}`);
+  }
+
+  const passed = results.filter((r) => r.passed).length;
+  return { results, summary: { total: results.length, passed, failed: results.length - passed } };
+}
