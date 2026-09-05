@@ -11,6 +11,7 @@ import { runGate52AdhesionTests } from './src/scientific/tests/gate52_adhesion.t
 import { runGate53MediaCreatorTests } from './src/scientific/tests/gate53_media_creator_integrity.test';
 import { runGate54CalendarMeasurementPlanTests } from './src/scientific/tests/gate54_calendar_measurement_plan_integrity.test';
 import { runGate56AdhesionWitnessTests } from './src/scientific/tests/gate56_adhesion_witness.test';
+import { runGate57AdhesionTwoMeasurementsTests } from './src/scientific/tests/gate57_adhesion_two_measurements.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -178,6 +179,19 @@ suite13.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('14. EXÉCUTION DE LA VALIDATION GATE 57 — ADHÉSION 2 MESURES/PANNEAU (30 TESTS)');
+console.log('================================================================');
+const suite14 = runGate57AdhesionTwoMeasurementsTests();
+console.log(`Résultats Suite GATE 57 : ${suite14.summary.passed} / ${suite14.summary.total} réussis.`);
+suite14.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Gate 57 2-mesures] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -191,7 +205,8 @@ const totalFailed =
   suite10.summary.failed +
   suite11.summary.failed +
   suite12.summary.failed +
-  suite13.summary.failed;
+  suite13.summary.failed +
+  suite14.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -205,7 +220,8 @@ const totalCount =
   suite10.summary.total +
   suite11.summary.total +
   suite12.summary.total +
-  suite13.summary.total;
+  suite13.summary.total +
+  suite14.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

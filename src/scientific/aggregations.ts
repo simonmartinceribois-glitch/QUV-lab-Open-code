@@ -19,6 +19,7 @@ import {
   MeasurementFamilyId,
   ColorComputedData,
   GlossComputedData,
+  AdhesionComputedData,
   UUID,
   ComputationMetadata
 } from '../types/scientific';
@@ -125,6 +126,54 @@ export function aggregateBatchGloss(
     interPanelStdDev: roundMetric(interPanelStdDevGloss, 2),
     meanDeltaGloss: roundMetric(meanDeltaGloss, 2),
     meanGlossRetentionPercent: roundMetric(meanGlossRetentionPercent, 1),
+    computation
+  };
+}
+
+/**
+ * Calcule l'agrégation d'un lot pour la famille Adhérence (Gate 57).
+ *
+ * CONTRAT SCIENTIFIQUE IMPÉRATIF (identique GATE 55 — D-8) :
+ * `panelComputedList` doit provenir EXCLUSIVEMENT des panneaux exposés actifs
+ * (E1, E2, E3). Le panneau Témoin T ne doit JAMAIS y figurer (référence T0 uniquement).
+ *
+ * Moyenne globale = moyenne des moyennes de panneau, à 1 décimale.
+ * Écart-type inter-panneaux : formule d'échantillon (n-1), comme COLOR/GLOSS.
+ *
+ * @param batchId Identifiant du lot
+ * @param stageId Identifiant de l'étape (C12 en pratique)
+ * @param panelComputedList Liste des résultats calculés des panneaux exposés actifs uniquement
+ */
+export function aggregateBatchAdhesion(
+  batchId: UUID,
+  stageId: UUID,
+  panelComputedList: AdhesionComputedData[]
+): BatchAggregationStats {
+  const panelMeans = panelComputedList.map((p) =>
+    typeof p.panelMean === 'number' && Number.isFinite(p.panelMean) ? p.panelMean : null
+  );
+  const validMeans = panelMeans.filter((v): v is number => v !== null);
+  const overallMean = calculateMean(validMeans);
+  const interPanelStdDev = calculateSampleStdDev(validMeans);
+
+  const computation: ComputationMetadata = {
+    calculationVersion: AGGREGATION_CALCULATION_VERSION,
+    calculatedAt: new Date().toISOString()
+  };
+
+  return {
+    batchId,
+    stageId,
+    familyId: 'ADHESION',
+    panelsCount: panelComputedList.length,
+    activePanelsCount: validMeans.length,
+    interPanelMean: roundMetric(overallMean, 1),
+    interPanelStdDev: roundMetric(interPanelStdDev, 1),
+    adhesion: {
+      panelMeans,
+      overallMean: roundMetric(overallMean, 1),
+      standardDeviation: roundMetric(interPanelStdDev, 1)
+    },
     computation
   };
 }

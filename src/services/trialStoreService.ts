@@ -344,7 +344,8 @@ export class TrialStoreService {
         },
         ADHESION: params.familyConfigs?.ADHESION || {
           familyId: 'ADHESION',
-          enabled: params.activeFamilies.includes('ADHESION')
+          enabled: params.activeFamilies.includes('ADHESION'),
+          countConfig: createCountConfiguration('ADHESION', 2, this.ruleSet)
         },
         OBSERVATIONS: params.familyConfigs?.OBSERVATIONS || {
           familyId: 'OBSERVATIONS',
@@ -476,6 +477,12 @@ export class TrialStoreService {
     const prevConfig = famConfig?.countConfig || famConfig?.seriesConfig;
 
     if (typeof newCountOrSeries === 'number') {
+      // Gate 57 : ADHESION n'autorise que 1 (adaptation justifiée) ou 2 (standard) mesures/panneau.
+      if (familyId === 'ADHESION' && newCountOrSeries !== 1 && newCountOrSeries !== 2) {
+        throw new Error(
+          `Configuration ADHESION invalide : ${newCountOrSeries} mesure(s) demandée(s). Seules 2 mesures/panneau (standard) ou 1 mesure/panneau (adaptation justifiée) sont autorisées.`
+        );
+      }
       const isStandard = newCountOrSeries === (this.ruleSet.measurementConfigurations[familyId]?.standardRecommendedCount ?? 4);
       if (!isStandard && (!justification || justification.trim().length === 0)) {
         throw new Error('Une justification obligatoire est requise pour toute adaptation du nombre de mesures.');

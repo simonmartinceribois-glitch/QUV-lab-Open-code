@@ -25,6 +25,8 @@ interface Props {
   glossSeriesCount: number;
   glossReadingsPerSeries: number;
   persozReps: number;
+  adhCount: number;
+  isAdhAdapted: boolean;
   selectedMeasurementCycles: number[];
 }
 
@@ -47,6 +49,8 @@ export function WizardStep7Review({
   glossSeriesCount,
   glossReadingsPerSeries,
   persozReps,
+  adhCount,
+  isAdhAdapted,
   selectedMeasurementCycles
 }: Props) {
   return (
@@ -121,7 +125,7 @@ export function WizardStep7Review({
               {f === 'OBSERVATIONS' && 'Observations ISO'}
               {f === 'ADHESION' && (
                 <div className="text-amber-900 font-semibold">
-                  <span>Adhérence ISO 2409</span>
+                  <span>Adhérence ISO 2409 ({adhCount} mes./panneau{isAdhAdapted ? ' — adapté' : ''})</span>
                   <span className="block text-[10px] text-amber-700 font-normal">T0 + C12 uniquement</span>
                 </div>
               )}

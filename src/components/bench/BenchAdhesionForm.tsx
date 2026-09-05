@@ -1,8 +1,8 @@
 /**
- * QUV-Lab — Paillasse : formulaire Adhérence au quadrillage ISO 2409 (refactor/split-bench-forms).
- * JSX déplacé à l'identique depuis Tab06MeasurementsBench.tsx (bloc IIFE inclus :
- * les dérivés thickness / spacing / délai sont recalculés ici depuis les mêmes props).
- * État de saisie au parent : classe + observation reçues en props.
+ * QUV-Lab — Paillasse : formulaire Adhérence au quadrillage ISO 2409 (Gate 57).
+ * N mesures indépendantes par panneau selon le protocole (standard 2, 1 si adaptation).
+ * Chaque mesure : classe 0–5 + observation individuelle. État au parent (entries),
+ * aucune mutation du RAW ici — le payload est assemblé par Tab06MeasurementsBench.
  */
 
 import type { Dispatch, SetStateAction } from 'react';
@@ -14,15 +14,19 @@ import {
 } from '../../scientific/adhesionEngine';
 import type { BatchDefinition, ExposureStage, PanelDefinition } from '../../types/trial';
 
+export interface AdhesionBenchEntry {
+  cls: number | null;
+  obs: string;
+}
+
 interface Props {
   currentBatch: BatchDefinition | undefined;
   currentPanel: PanelDefinition | undefined;
   currentStage: ExposureStage;
   isInitialStage: boolean;
-  adhesionClass: number | null;
-  onAdhesionClassChange: Dispatch<SetStateAction<number | null>>;
-  adhesionObservation: string;
-  onAdhesionObservationChange: Dispatch<SetStateAction<string>>;
+  expectedCount: number;
+  entries: AdhesionBenchEntry[];
+  onEntriesChange: Dispatch<SetStateAction<AdhesionBenchEntry[]>>;
 }
 
 export function BenchAdhesionForm({
@@ -30,15 +34,22 @@ export function BenchAdhesionForm({
   currentPanel,
   currentStage,
   isInitialStage,
-  adhesionClass,
-  onAdhesionClassChange,
-  adhesionObservation,
-  onAdhesionObservationChange
+  expectedCount,
+  entries,
+  onEntriesChange
 }: Props) {
   const thickness = currentBatch?.dryFilmThicknessMicrons ?? undefined;
   const spacingResult = getApplicableGridSpacing(thickness);
   const delayResult = calculateDelayCompliance(currentBatch?.applicationDate, new Date().toISOString(), 168);
   const isWitness = currentPanel?.role === 'WITNESS' || currentPanel?.index === 1;
+
+  const setEntryClass = (idx: number, cls: number | null) => {
+    onEntriesChange((prev) => prev.map((e, i) => (i === idx ? { ...e, cls } : e)));
+  };
+
+  const setEntryObs = (idx: number, obs: string) => {
+    onEntriesChange((prev) => prev.map((e, i) => (i === idx ? { ...e, obs } : e)));
+  };
 
   return (
     <div className="space-y-4">
@@ -50,7 +61,7 @@ export function BenchAdhesionForm({
             Paramètres Préparatoires du Quadrillage — NF EN ISO 2409:2020
           </span>
           <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold rounded-md">
-            Évaluation qualitative de séparation
+            {expectedCount === 1 ? '1 mesure / panneau (adaptation justifiée)' : `${expectedCount} mesures / panneau (standard)`}
           </span>
         </div>
 
@@ -146,70 +157,74 @@ export function BenchAdhesionForm({
         </div>
       )}
 
-      {/* 3. Sélecteur interactif des Classes de Quadrillage ISO 2409 */}
+      {/* 3. Sélecteurs interactifs des Classes de Quadrillage ISO 2409 — un bloc par mesure */}
       {thickness !== undefined && thickness <= 250 && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Classification visuelle du quadrillage (ISO 2409:2020)
-            </span>
-            <span className="text-xs text-slate-500">
-              Espacement retenu : <strong>{spacingResult.gridSpacingMm} mm</strong>
-            </span>
-          </div>
+        <div className="space-y-4">
+          {entries.map((entry, idx) => (
+            <div key={idx} className="space-y-3 p-3 rounded-xl border border-indigo-100 bg-indigo-50/30">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Mesure n°{idx + 1} — Classification visuelle du quadrillage (ISO 2409:2020)
+                </span>
+                <span className="text-xs text-slate-500">
+                  Espacement retenu : <strong>{spacingResult.gridSpacingMm} mm</strong>
+                </span>
+              </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
-            {Object.values(ISO2409_CLASSES).map((cls) => {
-              const isSelected = adhesionClass === cls.rating;
-              return (
-                <button
-                  key={cls.rating}
-                  type="button"
-                  onClick={() => onAdhesionClassChange(cls.rating)}
-                  className={`p-3 rounded-xl border text-left transition-all ${
-                    isSelected
-                        ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-400 shadow-xs'
-                        : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className={`px-2.5 py-0.5 rounded-md text-xs font-bold ${
-                      cls.rating === 0
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : cls.rating === 1
-                        ? 'bg-blue-100 text-blue-800'
-                        : cls.rating === 2
-                        ? 'bg-amber-100 text-amber-800'
-                        : cls.rating === 3
-                        ? 'bg-orange-100 text-orange-800'
-                        : 'bg-rose-100 text-rose-800'
-                    }`}>
-                      Classe {cls.rating}
-                    </span>
-                    <span className="text-[11px] font-mono text-slate-500">
-                      Détachement : {cls.affectedAreaPercent}
-                    </span>
-                  </div>
-                  <div className="text-xs font-semibold text-slate-800 mb-1">{cls.shortLabel}</div>
-                  <p className="text-[11px] text-slate-600 line-clamp-3 leading-relaxed">{cls.description}</p>
-                </button>
-              );
-            })}
-          </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {Object.values(ISO2409_CLASSES).map((cls) => {
+                  const isSelected = entry.cls === cls.rating;
+                  return (
+                    <button
+                      key={cls.rating}
+                      type="button"
+                      onClick={() => setEntryClass(idx, cls.rating)}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        isSelected
+                            ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-400 shadow-xs'
+                            : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className={`px-2.5 py-0.5 rounded-md text-xs font-bold ${
+                          cls.rating === 0
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : cls.rating === 1
+                            ? 'bg-blue-100 text-blue-800'
+                            : cls.rating === 2
+                            ? 'bg-amber-100 text-amber-800'
+                            : cls.rating === 3
+                            ? 'bg-orange-100 text-orange-800'
+                            : 'bg-rose-100 text-rose-800'
+                        }`}>
+                          Classe {cls.rating}
+                        </span>
+                        <span className="text-[11px] font-mono text-slate-500">
+                          Détachement : {cls.affectedAreaPercent}
+                        </span>
+                      </div>
+                      <div className="text-xs font-semibold text-slate-800 mb-1">{cls.shortLabel}</div>
+                      <p className="text-[11px] text-slate-600 line-clamp-3 leading-relaxed">{cls.description}</p>
+                    </button>
+                  );
+                })}
+              </div>
 
-          {/* Observations de l'opérateur */}
-          <div className="pt-2">
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Observations spécifiques sur le quadrillage (facultatif) :
-            </label>
-            <input
-              type="text"
-              value={adhesionObservation}
-              onChange={(e) => onAdhesionObservationChange(e.target.value)}
-              placeholder="Ex : Rupture cohésive dans le bois, détachement net sur fil du bois, petits éclats aux croisillons..."
-              className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
+              {/* Observations propres à cette mesure */}
+              <div className="pt-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Observations mesure n°{idx + 1} (facultatif) :
+                </label>
+                <input
+                  type="text"
+                  value={entry.obs}
+                  onChange={(e) => setEntryObs(idx, e.target.value)}
+                  placeholder="Ex : Rupture cohésive dans le bois, détachement net sur fil du bois, petits éclats aux croisillons..."
+                  className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

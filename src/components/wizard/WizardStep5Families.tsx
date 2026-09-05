@@ -28,6 +28,11 @@ interface Props {
   persozJustification: string;
   onPersozJustificationChange: TextSetter;
   isPersozAdapted: boolean;
+  adhCount: number;
+  onAdhCountChange: NumberSetter;
+  adhJustification: string;
+  onAdhJustificationChange: TextSetter;
+  isAdhAdapted: boolean;
 }
 
 export function WizardStep5Families({
@@ -49,7 +54,12 @@ export function WizardStep5Families({
   onPersozRepsChange,
   persozJustification,
   onPersozJustificationChange,
-  isPersozAdapted
+  isPersozAdapted,
+  adhCount,
+  onAdhCountChange,
+  adhJustification,
+  onAdhJustificationChange,
+  isAdhAdapted
 }: Props) {
   return (
     <div className="space-y-5">
@@ -264,6 +274,46 @@ export function WizardStep5Families({
                   onChange={(e) => onPersozJustificationChange(e.target.value)}
                   className="w-full px-3 py-1.5 text-xs border border-red-300 rounded-lg bg-red-50/20"
                   placeholder="Motif de l'adaptation..."
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Adhérence (Gate 57) : standard 2 mesures/panneau, adaptation à 1 justifiée */}
+        {activeFamilies.includes('ADHESION') && (
+          <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-900">Mesures d'Adhérence par Panneau (ISO 2409)</span>
+              <span className="text-xs text-slate-500 font-mono">Standard : 2 mesures / panneau</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="text-xs text-slate-700">Nombre de mesures par éprouvette :</label>
+              <input
+                type="number"
+                min={1}
+                max={2}
+                value={adhCount}
+                onChange={(e) => onAdhCountChange(Math.max(1, Math.min(2, Number(e.target.value) || 1)))}
+                className="w-20 px-2 py-1 text-xs border border-slate-300 rounded text-center font-bold"
+              />
+              {isAdhAdapted && (
+                <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                  Adaptation (1 mesure)
+                </span>
+              )}
+            </div>
+            {isAdhAdapted && (
+              <div>
+                <label className="block text-xs font-bold text-red-700 mb-1">
+                  Justification obligatoire de l'écart métrologique *
+                </label>
+                <input
+                  type="text"
+                  value={adhJustification}
+                  onChange={(e) => onAdhJustificationChange(e.target.value)}
+                  className="w-full px-3 py-1.5 text-xs border border-red-300 rounded-lg bg-red-50/20"
+                  placeholder="Motif de l'adaptation à 1 mesure..."
                 />
               </div>
             )}

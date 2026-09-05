@@ -370,12 +370,21 @@ export function ResultsPanelAnalysisView({
 
                       {selectedFamily === 'ADHESION' && (() => {
                         const compAdh = acq?.computed as AdhesionComputedData | undefined;
+                        const indiv = compAdh && Array.isArray(compAdh.individualResults) ? compAdh.individualResults : [];
+                        const isMulti = indiv.length > 1;
                         return (
                         <>
                           <td className="p-2.5 font-mono text-slate-900 font-bold">
                             <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded font-bold">
-                              Classe {compAdh?.adhesionClass ?? '—'}
+                              {isMulti
+                                ? (compAdh?.panelMean !== null && compAdh?.panelMean !== undefined ? `Moy. ${compAdh.panelMean}` : '—')
+                                : `Classe ${compAdh?.adhesionClass ?? '—'}`}
                             </span>
+                            {isMulti && (
+                              <span className="block text-[10px] font-normal text-slate-500 mt-0.5">
+                                {indiv.map((m) => `M${m.measurementIndex}=${m.adhesionClass ?? '—'}`).join(' · ')}
+                              </span>
+                            )}
                           </td>
                           <td className="p-2.5 font-mono text-slate-600">{compAdh?.gridSpacingUsedMm ? `${compAdh.gridSpacingUsedMm} mm` : '—'}</td>
                           <td className="p-2.5 font-mono text-slate-600">{compAdh?.elapsedTimeHours ? `${compAdh.elapsedTimeHours} h` : '—'}</td>

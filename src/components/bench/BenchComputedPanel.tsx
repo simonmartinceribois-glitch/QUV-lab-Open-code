@@ -185,16 +185,35 @@ export function BenchComputedPanel({ computed, currentRecord, selectedFamilyId, 
             {/* ADHESION */}
             {selectedFamilyId === 'ADHESION' && (() => {
               const compAdh = computed as AdhesionComputedData;
+              const indiv = Array.isArray(compAdh.individualResults) ? compAdh.individualResults : [];
+              const isMulti = indiv.length > 1;
               return (
               <>
                 <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-indigo-950 uppercase tracking-wider">Classe d'Adhérence :</span>
                     <span className="px-2.5 py-0.5 bg-indigo-600 text-white font-bold rounded-lg text-sm">
-                      Classe {compAdh.adhesionClass ?? '—'}
+                      {isMulti
+                        ? (compAdh.panelMean !== null && compAdh.panelMean !== undefined ? `Moy. ${compAdh.panelMean}` : '—')
+                        : `Classe ${compAdh.adhesionClass ?? '—'}`}
                     </span>
                   </div>
                   <p className="text-xs text-indigo-900 italic leading-relaxed">{compAdh.classDescription}</p>
+                  {isMulti && (
+                    <div className="space-y-1 pt-1">
+                      {indiv.map((m) => (
+                        <div key={m.measurementIndex} className="flex justify-between text-xs text-indigo-950 bg-white/60 rounded-lg px-2 py-1">
+                          <span>Mesure n°{m.measurementIndex} :</span>
+                          <strong>
+                            Classe {m.adhesionClass ?? '—'}
+                            {m.deltaAdhesionClass !== null && m.deltaAdhesionClass !== undefined
+                              ? ` (Δ${m.deltaAdhesionClass >= 0 ? '+' : ''}${m.deltaAdhesionClass} vs T0 témoin)`
+                              : ''}
+                          </strong>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-between p-2 bg-slate-50 rounded-lg text-xs">
@@ -207,7 +226,7 @@ export function BenchComputedPanel({ computed, currentRecord, selectedFamilyId, 
                   <strong>{compAdh.elapsedTimeHours !== undefined && compAdh.elapsedTimeHours !== null ? `${compAdh.elapsedTimeHours} h` : '—'}</strong>
                 </div>
 
-                {!isInitialStage && compAdh.initialAdhesionClass !== undefined && (
+                {!isInitialStage && (compAdh.initialAdhesionClass !== undefined || compAdh.initialPanelMean !== undefined) && (
                   <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-950 space-y-1">
                     <div className="flex justify-between font-bold">
                       <span>Évolution vs T0 :</span>
@@ -218,7 +237,9 @@ export function BenchComputedPanel({ computed, currentRecord, selectedFamilyId, 
                       </span>
                     </div>
                     <div className="text-[11px] text-blue-700">
-                      (Classe {compAdh.adhesionClass} actuelle vs Classe {compAdh.initialAdhesionClass} à T0 sur témoin)
+                      {isMulti
+                        ? `(Moy. ${compAdh.panelMean ?? '—'} actuelle vs Moy. ${compAdh.initialPanelMean ?? '—'} à T0 sur témoin)`
+                        : `(Classe ${compAdh.adhesionClass} actuelle vs Classe ${compAdh.initialAdhesionClass} à T0 sur témoin)`}
                     </div>
                   </div>
                 )}
