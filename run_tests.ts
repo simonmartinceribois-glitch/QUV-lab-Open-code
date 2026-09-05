@@ -16,6 +16,7 @@ import { runGate58PersozAggregationTests } from './src/scientific/tests/gate58_p
 import { runPersozWitnessLockTests } from './src/scientific/tests/persoz_witness_lock.test';
 import { runAdhesionTargetLockTests } from './src/scientific/tests/adhesion_target_lock.test';
 import { runAdhesionQualityCompletenessTests } from './src/scientific/tests/adhesion_quality_completeness.test';
+import { runExposedE1E2E3Tests } from './src/scientific/tests/exposed_e1e2e3_predicate.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -248,6 +249,19 @@ suite18.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('19. EXÉCUTION DU PRÉDICAT E1/E2/E3 EXPOSÉS (21 TESTS)');
+console.log('================================================================');
+const suite19 = runExposedE1E2E3Tests();
+console.log(`Résultats Prédicat E1/E2/E3 : ${suite19.summary.passed} / ${suite19.summary.total} réussis.`);
+suite19.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Exposed E1E2E3] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -266,7 +280,8 @@ const totalFailed =
   suite15.summary.failed +
   suite16.summary.failed +
   suite17.summary.failed +
-  suite18.summary.failed;
+  suite18.summary.failed +
+  suite19.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -285,7 +300,8 @@ const totalCount =
   suite15.summary.total +
   suite16.summary.total +
   suite17.summary.total +
-  suite18.summary.total;
+  suite18.summary.total +
+  suite19.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

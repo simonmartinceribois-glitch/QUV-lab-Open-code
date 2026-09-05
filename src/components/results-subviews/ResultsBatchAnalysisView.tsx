@@ -23,7 +23,7 @@ import {
   FileSpreadsheet,
   Eye
 } from 'lucide-react';
-import { getActiveExposedPanels, getWitnessPanel, getActiveStages, formatStageShort } from '../../scientific/panelUtils';
+import { getActiveE1E2E3Panels, getWitnessPanel, getActiveStages, formatStageShort } from '../../scientific/panelUtils';
 
 interface Props {
   trial: Trial;
@@ -42,8 +42,8 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
     );
   }
 
-  // EXCLUSION ABSOLUE DU TÉMOIN T DES AGRÉGATIONS DU LOT
-  const exposedActivePanels = getActiveExposedPanels(activeBatch.panels);
+  // EXCLUSION ABSOLUE DU TÉMOIN T DES AGRÉGATIONS DU LOT (population E1/E2/E3 normalisée)
+  const exposedActivePanels = getActiveE1E2E3Panels(activeBatch.panels);
   const witnessPanel = getWitnessPanel(activeBatch.panels);
   const excludedPanels = activeBatch.panels.filter((p) => p.status === 'EXCLUDED');
   const activeStages = getActiveStages(trial.stages);

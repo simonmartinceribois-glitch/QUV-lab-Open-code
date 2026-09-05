@@ -8,7 +8,7 @@ import { Trial, BatchDefinition, ExposureStage } from '../../types/trial';
 import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
 import { aggregateBatchColor, aggregateBatchGloss, aggregateBatchPersoz } from '../../scientific/aggregations';
 import { GitCompare, Layers, TrendingUp, Info, CheckCircle2 } from 'lucide-react';
-import { getActiveExposedPanels, getActiveStages, formatStageOption, formatStageShort } from '../../scientific/panelUtils';
+import { getActiveE1E2E3Panels, getActiveStages, formatStageOption, formatStageShort } from '../../scientific/panelUtils';
 
 interface Props {
   trial: Trial;
@@ -123,8 +123,8 @@ export function ResultsAdvancedComparisonsView({ trial, ruleSet }: Props) {
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
               {trial.batches.map((batch) => {
-                // Exclusion stricte du Témoin T des agrégations
-                const activePanels = getActiveExposedPanels(batch.panels);
+                // Exclusion stricte du Témoin T des agrégations (population E1/E2/E3 normalisée)
+                const activePanels = getActiveE1E2E3Panels(batch.panels);
                 const colorComputedList: any[] = [];
                 const glossComputedList: any[] = [];
                 const persozComputedList: any[] = [];

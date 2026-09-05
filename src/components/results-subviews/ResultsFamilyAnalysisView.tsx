@@ -27,7 +27,7 @@ import {
   AlertTriangle,
   CheckCircle2
 } from 'lucide-react';
-import { getActiveExposedPanels, formatStageShort } from '../../scientific/panelUtils';
+import { getActiveE1E2E3Panels, formatStageShort } from '../../scientific/panelUtils';
 
 interface Props {
   trial: Trial;
@@ -52,8 +52,8 @@ export function ResultsFamilyAnalysisView({ trial, ruleSet }: Props) {
     };
 
     trial.batches.forEach((batch, bIdx) => {
-      // EXCLUSION STRICTE DU TÉMOIN T DES MOYENNES DU LOT
-      const activePanels = getActiveExposedPanels(batch.panels);
+      // EXCLUSION STRICTE DU TÉMOIN T DES MOYENNES DU LOT (population E1/E2/E3 normalisée)
+      const activePanels = getActiveE1E2E3Panels(batch.panels);
 
       if (activeFamily === 'COLOR') {
         const deltaEList: number[] = [];

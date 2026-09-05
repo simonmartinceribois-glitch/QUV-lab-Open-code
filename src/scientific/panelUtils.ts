@@ -42,7 +42,11 @@ export function isExposedPanel(panel: {
 }
 
 /**
- * Filtre les éprouvettes actives et EXPOSÉES d'une liste (exclut T et les exclus)
+ * Filtre les éprouvettes actives et EXPOSÉES d'une liste (exclut T et les exclus).
+ *
+ * Sémantique générique conservée : tout panneau actif non-témoin est considéré
+ * exposé (cinétiques, synthèses). Pour les statistiques normalisées exigeant
+ * exactement E1/E2/E3, utiliser `getActiveE1E2E3Panels()`.
  */
 export function getActiveExposedPanels<T extends { label?: string; roleCode?: string; role?: string; status?: string }>(
   panels: T[]
@@ -51,26 +55,50 @@ export function getActiveExposedPanels<T extends { label?: string; roleCode?: st
 }
 
 /**
- * Éligibilité stricte PERSOZ (verrou PERSOZ/Témoin renforcé) : seules les
- * éprouvettes exposées E1, E2 et E3, identifiées SANS ambiguïté par le modèle
- * métier (roleCode E1/E2/E3 ET role EXPOSED_1/2/3), sont acceptées.
- * T (témoin) et tout panneau non identifiable (code 'E' générique,
- * EXPOSED_CUSTOM, marqueurs incohérents) sont refusés.
+ * Prédicat générique d'éprouvette exposée normalisée E1/E2/E3 : identification
+ * SANS ambiguïté par paires appariées du modèle métier
+ * (E1/EXPOSED_1, E2/EXPOSED_2, E3/EXPOSED_3).
+ * T (témoin), code 'E' générique, EXPOSED_CUSTOM et paires incohérentes refusés.
+ * Source unique pour PERSOZ, ADHÉSION C12 et agrégations scientifiques normalisées.
+ */
+export function isExposedE1E2E3Panel(panel: {
+  roleCode?: string;
+  role?: string;
+}): boolean {
+  if (!panel) return false;
+  return (
+    (panel.roleCode === 'E1' && panel.role === 'EXPOSED_1') ||
+    (panel.roleCode === 'E2' && panel.role === 'EXPOSED_2') ||
+    (panel.roleCode === 'E3' && panel.role === 'EXPOSED_3')
+  );
+}
+
+/**
+ * Filtre strict des éprouvettes exposées normalisées E1/E2/E3 actives.
+ * Population scientifique des agrégations COLOR/GLOSS/PERSOZ/ADHESION et de la
+ * synthèse statistique du rapport : T et panneaux non normalisés exclus.
+ */
+export function getActiveE1E2E3Panels<T extends { roleCode?: string; role?: string; status?: string }>(
+  panels: T[]
+): T[] {
+  return panels.filter((p) => (!p.status || p.status === 'ACTIVE') && isExposedE1E2E3Panel(p));
+}
+
+/**
+ * Éligibilité stricte PERSOZ (verrou PERSOZ/Témoin renforcé) : E1/E2/E3 via le
+ * prédicat générique `isExposedE1E2E3Panel`. T et panneaux non identifiés refusés.
  */
 export function isPersozEligiblePanel(panel: {
   roleCode?: string;
   role?: string;
 }): boolean {
-  if (!panel) return false;
-  const codeOk = panel.roleCode === 'E1' || panel.roleCode === 'E2' || panel.roleCode === 'E3';
-  const roleOk = panel.role === 'EXPOSED_1' || panel.role === 'EXPOSED_2' || panel.role === 'EXPOSED_3';
-  return codeOk && roleOk;
+  return isExposedE1E2E3Panel(panel);
 }
 
 /**
  * Éligibilité métier ADHÉSION (verrou ADHÉSION T0/C12) : matrice canonique.
  * - T0 (cycleIndex 0) : témoin T UNIQUEMENT.
- * - C12 (cycleIndex 12) : E1/E2/E3 strictement (même sévérité que PERSOZ).
+ * - C12 (cycleIndex 12) : E1/E2/E3 strictement (prédicat générique, découplé de PERSOZ).
  * - C1..C11 : aucun panneau.
  * `stage` est identifié par son cycleIndex physique (0 = T0, 12 = C12/2016h).
  */
@@ -86,7 +114,7 @@ export function isAdhesionEligiblePanel(
 ): boolean {
   if (!panel || !stage) return false;
   if (stage.cycleIndex === 0) return isWitnessPanel(panel);
-  if (stage.cycleIndex === 12) return isPersozEligiblePanel(panel);
+  if (stage.cycleIndex === 12) return isExposedE1E2E3Panel(panel);
   return false;
 }
 
