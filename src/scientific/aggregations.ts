@@ -19,6 +19,7 @@ import {
   MeasurementFamilyId,
   ColorComputedData,
   GlossComputedData,
+  PersozComputedData,
   AdhesionComputedData,
   UUID,
   ComputationMetadata
@@ -126,6 +127,53 @@ export function aggregateBatchGloss(
     interPanelStdDev: roundMetric(interPanelStdDevGloss, 2),
     meanDeltaGloss: roundMetric(meanDeltaGloss, 2),
     meanGlossRetentionPercent: roundMetric(meanGlossRetentionPercent, 1),
+    computation
+  };
+}
+
+/**
+ * Calcule l'agrégation des mesures d'un lot pour la famille Persoz (inter-panneaux, Gate 58).
+ *
+ * CONTRAT SCIENTIFIQUE IMPÉRATIF (identique GATE 55 — D-8) :
+ * `panelComputedList` doit provenir EXCLUSIVEMENT des panneaux exposés actifs
+ * (E1, E2, E3). Le panneau Témoin T ne doit JAMAIS y figurer.
+ * Le filtrage doit être garanti en amont par l'appelant à l'aide de `getActiveExposedPanels()`.
+ *
+ * Valeur inter-panneaux : `meanDampingTime` (moyenne intra-panneau déjà calculée
+ * par persozEngine — jamais recalculée ici, RAW jamais touché).
+ * Moyenne et écart-type arrondis à 1 décimale.
+ * Écart-type inter-panneaux : formule d'échantillon (n-1), comme COLOR/GLOSS/ADHESION.
+ *
+ * @param batchId Identifiant du lot
+ * @param stageId Identifiant de l'étape
+ * @param panelComputedList Liste des résultats calculés des panneaux exposés actifs uniquement
+ */
+export function aggregateBatchPersoz(
+  batchId: UUID,
+  stageId: UUID,
+  panelComputedList: PersozComputedData[]
+): BatchAggregationStats {
+  const activePanels = panelComputedList.filter((p) => p.validCount > 0);
+  const dampingValues = activePanels
+    .map((p) => p.meanDampingTime)
+    .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+
+  const meanDamping = calculateMean(dampingValues);
+  const interPanelStdDevDamping = calculateSampleStdDev(dampingValues);
+
+  const computation: ComputationMetadata = {
+    calculationVersion: AGGREGATION_CALCULATION_VERSION,
+    calculatedAt: new Date().toISOString()
+  };
+
+  return {
+    batchId,
+    stageId,
+    familyId: 'PERSOZ',
+    panelsCount: panelComputedList.length,
+    activePanelsCount: activePanels.length,
+    interPanelMean: roundMetric(meanDamping, 1),
+    interPanelStdDev: roundMetric(interPanelStdDevDamping, 1),
     computation
   };
 }

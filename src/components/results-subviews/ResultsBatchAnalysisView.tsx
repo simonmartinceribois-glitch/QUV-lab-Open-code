@@ -10,7 +10,7 @@
 import React, { useState } from 'react';
 import { Trial, BatchDefinition } from '../../types/trial';
 import { ScientificRuleSet, ColorComputedData, GlossComputedData, AdhesionComputedData } from '../../types/scientific';
-import { aggregateBatchColor, aggregateBatchGloss, aggregateBatchAdhesion } from '../../scientific/aggregations';
+import { aggregateBatchColor, aggregateBatchGloss, aggregateBatchAdhesion, aggregateBatchPersoz } from '../../scientific/aggregations';
 import {
   Layers,
   Sparkles,
@@ -161,6 +161,7 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                 <th className="p-2.5 bg-blue-50/60 text-blue-950">s inter (Gloss)</th>
                 <th className="p-2.5 bg-emerald-50/60 text-emerald-950 font-black">Rétention Moyenne %</th>
                 <th className="p-2.5 bg-amber-50/60 text-amber-950">Dureté Persoz Moy. (s)</th>
+                <th className="p-2.5 bg-amber-50/60 text-amber-950">s inter (Persoz)</th>
                 <th className="p-2.5 bg-indigo-50/60 text-indigo-950">Adhérence Moy. (Ø panneaux)</th>
                 <th className="p-2.5 bg-slate-100 text-slate-800 border-l border-slate-300 font-black">Témoin T (Obscurité)</th>
               </tr>
@@ -208,7 +209,7 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                       <td className="p-2.5 font-bold font-mono text-slate-600">
                         {formatStageShort(stage)}
                       </td>
-                      <td colSpan={9} className="p-2.5 text-slate-400 italic">
+                      <td colSpan={10} className="p-2.5 text-slate-400 italic">
                         Aucun relevé validé à cette étape pour ce lot.
                       </td>
                     </tr>
@@ -221,13 +222,8 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                 // Gate 57 : agrégation adhérence = moyenne des moyennes panneau (témoin exclu).
                 const adhAgg = aggregateBatchAdhesion(activeBatch.id, stage.id, adhComputedList);
 
-                // Moyenne Persoz
-                const persozMeans = persozComputedList
-                  .map((p) => p.meanDampingTime)
-                  .filter((v): v is number => typeof v === 'number');
-                const meanPersozVal = persozMeans.length > 0
-                  ? (persozMeans.reduce((a, b) => a + b, 0) / persozMeans.length).toFixed(1)
-                  : '—';
+                // Gate 58 : agrégation PERSOZ canonique (moyenne + s inter, témoin exclu).
+                const persozAgg = aggregateBatchPersoz(activeBatch.id, stage.id, persozComputedList);
 
                 return (
                   <tr key={stage.id} className="hover:bg-slate-50">
@@ -256,7 +252,10 @@ export function ResultsBatchAnalysisView({ trial, ruleSet }: Props) {
                       {stage.cycleIndex === 0 ? '100.0 %' : glossAgg.meanGlossRetentionPercent !== null ? `${glossAgg.meanGlossRetentionPercent?.toFixed(1)} %` : '—'}
                     </td>
                     <td className="p-2.5 font-mono text-amber-950 bg-amber-50/30">
-                      {meanPersozVal !== '—' ? `${meanPersozVal} s` : '—'}
+                      {persozAgg.interPanelMean !== null ? `${persozAgg.interPanelMean.toFixed(1)} s` : '—'}
+                    </td>
+                    <td className="p-2.5 font-mono text-slate-600 bg-amber-50/30">
+                      {persozAgg.interPanelStdDev !== null ? persozAgg.interPanelStdDev.toFixed(1) : '—'}
                     </td>
                     <td
                       className="p-2.5 font-mono text-indigo-950 bg-indigo-50/30"
