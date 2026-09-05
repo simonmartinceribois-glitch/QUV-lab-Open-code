@@ -67,6 +67,7 @@ export function assessStageQuality(
 
   const stageAcquisitions = Object.values(trial.acquisitions).filter((a) => a.stageId === stageId);
   const activePanels = trial.batches.flatMap((b) => b.panels.filter((p) => p.status === 'ACTIVE'));
+  const panelById = new Map(activePanels.map((p) => [p.id, p] as const));
 
   let panelsComplete = 0;
   let panelsWithWarnings = 0;
@@ -76,10 +77,22 @@ export function assessStageQuality(
 
   for (const familyId of scheduledFamilies) {
     const familyAcqs = stageAcquisitions.filter((a) => a.familyId === familyId);
+    // Alertes pertinentes : acquisitions admissibles uniquement (ADHÉSION/PERSOZ).
+    // Une acquisition interdite/historique (panneau non éligible) ne doit jamais
+    // dégrader à elle seule le statut de la population scientifique attendue.
+    // Panneau introuvable : compté par prudence (donnée orpheline = anomalie visible).
+    // Autres familles : comportement inchangé (toutes acquisitions).
+    const eligibleFamilyAcqs =
+      (familyId === 'ADHESION' || familyId === 'PERSOZ') && stage
+        ? familyAcqs.filter((a) => {
+            const panel = panelById.get(a.panelId);
+            return !panel || isFamilyPanelExpected(familyId, panel, stage);
+          })
+        : familyAcqs;
     let famHasInvalid = false;
     let famHasWarning = false;
 
-    for (const acq of familyAcqs) {
+    for (const acq of eligibleFamilyAcqs) {
       if (acq.alerts?.some((alert) => alert.severity === 'BLOCKING')) {
         famHasInvalid = true;
       } else if (acq.alerts?.some((alert) => alert.severity === 'WARNING')) {
@@ -124,8 +137,10 @@ export function assessStageQuality(
     panelsEvaluated++;
     const panelAcqs = stageAcquisitions.filter((a) => a.panelId === panel.id && scheduledFamilies.includes(a.familyId));
     const eligibleAcqs = panelAcqs.filter((a) => isFamilyPanelExpected(a.familyId, panel, stage));
-    const hasBlocking = panelAcqs.some((a) => a.alerts?.some((al) => al.severity === 'BLOCKING'));
-    const hasWarning = panelAcqs.some((a) => a.alerts?.some((al) => al.severity === 'WARNING'));
+    // Alertes pertinentes : acquisitions admissibles uniquement. Une acquisition
+    // interdite/historique ne dégrade jamais à elle seule le panneau attendu.
+    const hasBlocking = eligibleAcqs.some((a) => a.alerts?.some((al) => al.severity === 'BLOCKING'));
+    const hasWarning = eligibleAcqs.some((a) => a.alerts?.some((al) => al.severity === 'WARNING'));
     const isComplete = eligibleAcqs.length === expectedFamilies.length;
 
     if (hasBlocking) {
