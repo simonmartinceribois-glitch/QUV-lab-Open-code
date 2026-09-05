@@ -6,6 +6,68 @@ import { Trial } from '../types/trial';
 import { UUID } from '../types/scientific';
 
 /**
+ * Familles de mesure canoniques (P2 robustesse imports) : toute autre valeur
+ * est rejetée avant pipeline (jamais stockée comme acquisition EMPTY silencieuse).
+ */
+const KNOWN_MEASUREMENT_FAMILIES: readonly string[] = [
+  'COLOR',
+  'GLOSS',
+  'PERSOZ',
+  'ADHESION',
+  'OBSERVATIONS'
+];
+
+/**
+ * Valide la famille d'une acquisition entrante (import/saisie/API).
+ * Rejette explicitement toute famille inconnue avant tout effet de bord.
+ */
+export function validateAcquisitionFamily(familyId: unknown): void {
+  if (typeof familyId !== 'string' || !KNOWN_MEASUREMENT_FAMILIES.includes(familyId)) {
+    throw new IntegrityViolationError(
+      `Famille de mesure inconnue : ${JSON.stringify(familyId)}. Familles attendues : ${KNOWN_MEASUREMENT_FAMILIES.join(', ')}.`,
+      { familyId: typeof familyId === 'string' ? familyId : 'NON_STRING' }
+    );
+  }
+}
+
+/**
+ * Valide la structure minimale d'un RAW entrant (import/saisie/API).
+ * Le RAW doit être un objet non nul (jamais null, primitif ni tableau) :
+ * les moteurs aval classent ensuite chaque mesure (VALID/MISSING/INVALID)
+ * sans jamais fabriquer de valeur. Rejet explicite avant tout effet de bord.
+ */
+export function validateAcquisitionRaw(raw: unknown): void {
+  if (raw === null || raw === undefined || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new IntegrityViolationError(
+      `Donnée brute (RAW) mal formée : objet de mesures attendu, reçu ${Array.isArray(raw) ? 'tableau' : typeof raw}. Aucune valeur par défaut fabriquée.`,
+      { rawType: Array.isArray(raw) ? 'array' : typeof raw }
+    );
+  }
+}
+
+/**
+ * Vérifie la structure minimale d'un essai chargé (localStorage/import) :
+ * identifiant, étapes, lots avec panneaux, acquisitions et configuration.
+ * Retourne false (jamais d'exception) pour les entrées corrompues, qui sont
+ * alors ignorées explicitement par l'appelant avec avertissement tracé.
+ */
+export function isStructurallyValidTrial(trial: unknown): trial is Trial {
+  if (trial === null || trial === undefined || typeof trial !== 'object') return false;
+  const t = trial as Record<string, unknown>;
+  if (typeof t['id'] !== 'string' || t['id'].length === 0) return false;
+  if (!Array.isArray(t['stages'])) return false;
+  if (!Array.isArray(t['batches'])) return false;
+  if (typeof t['acquisitions'] !== 'object' || t['acquisitions'] === null) return false;
+  if (typeof t['config'] !== 'object' || t['config'] === null) return false;
+  for (const batch of t['batches'] as unknown[]) {
+    if (batch === null || typeof batch !== 'object') return false;
+    const panels = (batch as Record<string, unknown>)['panels'];
+    if (!Array.isArray(panels)) return false;
+  }
+  return true;
+}
+
+/**
  * Erreur spécifique de violation d'intégrité relationnelle du modèle QUV (Gate 3.1)
  */
 export class IntegrityViolationError extends Error {

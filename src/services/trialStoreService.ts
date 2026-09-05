@@ -41,7 +41,7 @@ import { createConfigChangeEvent } from '../scientific/auditEngine';
 import { buildScientificReport } from './reportGenerator';
 import { isFamilyScheduledForStage, isPersozEligiblePanel, isAdhesionEligiblePanel } from '../scientific/panelUtils';
 import { generateUUID } from './trialIds';
-import { IntegrityViolationError, validateAcquisitionTarget, validatePhotoTarget } from './trialIntegrity';
+import { IntegrityViolationError, validateAcquisitionTarget, validatePhotoTarget, validateAcquisitionFamily, validateAcquisitionRaw, isStructurallyValidTrial } from './trialIntegrity';
 import { generateStandardExposureStages } from './trialStages';
 import { createDemoTrial, createValidationTrial } from './trialSeed';
 
@@ -155,6 +155,15 @@ export class TrialStoreService {
           parsed.forEach((t) => {
             // Éliminer préventivement toute pollution issue d'anciens mocks de test (Gate 55 - D-6)
             if (t && t.id && !t.id.startsWith('MOCK_TEST_')) {
+              // Robustesse imports P2 : entrée corrompue ignorée explicitement
+              // (avertissement tracé), jamais absorbée silencieusement.
+              if (!isStructurallyValidTrial(t)) {
+                const rawId: unknown = (t as unknown as { id?: unknown }).id;
+                console.warn(
+                  `[QUV-Lab] Essai ignoré au chargement : structure invalide (id=${typeof rawId === 'string' ? rawId : 'absent'}).`
+                );
+                return;
+              }
               const migrated = this.migrateTrialTerminology(t);
               this.trials.set(migrated.id, migrated);
             }
@@ -162,8 +171,9 @@ export class TrialStoreService {
           return;
         }
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      // Erreur de lecture/parse remontée explicitement (plus de silence).
+      console.warn('[QUV-Lab] Chargement local impossible, essais de démonstration initialisés.', err);
     }
 
     // Initialisation avec démo et essai de validation si vide
@@ -546,6 +556,12 @@ export class TrialStoreService {
     source?: 'MANUAL_KEYPAD' | 'INSTRUMENT_IMPORT' | 'FILE_IMPORT';
     mediaIds?: UUID[];
   }): { trial: Trial; record: PanelAcquisitionRecord } {
+    // Robustesse imports P2 : famille inconnue et RAW mal formé rejetés
+    // explicitement avant tout effet de bord (jamais de valeur fabriquée,
+    // jamais d'acquisition EMPTY silencieuse).
+    validateAcquisitionFamily(params.familyId);
+    validateAcquisitionRaw(params.raw);
+
     const trial = this.getTrial(params.trialId);
     if (!trial) throw new Error(`Essai ${params.trialId} introuvable`);
 
