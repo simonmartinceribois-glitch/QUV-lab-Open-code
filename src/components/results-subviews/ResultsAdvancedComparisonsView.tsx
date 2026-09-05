@@ -5,8 +5,8 @@
 
 import React, { useState } from 'react';
 import { Trial, BatchDefinition, ExposureStage } from '../../types/trial';
-import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
-import { aggregateBatchColor, aggregateBatchGloss, aggregateBatchPersoz } from '../../scientific/aggregations';
+import { ScientificRuleSet, MeasurementFamilyId, ColorComputedData, GlossComputedData, PersozComputedData } from '../../types/scientific';
+import { aggregateBatchColorExposed, aggregateBatchGlossExposed, aggregateBatchPersozExposed, PanelComputedItem } from '../../scientific/aggregations';
 import { GitCompare, Layers, TrendingUp, Info, CheckCircle2 } from 'lucide-react';
 import { getActiveE1E2E3Panels, getActiveStages, formatStageOption, formatStageShort } from '../../scientific/panelUtils';
 
@@ -123,31 +123,32 @@ export function ResultsAdvancedComparisonsView({ trial, ruleSet }: Props) {
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
               {trial.batches.map((batch) => {
-                // Exclusion stricte du Témoin T des agrégations (population E1/E2/E3 normalisée)
+                // Exclusion stricte du Témoin T des agrégations (population E1/E2/E3 normalisée),
+                // sous forme typée panneau + computed (points d'entrée stricts).
                 const activePanels = getActiveE1E2E3Panels(batch.panels);
-                const colorComputedList: any[] = [];
-                const glossComputedList: any[] = [];
-                const persozComputedList: any[] = [];
+                const colorItems: PanelComputedItem<ColorComputedData>[] = [];
+                const glossItems: PanelComputedItem<GlossComputedData>[] = [];
+                const persozItems: PanelComputedItem<PersozComputedData>[] = [];
 
                 if (activeStage) {
                   activePanels.forEach((p) => {
                     const cAcq = trial.acquisitions[`${activeStage.id}__${p.id}__COLOR`];
-                    if (cAcq?.computed) colorComputedList.push(cAcq.computed);
+                    if (cAcq?.computed) colorItems.push({ panel: p, computed: cAcq.computed as ColorComputedData });
 
                     const gAcq = trial.acquisitions[`${activeStage.id}__${p.id}__GLOSS`];
-                    if (gAcq?.computed) glossComputedList.push(gAcq.computed);
+                    if (gAcq?.computed) glossItems.push({ panel: p, computed: gAcq.computed as GlossComputedData });
 
                     const pAcq = trial.acquisitions[`${activeStage.id}__${p.id}__PERSOZ`];
-                    if (pAcq?.computed) persozComputedList.push(pAcq.computed);
+                    if (pAcq?.computed) persozItems.push({ panel: p, computed: pAcq.computed as PersozComputedData });
                   });
                 }
 
                 const isMissing =
                   comparisonFamily === 'COLOR'
-                    ? colorComputedList.length === 0
+                    ? colorItems.length === 0
                     : comparisonFamily === 'GLOSS'
-                    ? glossComputedList.length === 0
-                    : persozComputedList.length === 0;
+                    ? glossItems.length === 0
+                    : persozItems.length === 0;
 
                 if (isMissing || !activeStage) {
                   return (
@@ -163,10 +164,11 @@ export function ResultsAdvancedComparisonsView({ trial, ruleSet }: Props) {
                   );
                 }
 
-                const colorAgg = aggregateBatchColor(batch.id, activeStage.id, colorComputedList);
-                const glossAgg = aggregateBatchGloss(batch.id, activeStage.id, glossComputedList);
+                const colorAgg = aggregateBatchColorExposed(batch.id, activeStage.id, colorItems);
+                const glossAgg = aggregateBatchGlossExposed(batch.id, activeStage.id, glossItems);
                 // Gate 58 : agrégation PERSOZ canonique (remplace le calcul inline).
-                const persozAgg = aggregateBatchPersoz(batch.id, activeStage.id, persozComputedList);
+                const persozAgg = aggregateBatchPersozExposed(batch.id, activeStage.id, persozItems);
+                const persozFirst = persozItems[0]?.computed;
 
                 return (
                   <tr key={batch.id} className="hover:bg-slate-50">
@@ -174,7 +176,7 @@ export function ResultsAdvancedComparisonsView({ trial, ruleSet }: Props) {
                     <td className="p-2.5 text-slate-800">{batch.coatingSystem || 'Non renseigné'}</td>
                     <td className="p-2.5 text-slate-600">{batch.woodSpecies || 'Bois'}</td>
                     <td className="p-2.5 text-center font-bold text-slate-700">
-                      {colorComputedList.length} / {activePanels.length}
+                      {colorItems.length} / {activePanels.length}
                     </td>
 
                     {comparisonFamily === 'COLOR' && (
@@ -190,13 +192,13 @@ export function ResultsAdvancedComparisonsView({ trial, ruleSet }: Props) {
                           {colorAgg.interPanelStdDev !== null ? colorAgg.interPanelStdDev?.toFixed(2) : '—'}
                         </td>
                         <td className="p-2.5 font-mono text-slate-700">
-                          {(colorComputedList.reduce((acc, curr) => acc + (curr.deltaL || 0), 0) / (colorComputedList.length || 1)).toFixed(2)}
+                          {(colorItems.reduce((acc, curr) => acc + (curr.computed.deltaL || 0), 0) / (colorItems.length || 1)).toFixed(2)}
                         </td>
                         <td className="p-2.5 font-mono text-slate-700">
-                          {(colorComputedList.reduce((acc, curr) => acc + (curr.deltaA || 0), 0) / (colorComputedList.length || 1)).toFixed(2)}
+                          {(colorItems.reduce((acc, curr) => acc + (curr.computed.deltaA || 0), 0) / (colorItems.length || 1)).toFixed(2)}
                         </td>
                         <td className="p-2.5 font-mono text-slate-700">
-                          {(colorComputedList.reduce((acc, curr) => acc + (curr.deltaB || 0), 0) / (colorComputedList.length || 1)).toFixed(2)}
+                          {(colorItems.reduce((acc, curr) => acc + (curr.computed.deltaB || 0), 0) / (colorItems.length || 1)).toFixed(2)}
                         </td>
                       </>
                     )}
@@ -231,9 +233,12 @@ export function ResultsAdvancedComparisonsView({ trial, ruleSet }: Props) {
                           {persozAgg.interPanelStdDev !== null ? persozAgg.interPanelStdDev.toFixed(1) : '—'}
                         </td>
                         <td className="p-2.5 font-mono text-slate-700">
-                          {persozComputedList[0]?.relativeHardnessVariationPercent !== undefined
-                            ? `${persozComputedList[0]?.relativeHardnessVariationPercent > 0 ? '+' : ''}${persozComputedList[0]?.relativeHardnessVariationPercent?.toFixed(1)} %`
-                            : '—'}
+                          {(() => {
+                            const relHard = persozFirst?.relativeHardnessVariationPercent;
+                            return relHard !== undefined && relHard !== null
+                              ? `${relHard > 0 ? '+' : ''}${relHard.toFixed(1)} %`
+                              : '—';
+                          })()}
                         </td>
                       </>
                     )}

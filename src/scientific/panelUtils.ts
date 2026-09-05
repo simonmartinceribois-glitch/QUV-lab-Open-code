@@ -217,10 +217,15 @@ export function isFamilyScheduledForStage(
 ): boolean {
   if (!stage) return false;
   if (familyId === 'ADHESION') {
-    // T0 (0 h) ou C12 (2016 h) uniquement
+    // T0 (0 h) ou C12 (2016 h) uniquement. Le cycleIndex physique explicite est
+    // la source de vérité canonique ; stageType seul ne peut jamais promouvoir
+    // un cycle intermédiaire (ex. cycle 5 + FINAL_POST_EXPOSURE reste interdit).
+    // Fallback de compatibilité : cycleIndex absent/non fini (données historiques
+    // partielles) → stageType conservé.
+    if (typeof stage.cycleIndex === 'number' && Number.isFinite(stage.cycleIndex)) {
+      return stage.cycleIndex === 0 || stage.cycleIndex === 12;
+    }
     return (
-      stage.cycleIndex === 0 ||
-      stage.cycleIndex === 12 ||
       stage.stageType === 'INITIAL_PRE_EXPOSURE' ||
       stage.stageType === 'FINAL_POST_EXPOSURE'
     );
