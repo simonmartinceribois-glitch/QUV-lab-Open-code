@@ -16,9 +16,25 @@ import {
   ScientificRuleSet,
   UUID
 } from '../types/scientific';
-import { getActiveFamiliesForStage, isAdhesionEligiblePanel } from './panelUtils';
+import { getActiveFamiliesForStage, isAdhesionEligiblePanel, isPersozEligiblePanel } from './panelUtils';
 
 export const QUALITY_ASSESSMENT_VERSION = '1.2.0';
+
+/**
+ * Attente applicable d'une famille sur un panneau au jalon courant.
+ * - ADHÉSION : matrice T0/T, C12/E1-E3 (isAdhesionEligiblePanel).
+ * - PERSOZ : E1/E2/E3 à tous les jalons (isPersozEligiblePanel), T jamais attendu.
+ * - Autres familles : tous les panneaux actifs (comportement historique).
+ */
+function isFamilyPanelExpected(
+  familyId: string,
+  panel: { label?: string; roleCode?: string; role?: string },
+  stage?: { cycleIndex?: number } | null
+): boolean {
+  if (familyId === 'ADHESION') return !!stage && isAdhesionEligiblePanel(panel, stage);
+  if (familyId === 'PERSOZ') return isPersozEligiblePanel(panel);
+  return true;
+}
 
 /**
  * Évalue la qualité globale au niveau d'une étape d'exposition
@@ -71,15 +87,15 @@ export function assessStageQuality(
       }
     }
 
-    // Complétude ADHÉSION (matrice T0/T, C12/E1-E3) : seuls les panneaux
-    // éligibles au jalon comptent — ni les absences normales (E à T0, T à C12),
-    // ni les acquisitions interdites historiques ne satisfont la couverture.
-    // Autres familles : comportement inchangé (tous les panneaux actifs).
+    // Complétude ciblée : ADHÉSION (matrice T0/T, C12/E1-E3) et PERSOZ
+    // (E1/E2/E3, T jamais attendu) ne comptent que leurs panneaux éligibles —
+    // ni les absences normales, ni les acquisitions interdites historiques ne
+    // satisfont la couverture. Autres familles : comportement inchangé.
     let expectedCount = activePanels.length;
     let coveredCount = familyAcqs.length;
-    if (familyId === 'ADHESION' && stage) {
+    if ((familyId === 'ADHESION' || familyId === 'PERSOZ') && stage) {
       const eligibleIds = new Set(
-        activePanels.filter((p) => isAdhesionEligiblePanel(p, stage)).map((p) => p.id)
+        activePanels.filter((p) => isFamilyPanelExpected(familyId, p, stage)).map((p) => p.id)
       );
       expectedCount = eligibleIds.size;
       coveredCount = familyAcqs.filter((a) => eligibleIds.has(a.panelId)).length;
@@ -100,19 +116,14 @@ export function assessStageQuality(
 
   let panelsEvaluated = 0;
   for (const panel of activePanels) {
-    // Attentes applicables au panneau : ADHÉSION uniquement si le panneau est
-    // éligible au jalon (T0/T, C12/E1-E3). Un panneau sans attente applicable
-    // (ex. E à T0 en campagne ADHÉSION seule) est hors compteur — ni complet,
-    // ni en anomalie. Autres familles : comportement inchangé.
-    const expectedFamilies = scheduledFamilies.filter(
-      (fam) => fam !== 'ADHESION' || (stage && isAdhesionEligiblePanel(panel, stage))
-    );
+    // Attentes applicables au panneau : ADHÉSION selon le jalon, PERSOZ sur
+    // E1/E2/E3 uniquement (T jamais attendu). Un panneau sans attente applicable
+    // est hors compteur — ni complet, ni en anomalie. Autres familles : inchangé.
+    const expectedFamilies = scheduledFamilies.filter((fam) => isFamilyPanelExpected(fam, panel, stage));
     if (expectedFamilies.length === 0) continue;
     panelsEvaluated++;
     const panelAcqs = stageAcquisitions.filter((a) => a.panelId === panel.id && scheduledFamilies.includes(a.familyId));
-    const eligibleAcqs = panelAcqs.filter(
-      (a) => a.familyId !== 'ADHESION' || (stage && isAdhesionEligiblePanel(panel, stage))
-    );
+    const eligibleAcqs = panelAcqs.filter((a) => isFamilyPanelExpected(a.familyId, panel, stage));
     const hasBlocking = panelAcqs.some((a) => a.alerts?.some((al) => al.severity === 'BLOCKING'));
     const hasWarning = panelAcqs.some((a) => a.alerts?.some((al) => al.severity === 'WARNING'));
     const isComplete = eligibleAcqs.length === expectedFamilies.length;
