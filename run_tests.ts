@@ -15,6 +15,7 @@ import { runGate57AdhesionTwoMeasurementsTests } from './src/scientific/tests/ga
 import { runGate58PersozAggregationTests } from './src/scientific/tests/gate58_persoz_aggregation.test';
 import { runPersozWitnessLockTests } from './src/scientific/tests/persoz_witness_lock.test';
 import { runAdhesionTargetLockTests } from './src/scientific/tests/adhesion_target_lock.test';
+import { runAdhesionQualityCompletenessTests } from './src/scientific/tests/adhesion_quality_completeness.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -234,6 +235,19 @@ suite17.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('18. EXÉCUTION DE LA COMPLÉTUDE ADHÉSION T0/C12 (15 TESTS)');
+console.log('================================================================');
+const suite18 = runAdhesionQualityCompletenessTests();
+console.log(`Résultats Complétude ADHÉSION : ${suite18.summary.passed} / ${suite18.summary.total} réussis.`);
+suite18.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Adhesion Quality] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -251,7 +265,8 @@ const totalFailed =
   suite14.summary.failed +
   suite15.summary.failed +
   suite16.summary.failed +
-  suite17.summary.failed;
+  suite17.summary.failed +
+  suite18.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -269,7 +284,8 @@ const totalCount =
   suite14.summary.total +
   suite15.summary.total +
   suite16.summary.total +
-  suite17.summary.total;
+  suite17.summary.total +
+  suite18.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
