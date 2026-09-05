@@ -18,8 +18,34 @@ import {
   VisualObservationsComputedData
 } from '../types/scientific';
 import { generateUUID } from './trialIds';
-import { getActiveE1E2E3Panels } from '../scientific/panelUtils';
+import {
+  getActiveE1E2E3Panels,
+  isPersozEligiblePanel,
+  isAdhesionEligiblePanel,
+  isExposedE1E2E3Panel
+} from '../scientific/panelUtils';
 import { aggregateBatchColor } from '../scientific/aggregations';
+import type { MeasurementFamilyId } from '../types/scientific';
+
+/**
+ * Admissibilité scientifique d'une acquisition COMPUTED à la restitution
+ * (section COMPUTED du CSV rapport). Règle unique, sans duplication métier :
+ * - PERSOZ : E1/E2/E3 à tous les jalons (T jamais).
+ * - ADHÉSION : matrice T0/T, C1-C11 aucun, C12/E1-E3.
+ * - COLOR/GLOSS : population exposée E1-E2-E3 (T exclu des stats exposées).
+ * - OBSERVATIONS et autres : restitution existante inchangée.
+ * Le CSV RAW reste exhaustif et n'utilise jamais ce filtre.
+ */
+export function isComputedExportAdmissible(
+  familyId: MeasurementFamilyId | string,
+  panel: { label?: string; roleCode?: string; role?: string },
+  stage: { cycleIndex?: number }
+): boolean {
+  if (familyId === 'PERSOZ') return isPersozEligiblePanel(panel);
+  if (familyId === 'ADHESION') return isAdhesionEligiblePanel(panel, stage);
+  if (familyId === 'COLOR' || familyId === 'GLOSS') return isExposedE1E2E3Panel(panel);
+  return true;
+}
 
 export const REPORT_SCHEMA_VERSION = '1.2.0';
 export const REPORT_GENERATOR_VERSION = 'v1.2.0';
@@ -346,6 +372,10 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
           const key = `${st.id}__${p.id}__${fam}`;
           const acq = trial.acquisitions[key];
           if (acq && acq.computed) {
+            // Verrouillage scientifique COMPUTED : seules les populations
+            // canoniques (famille + jalon) sont restituées. Le CSV RAW reste
+            // exhaustif et n'applique jamais ce filtre.
+            if (!isComputedExportAdmissible(fam, p, st)) return;
             let valStr = '';
             let stdStr = '';
             let deltaStr = '';
