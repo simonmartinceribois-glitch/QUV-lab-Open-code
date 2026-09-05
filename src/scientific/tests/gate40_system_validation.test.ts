@@ -241,23 +241,26 @@ export function runGate40SystemValidationTests(): {
         operatorId: 'Tech Paillasse T0'
       });
 
-      // 3. Persoz T0 (3 mesures de temps en secondes)
-      globalTrialStore.recordAcquisition({
-        trialId,
-        stageId: stageT0.id,
-        batchId: b.id,
-        panelId: p.id,
-        familyId: 'PERSOZ',
-        raw: {
-          unit: 'SECONDS',
-          readings: [
-            { pointIndex: 1, dampingTimeSeconds: basePersoz },
-            { pointIndex: 2, dampingTimeSeconds: basePersoz },
-            { pointIndex: 3, dampingTimeSeconds: basePersoz }
-          ]
-        } as PersozRawData,
-        operatorId: 'Tech Paillasse T0'
-      });
+      // 3. Persoz T0 (3 mesures de temps en secondes) — verrou PERSOZ/Témoin
+      // (PERSOZ interdit sur T, exposés uniquement).
+      if (p.role !== 'WITNESS') {
+        globalTrialStore.recordAcquisition({
+          trialId,
+          stageId: stageT0.id,
+          batchId: b.id,
+          panelId: p.id,
+          familyId: 'PERSOZ',
+          raw: {
+            unit: 'SECONDS',
+            readings: [
+              { pointIndex: 1, dampingTimeSeconds: basePersoz },
+              { pointIndex: 2, dampingTimeSeconds: basePersoz },
+              { pointIndex: 3, dampingTimeSeconds: basePersoz }
+            ]
+          } as PersozRawData,
+          operatorId: 'Tech Paillasse T0'
+        });
+      }
 
       // 4. Observations T0 (4 catégories ISO 4628 cotées 0)
       globalTrialStore.recordAcquisition({
@@ -287,15 +290,16 @@ export function runGate40SystemValidationTests(): {
     const stageT0Status = saved.stages.find((s) => s.id === stageT0.id)?.status;
     const acqCountT0 = Object.keys(saved.acquisitions).filter((k) => k.startsWith(`${stageT0.id}__`)).length;
 
-    // 8 éprouvettes x 4 familles = 32 acquisitions initiales
-    const isT0Valid = stageT0Status === 'VALIDATED' && acqCountT0 === 32;
+    // 8 éprouvettes x COLOR/GLOSS/OBS + 6 exposées x PERSOZ = 30 acquisitions
+    // initiales (PERSOZ interdit sur les 2 témoins T — verrou PERSOZ/Témoin).
+    const isT0Valid = stageT0Status === 'VALIDATED' && acqCountT0 === 30;
 
     record(
       'G40-T0-01',
-      'Référence Initiale T0 : Complétude des 32 acquisitions (8 éprouvettes x 4 familles) et validation formelle de l\'étape',
+      'Référence Initiale T0 : Complétude des 30 acquisitions (8 éprouvettes x 3 familles + 6 exposées x PERSOZ) et validation formelle de l\'étape',
       'T0_REFERENCE_ACQUISITION',
       isT0Valid,
-      '32 acquisitions T0 enregistrées, stageT0.status = VALIDATED',
+      '30 acquisitions T0 enregistrées, stageT0.status = VALIDATED',
       `Acquisitions T0=${acqCountT0}, Statut=${stageT0Status}`
     );
   }
@@ -355,23 +359,25 @@ export function runGate40SystemValidationTests(): {
           operatorId: `Opérateur ${stage.name}`
         });
 
-        // Persoz
-        globalTrialStore.recordAcquisition({
-          trialId,
-          stageId: stage.id,
-          batchId: b.id,
-          panelId: p.id,
-          familyId: 'PERSOZ',
-          raw: {
-            unit: 'SECONDS',
-            readings: [
-              { pointIndex: 1, dampingTimeSeconds: basePersoz + persozDelta },
-              { pointIndex: 2, dampingTimeSeconds: basePersoz + persozDelta },
-              { pointIndex: 3, dampingTimeSeconds: basePersoz + persozDelta }
-            ]
-          } as PersozRawData,
-          operatorId: `Opérateur ${stage.name}`
-        });
+        // Persoz — verrou PERSOZ/Témoin (PERSOZ interdit sur T, exposés uniquement).
+        if (!isWitness) {
+          globalTrialStore.recordAcquisition({
+            trialId,
+            stageId: stage.id,
+            batchId: b.id,
+            panelId: p.id,
+            familyId: 'PERSOZ',
+            raw: {
+              unit: 'SECONDS',
+              readings: [
+                { pointIndex: 1, dampingTimeSeconds: basePersoz + persozDelta },
+                { pointIndex: 2, dampingTimeSeconds: basePersoz + persozDelta },
+                { pointIndex: 3, dampingTimeSeconds: basePersoz + persozDelta }
+              ]
+            } as PersozRawData,
+            operatorId: `Opérateur ${stage.name}`
+          });
+        }
 
         // Observations
         globalTrialStore.recordAcquisition({
@@ -542,9 +548,11 @@ export function runGate40SystemValidationTests(): {
     const qualityReport = assessTrialQuality(saved, ruleSet);
     const totalAcquisitions = Object.keys(saved.acquisitions).length;
 
-    // Toutes les étapes T0, C1, C2, C6, C12 ont été saisies et validées
+    // Toutes les étapes T0, C1, C2, C6, C12 ont été saisies et validées.
+    // Seuil ajusté : 10 acquisitions PERSOZ/T en moins — 2 à T0 + 2×4 jalons
+    // (C1, C2, C6, C12) — verrou PERSOZ/Témoin. Qualité et alertes inchangées.
     const passed =
-      totalAcquisitions >= 160 &&
+      totalAcquisitions >= 150 &&
       qualityReport.blockingAlertsCount === 0 &&
       qualityReport.globalQuality === 'GOOD';
 
@@ -553,7 +561,7 @@ export function runGate40SystemValidationTests(): {
       'Contrôle Qualité : Évaluation globale du dossier d\'essai (zéro anomalie bloquante sur les étapes actives)',
       'QUALITY_ASSESSMENT_COMPLETENESS',
       passed,
-      'blockingAlertsCount = 0, acquisitions >= 160, globalQuality = GOOD',
+      'blockingAlertsCount = 0, acquisitions >= 150, globalQuality = GOOD',
       `Acquisitions=${totalAcquisitions}, Alertes Bloquantes=${qualityReport.blockingAlertsCount}, Qualité=${qualityReport.globalQuality}`
     );
   }

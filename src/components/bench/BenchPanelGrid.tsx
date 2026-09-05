@@ -7,6 +7,7 @@
 import { CheckCircle2 } from 'lucide-react';
 import type { MeasurementFamilyId } from '../../types/scientific';
 import type { Trial } from '../../types/trial';
+import { isWitnessPanel } from '../../scientific/panelUtils';
 import type { PanelListItem } from './benchTypes';
 
 interface Props {
@@ -68,14 +69,21 @@ export function BenchPanelGrid({
           const isDone = !!rec && !!rec.computed;
           const hasWarning = rec?.status === 'WARNING';
           const hasError = rec?.status === 'ERROR';
+          // Verrou UI PERSOZ/Témoin : T n'est jamais une cible PERSOZ valide.
+          // Le verrou runtime (recordAcquisition) reste le rempart décisif.
+          const isPersozLocked = selectedFamilyId === 'PERSOZ' && isWitnessPanel(panel);
 
           return (
             <button
               key={panel.id}
               type="button"
+              disabled={isPersozLocked}
+              title={isPersozLocked ? 'PERSOZ interdit sur le témoin T (E1, E2, E3 uniquement)' : undefined}
               onClick={() => onSelectPanel(panel.id)}
               className={`p-2 rounded-xl text-left border transition-all ${
-                isSelected
+                isPersozLocked
+                  ? 'border-slate-200 bg-slate-100 opacity-50 cursor-not-allowed'
+                  : isSelected
                   ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-500/20'
                   : isDone
                   ? hasError
@@ -90,7 +98,9 @@ export function BenchPanelGrid({
               <div className="flex items-center justify-between font-bold text-xs">
                 <span className="text-slate-900">{panel.label}</span>
                 <span>
-                  {isDone ? (
+                  {isPersozLocked ? (
+                    '🔒'
+                  ) : isDone ? (
                     hasError ? (
                       '🔴'
                     ) : hasWarning ? (
