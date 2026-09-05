@@ -362,7 +362,7 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
   // Section Résultats Calculés COMPUTED
   lines.push(`=== RÉSULTATS CALCULÉS PAR ÉTAPE (COMPUTED DATA) ===`);
   lines.push(
-    `Étape;Heures Planifiées;Éprouvette;Lot;Famille;Moyenne / Valeur;Écart-Type;Δ vs T0;Rétention %;Qualité;Version Calcul;Calculé Le`
+    `Étape;Heures Planifiées;Éprouvette;Lot;Famille;Moyenne / Valeur;Écart-Type;Δ vs T0;Rétention %;Qualité;Version Calcul;Calculé Le;ReferenceStageId;ReferencePanelId;ReferenceAcquisitionId;ReferenceRule`
   );
 
   trial.stages.forEach((st) => {
@@ -426,9 +426,15 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
             const qStatus = comp.qualityAssessment?.status || acq.status;
             const calcVer = comp.computation?.calculationVersion || ruleSet.version;
             const calcAt = comp.computation?.calculatedAt || acq.trace.lastModifiedAt || acq.trace.createdAt;
+            // Traçabilité explicite de la référence (N/A si aucune utilisée).
+            const refTrace = comp.referenceTrace;
+            const refStage = refTrace?.referenceStageId ?? 'N/A';
+            const refPanel = refTrace?.referencePanelId ?? 'N/A';
+            const refAcq = refTrace?.referenceAcquisitionId ?? 'N/A';
+            const refRule = refTrace?.referenceRule ?? 'N/A';
 
             lines.push(
-              `"${st.name}";${st.scheduledExposureHours};"${p.label}";"${b.reference}";${fam};"${valStr}";"${stdStr}";"${deltaStr}";"${retStr}";${qStatus};"${calcVer}";"${calcAt}"`
+              `"${st.name}";${st.scheduledExposureHours};"${p.label}";"${b.reference}";${fam};"${valStr}";"${stdStr}";"${deltaStr}";"${retStr}";${qStatus};"${calcVer}";"${calcAt}";${refStage};${refPanel};${refAcq};${refRule}`
             );
           }
         });

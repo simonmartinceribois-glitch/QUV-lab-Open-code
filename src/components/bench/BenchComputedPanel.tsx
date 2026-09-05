@@ -13,7 +13,8 @@ import type {
   GlossComputedData,
   PersozComputedData,
   AdhesionComputedData,
-  VisualObservationsComputedData
+  VisualObservationsComputedData,
+  ReferenceTrace
 } from '../../types/scientific';
 import type { PanelAcquisitionRecord } from '../../types/trial';
 import { getQualityStatus } from '../../scientific/validity';
@@ -264,6 +265,33 @@ export function BenchComputedPanel({ computed, currentRecord, selectedFamilyId, 
                   <div className="font-sans font-bold text-slate-900 mt-1">{compObs.summary}</div>
                 </div>
               </>
+              );
+            })()}
+
+            {/* Traçabilité de la référence scientifique (compacte, non intrusive) */}
+            {(() => {
+              const trace = (computed as { referenceTrace?: ReferenceTrace | null } | null | undefined)?.referenceTrace;
+              if (!trace) return null;
+              const short = (id: string | null | undefined) => (id ? `${id.slice(0, 8)}…` : 'N/A');
+              return (
+                <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-600 space-y-0.5">
+                  <div className="flex justify-between">
+                    <span>Référence :</span>
+                    <strong className="font-mono">{trace.referenceRule === 'NONE' ? 'aucune' : trace.referenceRule}</strong>
+                  </div>
+                  {trace.referenceRule !== 'NONE' && (
+                    <>
+                      <div className="flex justify-between">
+                        <span>Stage source :</span>
+                        <span className="font-mono">{short(trace.referenceStageId)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Acquisition source :</span>
+                        <span className="font-mono">{short(trace.referenceAcquisitionId)}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
               );
             })()}
           </div>

@@ -99,6 +99,26 @@ export interface ComputationMetadata {
   calculatedAt: ISODateString;
 }
 
+/**
+ * Règle de sélection de la référence scientifique d'un calcul :
+ * - SAME_PANEL_T0 : T0 du même panneau (COLOR, GLOSS, PERSOZ hors T0).
+ * - T0_WITNESS_REFERENCE : T0 du panneau témoin T (ADHÉSION C12, Gate 5.6).
+ * - NONE : aucune référence utilisée (mesure initiale, OBSERVATIONS, référence absente).
+ */
+export type ReferenceRule = 'SAME_PANEL_T0' | 'T0_WITNESS_REFERENCE' | 'NONE';
+
+/**
+ * Traçabilité explicite de la référence scientifique : identifie l'étape,
+ * le panneau et l'acquisition source effectivement utilisés, plus la règle.
+ * Champs d'identifiants à null quand aucune référence n'est utilisée (NONE).
+ */
+export interface ReferenceTrace {
+  referenceStageId: UUID | null;
+  referencePanelId: UUID | null;
+  referenceAcquisitionId: UUID | null;
+  referenceRule: ReferenceRule;
+}
+
 // ============================================================================
 // 3. RÉFÉRENTIEL SCIENTIFIQUE DÉCOUPLÉ & CONFIGURATION DU PROTOCOLE
 // ============================================================================
@@ -258,6 +278,7 @@ export interface ColorComputedData {
   criterionCategory?: string;
   qualityAssessment: QualityAssessment;
   protocolStatus: ProtocolComplianceStatus;
+  referenceTrace?: ReferenceTrace;
   computation: ComputationMetadata;
 }
 
@@ -305,6 +326,7 @@ export interface GlossComputedData {
   criterionCategory?: string;
   qualityAssessment: QualityAssessment;
   protocolStatus: ProtocolComplianceStatus;
+  referenceTrace?: ReferenceTrace;
   computation: ComputationMetadata;
 }
 
@@ -337,6 +359,7 @@ export interface PersozComputedData {
   criterionCategory?: string;
   qualityAssessment: QualityAssessment;
   protocolStatus: ProtocolComplianceStatus;
+  referenceTrace?: ReferenceTrace;
   computation: ComputationMetadata;
 }
 
@@ -406,6 +429,7 @@ export interface AdhesionComputedData {
   criterionCategory?: string;
   qualityAssessment: QualityAssessment;
   protocolStatus: ProtocolComplianceStatus;
+  referenceTrace?: ReferenceTrace;
   computation: ComputationMetadata;
 }
 
@@ -442,6 +466,7 @@ export interface VisualObservationsComputedData {
   summary: string;
   qualityAssessment: QualityAssessment;
   protocolStatus: ProtocolComplianceStatus;
+  referenceTrace?: ReferenceTrace;
   computation: ComputationMetadata;
 }
 
