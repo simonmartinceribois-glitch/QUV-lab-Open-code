@@ -317,23 +317,25 @@ export function runGate34NormativeReportingTests(): {
         operatorId: 'Opérateur T0'
       });
 
-      // Persoz T0
-      globalTrialStore.recordAcquisition({
-        trialId,
-        stageId: stageT0.id,
-        batchId: b.id,
-        panelId: p.id,
-        familyId: 'PERSOZ',
-        raw: {
-          unit: 'SECONDS',
-          readings: [
-            { pointIndex: 1, dampingTimeSeconds: 120 },
-            { pointIndex: 2, dampingTimeSeconds: 120 },
-            { pointIndex: 3, dampingTimeSeconds: 120 }
-          ]
-        } as PersozRawData,
-        operatorId: 'Opérateur T0'
-      });
+      // Persoz T0 — verrou PERSOZ/Témoin (PERSOZ interdit sur T, exposés uniquement).
+      if (p.role !== 'WITNESS') {
+        globalTrialStore.recordAcquisition({
+          trialId,
+          stageId: stageT0.id,
+          batchId: b.id,
+          panelId: p.id,
+          familyId: 'PERSOZ',
+          raw: {
+            unit: 'SECONDS',
+            readings: [
+              { pointIndex: 1, dampingTimeSeconds: 120 },
+              { pointIndex: 2, dampingTimeSeconds: 120 },
+              { pointIndex: 3, dampingTimeSeconds: 120 }
+            ]
+          } as PersozRawData,
+          operatorId: 'Opérateur T0'
+        });
+      }
 
       // Observations T0
       globalTrialStore.recordAcquisition({

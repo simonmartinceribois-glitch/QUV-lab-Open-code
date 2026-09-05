@@ -39,7 +39,7 @@ import { recalculateAcquisition } from '../scientific/recalculator';
 import { getQualityStatus } from '../scientific/validity';
 import { createConfigChangeEvent } from '../scientific/auditEngine';
 import { buildScientificReport } from './reportGenerator';
-import { isFamilyScheduledForStage } from '../scientific/panelUtils';
+import { isFamilyScheduledForStage, isPersozEligiblePanel } from '../scientific/panelUtils';
 import { generateUUID } from './trialIds';
 import { IntegrityViolationError, validateAcquisitionTarget, validatePhotoTarget } from './trialIntegrity';
 import { generateStandardExposureStages } from './trialStages';
@@ -551,6 +551,27 @@ export class TrialStoreService {
 
     // Garde-fou d'intégrité relationnelle (Gate 3.1 - Risque 1) avant tout effet de bord
     validateAcquisitionTarget(trial, params.stageId, params.batchId, params.panelId);
+
+    // Verrou métier PERSOZ (règle stricte E1/E2/E3) : la dureté Persoz se mesure
+    // UNIQUEMENT sur éprouvettes exposées E1, E2, E3 identifiées sans ambiguïté,
+    // à tous les jalons (T0..C12). T et tout panneau non identifiable sont refusés.
+    // Rejet AVANT toute mutation : ni trial.acquisitions, ni lock, ni audit, ni save.
+    if (params.familyId === 'PERSOZ') {
+      const targetBatch = trial.batches?.find((b) => b.id === params.batchId);
+      const targetPanel = targetBatch?.panels?.find((p) => p.id === params.panelId);
+      if (!targetPanel || !isPersozEligiblePanel(targetPanel)) {
+        throw new IntegrityViolationError(
+          `PERSOZ interdit sur cette éprouvette : la dureté Persoz se mesure uniquement sur éprouvettes exposées E1, E2, E3 (témoin T et panneaux non identifiés refusés).`,
+          {
+            trialId: trial.id,
+            stageId: params.stageId,
+            batchId: params.batchId,
+            panelId: params.panelId,
+            familyId: 'PERSOZ'
+          }
+        );
+      }
+    }
 
     // Règle métier canonique : ADHESION = T0 + C12 uniquement. Interdit à C1..C11.
     const targetStage = trial.stages?.find((s) => s.id === params.stageId);

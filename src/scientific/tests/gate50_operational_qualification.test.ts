@@ -255,24 +255,26 @@ export function runGate50OperationalQualificationTests(): Gate50Summary {
           operatorId: 'SM'
         });
 
-        // Persoz
-        const persozRaw: PersozRawData = {
-          readings: [
-            { pointIndex: 1, dampingTimeSeconds: isT0 ? 150.0 : 130.0 },
-            { pointIndex: 2, dampingTimeSeconds: isT0 ? 150.0 : 130.0 },
-            { pointIndex: 3, dampingTimeSeconds: isT0 ? 150.0 : 130.0 }
-          ],
-          unit: 'SECONDS'
-        };
-        globalTrialStore.recordAcquisition({
-          trialId,
-          stageId: st.id,
-          batchId: b.id,
-          panelId: p.id,
-          familyId: 'PERSOZ',
-          raw: persozRaw,
-          operatorId: 'SM'
-        });
+        // Persoz — verrou PERSOZ/Témoin (PERSOZ interdit sur T, exposés uniquement).
+        if (p.role !== 'WITNESS') {
+          const persozRaw: PersozRawData = {
+            readings: [
+              { pointIndex: 1, dampingTimeSeconds: isT0 ? 150.0 : 130.0 },
+              { pointIndex: 2, dampingTimeSeconds: isT0 ? 150.0 : 130.0 },
+              { pointIndex: 3, dampingTimeSeconds: isT0 ? 150.0 : 130.0 }
+            ],
+            unit: 'SECONDS'
+          };
+          globalTrialStore.recordAcquisition({
+            trialId,
+            stageId: st.id,
+            batchId: b.id,
+            panelId: p.id,
+            familyId: 'PERSOZ',
+            raw: persozRaw,
+            operatorId: 'SM'
+          });
+        }
 
         // Observations
         const obsRaw: VisualObservationsRawData = {

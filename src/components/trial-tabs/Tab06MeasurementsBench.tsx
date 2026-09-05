@@ -28,7 +28,8 @@ import {
   normalizeAdhesionMeasurements,
   resolveAdhesionCountConfig
 } from '../../scientific/adhesionEngine';
-import { isFamilyScheduledForStage, getActiveFamiliesForStage } from '../../scientific/panelUtils';
+import { isFamilyScheduledForStage, getActiveFamiliesForStage, isPersozEligiblePanel
+} from '../../scientific/panelUtils';
 import { BenchTopBar } from '../bench/BenchTopBar';
 import { BenchPanelGrid } from '../bench/BenchPanelGrid';
 import { BenchComputedPanel } from '../bench/BenchComputedPanel';
@@ -252,6 +253,12 @@ export function Tab06MeasurementsBench({
       alert("Ce jalon a été exclu du plan de mesurage ; aucune acquisition n'est autorisée.");
       return;
     }
+    // Verrou UI PERSOZ (E1/E2/E3 strict) : aucun RAW créé, aucun appel recordAcquisition.
+    // Le verrou runtime (recordAcquisition) rejette de toute façon en dernier rempart.
+    if (selectedFamilyId === 'PERSOZ' && !isPersozEligiblePanel(currentPanel)) {
+      alert("PERSOZ interdit sur l'éprouvette témoin T : mesure réservée aux éprouvettes exposées (E1, E2, E3).");
+      return;
+    }
 
     let rawPayload: unknown = null;
 
@@ -347,9 +354,10 @@ export function Tab06MeasurementsBench({
     // NEXT automatique vers le panneau suivant incomplet
     if (autoAdvance) {
       const currentIdx = activePanelsList.findIndex((item) => item.panel.id === currentPanel.id);
-      // Chercher d'abord le prochain incomplet
+      // Chercher d'abord le prochain incomplet (T exclu d'office en campagne PERSOZ)
       const nextIncomplete = activePanelsList.find((item, idx) => {
         if (idx <= currentIdx) return false;
+        if (selectedFamilyId === 'PERSOZ' && !isPersozEligiblePanel(item.panel)) return false;
         const key = `${currentStage.id}__${item.panel.id}__${selectedFamilyId}`;
         const r = trial.acquisitions[key];
         return !r || !r.computed;
@@ -358,7 +366,8 @@ export function Tab06MeasurementsBench({
       if (nextIncomplete) {
         setSelectedPanelId(nextIncomplete.panel.id);
       } else if (currentIdx < activePanelsList.length - 1) {
-        setSelectedPanelId(activePanelsList[currentIdx + 1].panel.id);
+        const following = activePanelsList.slice(currentIdx + 1).find((item) => selectedFamilyId !== 'PERSOZ' || isPersozEligiblePanel(item.panel));
+        if (following) setSelectedPanelId(following.panel.id);
       }
     }
   };
@@ -444,7 +453,15 @@ export function Tab06MeasurementsBench({
         currentPanelId={currentPanel?.id}
         currentStageId={currentStage.id}
         acquisitions={trial.acquisitions}
-        onSelectPanel={setSelectedPanelId}
+        onSelectPanel={(panelId) => {
+          // Verrou UI PERSOZ (E1/E2/E3 strict) : T et panneaux non identifiés
+          // non sélectionnables en campagne PERSOZ.
+          if (selectedFamilyId === 'PERSOZ') {
+            const target = activePanelsList.find((item) => item.panel.id === panelId);
+            if (target && !isPersozEligiblePanel(target.panel)) return;
+          }
+          setSelectedPanelId(panelId);
+        }}
         onOpenValidationModal={() => setShowValidationSummaryModal(true)}
       />
 
