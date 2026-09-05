@@ -24,6 +24,7 @@ import { runPersozQualityPopulationTests } from './src/scientific/tests/persoz_q
 import { runExportComputedPopulationTests } from './src/scientific/tests/export_computed_population.test';
 import { runReferenceTraceabilityTests } from './src/scientific/tests/reference_traceability.test';
 import { runEligibleAlertsTests } from './src/scientific/tests/qualityengine_eligible_alerts.test';
+import { runTrialEligibleAlertsTests } from './src/scientific/tests/qualityengine_trial_eligible_alerts.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -360,6 +361,19 @@ suite26.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('27. EXÉCUTION DU FILTRAGE TRIAL qualityEngine (12 TESTS)');
+console.log('================================================================');
+const suite27 = runTrialEligibleAlertsTests();
+console.log(`Résultats Filtrage Trial : ${suite27.summary.passed} / ${suite27.summary.total} réussis.`);
+suite27.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Trial Alerts] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -386,7 +400,8 @@ const totalFailed =
   suite23.summary.failed +
   suite24.summary.failed +
   suite25.summary.failed +
-  suite26.summary.failed;
+  suite26.summary.failed +
+  suite27.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -413,7 +428,8 @@ const totalCount =
   suite23.summary.total +
   suite24.summary.total +
   suite25.summary.total +
-  suite26.summary.total;
+  suite26.summary.total +
+  suite27.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
