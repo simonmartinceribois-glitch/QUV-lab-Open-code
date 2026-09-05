@@ -16,7 +16,7 @@ import {
   ScientificRuleSet,
   UUID
 } from '../types/scientific';
-import { getActiveFamiliesForStage } from './panelUtils';
+import { getActiveFamiliesForStage, isAdhesionEligiblePanel } from './panelUtils';
 
 export const QUALITY_ASSESSMENT_VERSION = '1.2.0';
 
@@ -71,22 +71,51 @@ export function assessStageQuality(
       }
     }
 
+    // Complétude ADHÉSION (matrice T0/T, C12/E1-E3) : seuls les panneaux
+    // éligibles au jalon comptent — ni les absences normales (E à T0, T à C12),
+    // ni les acquisitions interdites historiques ne satisfont la couverture.
+    // Autres familles : comportement inchangé (tous les panneaux actifs).
+    let expectedCount = activePanels.length;
+    let coveredCount = familyAcqs.length;
+    if (familyId === 'ADHESION' && stage) {
+      const eligibleIds = new Set(
+        activePanels.filter((p) => isAdhesionEligiblePanel(p, stage)).map((p) => p.id)
+      );
+      expectedCount = eligibleIds.size;
+      coveredCount = familyAcqs.filter((a) => eligibleIds.has(a.panelId)).length;
+    }
+
     if (famHasInvalid) {
       familyAssessments[familyId] = 'INVALID';
     } else if (famHasWarning) {
       familyAssessments[familyId] = 'WARNING';
-    } else if (familyAcqs.length >= activePanels.length) {
+    } else if (expectedCount > 0 && coveredCount >= expectedCount) {
+      familyAssessments[familyId] = 'GOOD';
+    } else if (expectedCount === 0) {
       familyAssessments[familyId] = 'GOOD';
     } else {
       familyAssessments[familyId] = 'ACCEPTABLE';
     }
   }
 
+  let panelsEvaluated = 0;
   for (const panel of activePanels) {
+    // Attentes applicables au panneau : ADHÉSION uniquement si le panneau est
+    // éligible au jalon (T0/T, C12/E1-E3). Un panneau sans attente applicable
+    // (ex. E à T0 en campagne ADHÉSION seule) est hors compteur — ni complet,
+    // ni en anomalie. Autres familles : comportement inchangé.
+    const expectedFamilies = scheduledFamilies.filter(
+      (fam) => fam !== 'ADHESION' || (stage && isAdhesionEligiblePanel(panel, stage))
+    );
+    if (expectedFamilies.length === 0) continue;
+    panelsEvaluated++;
     const panelAcqs = stageAcquisitions.filter((a) => a.panelId === panel.id && scheduledFamilies.includes(a.familyId));
+    const eligibleAcqs = panelAcqs.filter(
+      (a) => a.familyId !== 'ADHESION' || (stage && isAdhesionEligiblePanel(panel, stage))
+    );
     const hasBlocking = panelAcqs.some((a) => a.alerts?.some((al) => al.severity === 'BLOCKING'));
     const hasWarning = panelAcqs.some((a) => a.alerts?.some((al) => al.severity === 'WARNING'));
-    const isComplete = panelAcqs.length === scheduledFamilies.length;
+    const isComplete = eligibleAcqs.length === expectedFamilies.length;
 
     if (hasBlocking) {
       panelsInvalid++;
@@ -102,7 +131,7 @@ export function assessStageQuality(
     globalStatus = 'INVALID';
   } else if (panelsWithWarnings > 0) {
     globalStatus = 'WARNING';
-  } else if (panelsComplete === activePanels.length) {
+  } else if (panelsComplete === panelsEvaluated) {
     globalStatus = 'GOOD';
   } else {
     globalStatus = 'ACCEPTABLE';
@@ -110,7 +139,7 @@ export function assessStageQuality(
 
   return {
     stageId,
-    panelsEvaluated: activePanels.length,
+    panelsEvaluated,
     panelsComplete,
     panelsWithWarnings,
     panelsInvalid,
