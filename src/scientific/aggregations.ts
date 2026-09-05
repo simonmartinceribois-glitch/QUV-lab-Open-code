@@ -55,6 +55,19 @@ export function aggregateBatchColor(
     .map((p) => p.deltaE)
     .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
 
+  // Consolidation L*/a*/b* inter-panneaux : moyennes des moyennes panneau
+  // (haute précision conservée jusqu'ici, arrondi à 3 décimales à la sortie,
+  // comme ΔE). Référence ΔE de chaque panneau = T0 du même panneau (moteur).
+  const meanLVals = activePanels
+    .map((p) => p.meanL)
+    .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  const meanAVals = activePanels
+    .map((p) => p.meanA)
+    .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  const meanBVals = activePanels
+    .map((p) => p.meanB)
+    .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+
   const meanDeltaE = calculateMean(deltaEValues);
   const interPanelStdDevDeltaE = calculateSampleStdDev(deltaEValues);
 
@@ -72,6 +85,14 @@ export function aggregateBatchColor(
     interPanelMean: roundMetric(meanDeltaE, 3),
     interPanelStdDev: roundMetric(interPanelStdDevDeltaE, 3),
     meanDeltaE: roundMetric(meanDeltaE, 3),
+    color: {
+      meanL: roundMetric(calculateMean(meanLVals), 3),
+      stdDevL: roundMetric(calculateSampleStdDev(meanLVals), 3),
+      meanA: roundMetric(calculateMean(meanAVals), 3),
+      stdDevA: roundMetric(calculateSampleStdDev(meanAVals), 3),
+      meanB: roundMetric(calculateMean(meanBVals), 3),
+      stdDevB: roundMetric(calculateSampleStdDev(meanBVals), 3)
+    },
     computation
   };
 }

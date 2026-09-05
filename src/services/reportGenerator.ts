@@ -384,7 +384,8 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
                 valStr = compAdh.adhesionClass !== null && compAdh.adhesionClass !== undefined ? `Classe ${compAdh.adhesionClass}` : '—';
               }
               stdStr = compAdh.gridSpacingUsedMm ? `Peigne ${compAdh.gridSpacingUsedMm} mm` : '—';
-              deltaStr = compAdh.deltaAdhesionClass !== null && compAdh.deltaAdhesionClass !== undefined ? `ΔClasse=${compAdh.deltaAdhesionClass >= 0 ? '+' : ''}${compAdh.deltaAdhesionClass}` : 'RÉF (T0)';
+              // Δ = variation moyenne de classement, indicateur complémentaire non normatif.
+              deltaStr = compAdh.deltaAdhesionClass !== null && compAdh.deltaAdhesionClass !== undefined ? `${indiv.length > 1 ? 'Δmoy.(compl.)=' : 'ΔClasse='}${compAdh.deltaAdhesionClass >= 0 ? '+' : ''}${compAdh.deltaAdhesionClass}` : 'RÉF (T0)';
               retStr = compAdh.delayCompliance || '—';
             } else if (fam === 'OBSERVATIONS') {
               const compObs = acq.computed as VisualObservationsComputedData;

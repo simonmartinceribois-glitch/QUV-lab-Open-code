@@ -238,7 +238,7 @@ export function BenchComputedPanel({ computed, currentRecord, selectedFamilyId, 
                     </div>
                     <div className="text-[11px] text-blue-700">
                       {isMulti
-                        ? `(Moy. ${compAdh.panelMean ?? '—'} actuelle vs Moy. ${compAdh.initialPanelMean ?? '—'} à T0 sur témoin)`
+                        ? `(Moy. ${compAdh.panelMean ?? '—'} actuelle vs Moy. ${compAdh.initialPanelMean ?? '—'} à T0 sur témoin — Δ classement moyen, indicateur complémentaire non normatif)`
                         : `(Classe ${compAdh.adhesionClass} actuelle vs Classe ${compAdh.initialAdhesionClass} à T0 sur témoin)`}
                     </div>
                   </div>
