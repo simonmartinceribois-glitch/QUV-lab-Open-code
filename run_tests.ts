@@ -20,6 +20,7 @@ import { runExposedE1E2E3Tests } from './src/scientific/tests/exposed_e1e2e3_pre
 import { runAdhesionFamilyRestitutionTests } from './src/scientific/tests/adhesion_family_restitution.test';
 import { runColorAdhesionStatisticsTests } from './src/scientific/tests/color_adhesion_statistics.test';
 import { runColorRestitutionTests } from './src/scientific/tests/color_statistics_restitution.test';
+import { runPersozQualityPopulationTests } from './src/scientific/tests/persoz_quality_population.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -304,6 +305,19 @@ suite22.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('23. EXÉCUTION DE LA POPULATION PERSOZ qualityEngine (11 TESTS)');
+console.log('================================================================');
+const suite23 = runPersozQualityPopulationTests();
+console.log(`Résultats Population PERSOZ : ${suite23.summary.passed} / ${suite23.summary.total} réussis.`);
+suite23.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Persoz Quality] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -326,7 +340,8 @@ const totalFailed =
   suite19.summary.failed +
   suite20.summary.failed +
   suite21.summary.failed +
-  suite22.summary.failed;
+  suite22.summary.failed +
+  suite23.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -349,7 +364,8 @@ const totalCount =
   suite19.summary.total +
   suite20.summary.total +
   suite21.summary.total +
-  suite22.summary.total;
+  suite22.summary.total +
+  suite23.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
