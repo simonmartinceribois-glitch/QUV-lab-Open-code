@@ -312,6 +312,234 @@ export function runImportRobustnessTests(): {
       ok, 'true/false/false/false', `valide=${String(okValid)}, vide=${String(!okEmpty)}, id=${String(!okIdOnly)}, panneaux=${String(!okPanels)}`);
   }
 
+  // --- IR-16 : id numérique → invalide ---
+  {
+    const valid = buildTrial();
+    const ok = !isStructurallyValidTrial({ ...valid, id: 123 });
+    record('IR-16', 'id numérique → Trial invalide', ok, 'false', String(!ok ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+  }
+
+  // --- IR-17 : id absent → invalide ---
+  {
+    const valid = buildTrial();
+    const { id: _dropped, ...noId } = valid as unknown as Record<string, unknown>;
+    void _dropped;
+    const ok = !isStructurallyValidTrial(noId);
+    record('IR-17', 'id absent → Trial invalide', ok, 'false', String(ok ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+  }
+
+  // --- IR-18 : stages [null] → invalide ---
+  {
+    const valid = buildTrial();
+    const ok = !isStructurallyValidTrial({ ...valid, stages: [null] });
+    record('IR-18', 'stages [null] → Trial invalide', ok, 'false', String(ok ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+  }
+
+  // --- IR-19 : stages [{}] → invalide ---
+  {
+    const valid = buildTrial();
+    const ok = !isStructurallyValidTrial({ ...valid, stages: [{}] });
+    record('IR-19', 'stages [{}] → Trial invalide', ok, 'false', String(ok ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+  }
+
+  // --- IR-20 : batches [null] → invalide ---
+  {
+    const valid = buildTrial();
+    const ok = !isStructurallyValidTrial({ ...valid, batches: [null] });
+    record('IR-20', 'batches [null] → Trial invalide', ok, 'false', String(ok ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+  }
+
+  // --- IR-21 : panel non objet → invalide ---
+  {
+    const valid = buildTrial();
+    const batch = { ...valid.batches[0], panels: [null] };
+    const ok = !isStructurallyValidTrial({ ...valid, batches: [batch] });
+    record('IR-21', 'panel non objet → Trial invalide', ok, 'false', String(ok ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+  }
+
+  // --- IR-22 : config tableau → invalide ---
+  {
+    const valid = buildTrial();
+    const ok = !isStructurallyValidTrial({ ...valid, config: [] });
+    record('IR-22', 'config [] → Trial invalide', ok, 'false', String(ok ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+  }
+
+  // --- IR-23 : acquisitions tableau → invalide ---
+  {
+    const valid = buildTrial();
+    const ok = !isStructurallyValidTrial({ ...valid, acquisitions: [] });
+    record('IR-23', 'acquisitions [] → Trial invalide', ok, 'false', String(ok ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+  }
+
+  // --- IR-24 : acquisition invalide → Trial invalide ---
+  {
+    const valid = buildTrial();
+    const ok = !isStructurallyValidTrial({ ...valid, acquisitions: { k1: { id: 'a' } } });
+    record('IR-24', 'acquisition sans clés métier → Trial invalide', ok, 'false', String(ok ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+  }
+
+  // --- IR-25 : A valide / B corrompu / C valide au chargement ---
+  {
+    const store = TrialStoreService.createIsolatedStore();
+    void store;
+    const trialA = buildTrial();
+    const trialC = buildTrial();
+    const corruptB = { id: 'corrupt-B', stages: 'not-an-array' };
+    const payload = JSON.stringify([trialA, corruptB, trialC]);
+    const warns: unknown[][] = [];
+    const consoleTarget = console as unknown as { warn: (...args: unknown[]) => void };
+    const originalWarn = consoleTarget.warn;
+    let threw = false;
+    let loadedA = false;
+    let loadedC = false;
+    let loadedB = false;
+    let warned = false;
+    const g = globalThis as unknown as Record<string, unknown>;
+    const previousStorage = g['localStorage'];
+    try {
+      const box: { text: string } = { text: '' };
+      g['localStorage'] = {
+        getItem: () => box.text,
+        setItem: (_k: string, v: string) => { box.text = v; }
+      };
+      (g['localStorage'] as { setItem: (k: string, v: string) => void }).setItem('k', payload);
+      consoleTarget.warn = (...args: unknown[]) => { warns.push(args); };
+      const fresh = new TrialStoreService();
+      loadedA = Boolean(fresh.getTrial(trialA.id));
+      loadedC = Boolean(fresh.getTrial(trialC.id));
+      loadedB = Boolean(fresh.getTrial('corrupt-B'));
+      warned = warns.length > 0;
+    } catch {
+      threw = true;
+    } finally {
+      consoleTarget.warn = originalWarn;
+      if (previousStorage === undefined) {
+        delete g['localStorage'];
+      } else {
+        g['localStorage'] = previousStorage;
+      }
+    }
+    const ok = !threw && loadedA && loadedC && !loadedB && warned;
+    record('IR-25', 'Chargement A/B-corrompu/C : A+C chargés, B ignoré+warn, sans exception',
+      ok, 'A+C chargés, B ignoré, warn, sans exception',
+      `A=${String(loadedA)}, C=${String(loadedC)}, B=${String(loadedB)}, warn=${String(warned)}, throw=${String(threw)}`);
+  }
+
+  // --- IR-26 : id 123 dans le tableau persisté ---
+  {
+    const trialA = buildTrial();
+    const trialC = buildTrial();
+    const payload = JSON.stringify([trialA, { id: 123, stages: [], batches: [], acquisitions: {}, config: {} }, trialC]);
+    const warns: unknown[][] = [];
+    const consoleTarget = console as unknown as { warn: (...args: unknown[]) => void };
+    const originalWarn = consoleTarget.warn;
+    let threw = false;
+    let loadedA = false;
+    let loadedC = false;
+    const g = globalThis as unknown as Record<string, unknown>;
+    const previousStorage = g['localStorage'];
+    try {
+      const box: { text: string } = { text: '' };
+      g['localStorage'] = {
+        getItem: () => box.text,
+        setItem: (_k: string, v: string) => { box.text = v; }
+      };
+      (g['localStorage'] as { setItem: (k: string, v: string) => void }).setItem('k', payload);
+      consoleTarget.warn = (...args: unknown[]) => { warns.push(args); };
+      const fresh = new TrialStoreService();
+      loadedA = Boolean(fresh.getTrial(trialA.id));
+      loadedC = Boolean(fresh.getTrial(trialC.id));
+    } catch {
+      threw = true;
+    } finally {
+      consoleTarget.warn = originalWarn;
+      if (previousStorage === undefined) {
+        delete g['localStorage'];
+      } else {
+        g['localStorage'] = previousStorage;
+      }
+    }
+    const ok = !threw && loadedA && loadedC && warns.length > 0;
+    record('IR-26', 'id:123 persisté : pas de plantage, voisins chargés',
+      ok, 'sans exception, A+C chargés', `A=${String(loadedA)}, C=${String(loadedC)}, throw=${String(threw)}`);
+  }
+
+  // --- IR-27 : trial valide + acquisition valide intégralement chargeable ---
+  {
+    const store = TrialStoreService.createIsolatedStore();
+    const trial = buildTrial();
+    store.saveTrial(trial);
+    const stage = trial.stages.find((s) => s.cycleIndex === 0)!;
+    store.recordAcquisition({
+      trialId: trial.id, stageId: stage.id, batchId: trial.batches[0].id,
+      panelId: `${trial.id}-p-E1`, familyId: 'PERSOZ',
+      raw: persozReadings([85.2, 84.8, 85.5]), operatorId: 'TEST_OP'
+    });
+    const saved = store.getTrial(trial.id)!;
+    const payload = JSON.stringify([JSON.parse(JSON.stringify(saved))]);
+    const g = globalThis as unknown as Record<string, unknown>;
+    const previousStorage = g['localStorage'];
+    let found = false;
+    try {
+      const box: { text: string } = { text: '' };
+      g['localStorage'] = {
+        getItem: () => box.text,
+        setItem: (_k: string, v: string) => { box.text = v; }
+      };
+      (g['localStorage'] as { setItem: (k: string, v: string) => void }).setItem('k', payload);
+      const fresh = new TrialStoreService();
+      const reloaded = fresh.getTrial(trial.id);
+      found = reloaded !== undefined &&
+        Object.keys(reloaded.acquisitions).some((k) => k.endsWith('__PERSOZ'));
+    } finally {
+      if (previousStorage === undefined) {
+        delete g['localStorage'];
+      } else {
+        g['localStorage'] = previousStorage;
+      }
+    }
+    record('IR-27', 'Trial valide + acquisition valide intégralement chargeable',
+      found, 'essai + PERSOZ retrouvés', String(found));
+  }
+
+  // --- IR-28 : RAW valide ni modifié ni normalisé au chargement ---
+  {
+    const store = TrialStoreService.createIsolatedStore();
+    const trial = buildTrial();
+    store.saveTrial(trial);
+    const stage = trial.stages.find((s) => s.cycleIndex === 0)!;
+    const raw = persozReadings([85.2, 84.8, 85.5]);
+    store.recordAcquisition({
+      trialId: trial.id, stageId: stage.id, batchId: trial.batches[0].id,
+      panelId: `${trial.id}-p-E1`, familyId: 'PERSOZ',
+      raw, operatorId: 'TEST_OP'
+    });
+    const key = `${stage.id}__${trial.id}-p-E1__PERSOZ`;
+    const before = JSON.stringify(store.getTrial(trial.id)?.acquisitions[key]?.raw);
+    const payload = JSON.stringify([store.getTrial(trial.id)]);
+    const g = globalThis as unknown as Record<string, unknown>;
+    const previousStorage = g['localStorage'];
+    let after: string | undefined;
+    try {
+      const box: { text: string } = { text: '' };
+      g['localStorage'] = {
+        getItem: () => box.text,
+        setItem: (_k: string, v: string) => { box.text = v; }
+      };
+      (g['localStorage'] as { setItem: (k: string, v: string) => void }).setItem('k', payload);
+      const fresh = new TrialStoreService();
+      after = JSON.stringify(fresh.getTrial(trial.id)?.acquisitions[key]?.raw);
+    } finally {
+      if (previousStorage === undefined) {
+        delete g['localStorage'];
+      } else {
+        g['localStorage'] = previousStorage;
+      }
+    }
+    record('IR-28', 'RAW valide strictement inchangé après rechargement',
+      before !== undefined && before === after, 'identique', String(before === after));
+  }
+
   const passed = results.filter((r) => r.passed).length;
   return { results, summary: { total: results.length, passed, failed: results.length - passed } };
 }

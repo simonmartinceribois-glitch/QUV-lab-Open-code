@@ -41,7 +41,7 @@ import { createConfigChangeEvent } from '../scientific/auditEngine';
 import { buildScientificReport } from './reportGenerator';
 import { isFamilyScheduledForStage, isPersozEligiblePanel, isAdhesionEligiblePanel } from '../scientific/panelUtils';
 import { generateUUID } from './trialIds';
-import { IntegrityViolationError, validateAcquisitionTarget, validatePhotoTarget, validateAcquisitionFamily, validateAcquisitionRaw, isStructurallyValidTrial } from './trialIntegrity';
+import { IntegrityViolationError, validateAcquisitionTarget, validatePhotoTarget, validateAcquisitionFamily, validateAcquisitionRaw, isStructurallyValidTrial, isPlainRecord } from './trialIntegrity';
 import { generateStandardExposureStages } from './trialStages';
 import { createDemoTrial, createValidationTrial } from './trialSeed';
 
@@ -150,22 +150,27 @@ export class TrialStoreService {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        const parsed = JSON.parse(stored) as Trial[];
+        const parsed: unknown = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          parsed.forEach((t) => {
+          parsed.forEach((entry: unknown) => {
+            // Validation structurelle D'ABORD (avant tout accès métier tel que
+            // entry.id) : un id non-string (ex. 123) ne doit jamais faire
+            // planter le chargement. Entrée corrompue → ignorée + warning,
+            // les autres essais se chargent normalement (try/catch par essai).
+            if (!isStructurallyValidTrial(entry)) {
+              const rawId: unknown = isPlainRecord(entry) ? (entry as Record<string, unknown>)['id'] : undefined;
+              console.warn(
+                `[QUV-Lab] Essai ignoré au chargement : structure invalide (id=${typeof rawId === 'string' ? rawId : 'absent/invalide'}).`
+              );
+              return;
+            }
             // Éliminer préventivement toute pollution issue d'anciens mocks de test (Gate 55 - D-6)
-            if (t && t.id && !t.id.startsWith('MOCK_TEST_')) {
-              // Robustesse imports P2 : entrée corrompue ignorée explicitement
-              // (avertissement tracé), jamais absorbée silencieusement.
-              if (!isStructurallyValidTrial(t)) {
-                const rawId: unknown = (t as unknown as { id?: unknown }).id;
-                console.warn(
-                  `[QUV-Lab] Essai ignoré au chargement : structure invalide (id=${typeof rawId === 'string' ? rawId : 'absent'}).`
-                );
-                return;
-              }
-              const migrated = this.migrateTrialTerminology(t);
+            if (entry.id.startsWith('MOCK_TEST_')) return;
+            try {
+              const migrated = this.migrateTrialTerminology(entry);
               this.trials.set(migrated.id, migrated);
+            } catch (err) {
+              console.warn(`[QUV-Lab] Essai ignoré au chargement : migration impossible (id=${entry.id}).`, err);
             }
           });
           return;

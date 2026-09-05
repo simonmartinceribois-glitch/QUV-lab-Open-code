@@ -47,22 +47,72 @@ export function validateAcquisitionRaw(raw: unknown): void {
 
 /**
  * Vérifie la structure minimale d'un essai chargé (localStorage/import) :
- * identifiant, étapes, lots avec panneaux, acquisitions et configuration.
- * Retourne false (jamais d'exception) pour les entrées corrompues, qui sont
- * alors ignorées explicitement par l'appelant avec avertissement tracé.
+ * garde-fou structurel strict (jamais d'exception, jamais de fabrication).
+ *
+ * Refuse : null/primitif/tableau, id absent/non-string/vide, stages ou batches
+ * absents/non-array, acquisitions absente/non-objet/tableau, config
+ * absente/non-objet/tableau, stage sans id/cycleIndex valide, batch sans
+ * id/panels valides, panel sans id (ni batchId/index/label/status requis du
+ * modèle), acquisition sans clés métier (id, trialId, stageId, batchId,
+ * panelId, familyId, raw présent, status, alerts, trace).
+ * Aucune validation scientifique ici (NF EN 927-6, populations, calendrier :
+ * couches métier existantes).
  */
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
+}
+
+export function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isValidStageElement(stage: unknown): boolean {
+  if (!isPlainRecord(stage)) return false;
+  if (!isNonEmptyString(stage['id'])) return false;
+  const cycleIndex = stage['cycleIndex'];
+  if (typeof cycleIndex !== 'number' || !Number.isFinite(cycleIndex)) return false;
+  return true;
+}
+
+function isValidPanelElement(panel: unknown): boolean {
+  if (!isPlainRecord(panel)) return false;
+  if (!isNonEmptyString(panel['id'])) return false;
+  if (!isNonEmptyString(panel['batchId'])) return false;
+  if (typeof panel['index'] !== 'number' || !Number.isFinite(panel['index'])) return false;
+  if (typeof panel['label'] !== 'string') return false;
+  if (typeof panel['status'] !== 'string') return false;
+  return true;
+}
+
+function isValidBatchElement(batch: unknown): boolean {
+  if (!isPlainRecord(batch)) return false;
+  if (!isNonEmptyString(batch['id'])) return false;
+  if (!Array.isArray(batch['panels'])) return false;
+  return (batch['panels'] as unknown[]).every(isValidPanelElement);
+}
+
+function isValidAcquisitionEntry(entry: unknown): boolean {
+  if (!isPlainRecord(entry)) return false;
+  const requiredIds = ['id', 'trialId', 'stageId', 'batchId', 'panelId', 'familyId'];
+  for (const key of requiredIds) {
+    if (!isNonEmptyString(entry[key])) return false;
+  }
+  if (!('raw' in entry)) return false;
+  if (typeof entry['status'] !== 'string') return false;
+  if (!Array.isArray(entry['alerts'])) return false;
+  if (!isPlainRecord(entry['trace'])) return false;
+  return true;
+}
+
 export function isStructurallyValidTrial(trial: unknown): trial is Trial {
-  if (trial === null || trial === undefined || typeof trial !== 'object') return false;
-  const t = trial as Record<string, unknown>;
-  if (typeof t['id'] !== 'string' || t['id'].length === 0) return false;
-  if (!Array.isArray(t['stages'])) return false;
-  if (!Array.isArray(t['batches'])) return false;
-  if (typeof t['acquisitions'] !== 'object' || t['acquisitions'] === null) return false;
-  if (typeof t['config'] !== 'object' || t['config'] === null) return false;
-  for (const batch of t['batches'] as unknown[]) {
-    if (batch === null || typeof batch !== 'object') return false;
-    const panels = (batch as Record<string, unknown>)['panels'];
-    if (!Array.isArray(panels)) return false;
+  if (!isPlainRecord(trial)) return false;
+  if (!isNonEmptyString(trial['id'])) return false;
+  if (!Array.isArray(trial['stages']) || !(trial['stages'] as unknown[]).every(isValidStageElement)) return false;
+  if (!Array.isArray(trial['batches']) || !(trial['batches'] as unknown[]).every(isValidBatchElement)) return false;
+  if (!isPlainRecord(trial['acquisitions'])) return false;
+  if (!isPlainRecord(trial['config'])) return false;
+  for (const entry of Object.values(trial['acquisitions'] as Record<string, unknown>)) {
+    if (!isValidAcquisitionEntry(entry)) return false;
   }
   return true;
 }
