@@ -176,6 +176,24 @@ export function assessStageQuality(
 }
 
 /**
+ * Éligibilité d'une acquisition au décompte qualité global de l'essai.
+ * Miroir niveau Trial de isFamilyPanelExpected (stage) : PERSOZ E1-E3,
+ * ADHÉSION selon matrice, autres familles inchangées.
+ * Panneau ou jalon introuvable : compté par prudence (politique PR #72 —
+ * une donnée orpheline reste une anomalie visible, jamais silencieuse).
+ */
+function isTrialAlertEligible(acq: PanelAcquisitionRecord, trial: Trial): boolean {
+  if (acq.familyId !== 'PERSOZ' && acq.familyId !== 'ADHESION') return true;
+  const batch = trial.batches?.find((b) => b.id === acq.batchId);
+  const panel = batch?.panels?.find((p) => p.id === acq.panelId);
+  if (!panel) return true;
+  if (acq.familyId === 'PERSOZ') return isPersozEligiblePanel(panel);
+  const stage = trial.stages?.find((s) => s.id === acq.stageId);
+  if (!stage) return true;
+  return isAdhesionEligiblePanel(panel, stage);
+}
+
+/**
  * Évalue la qualité et conformité globale au niveau de l'Essai (Trial)
  * STRICTEMENT : NormativeConclusion reste 'NON_EVALUEE' tant que le module de conformité finale n'est pas invoqué.
  */
@@ -186,8 +204,11 @@ export function assessTrialQuality(
   let blockingAlertsCount = 0;
   let warningAlertsCount = 0;
 
-  // 1. Décompte des alertes sur toutes les acquisitions
+  // 1. Décompte des alertes sur les acquisitions admissibles uniquement :
+  // une acquisition interdite/historique (PERSOZ/T, ADHÉSION hors matrice)
+  // ne dégrade jamais le statut global. RAW inchangé (lecture seule).
   Object.values(trial.acquisitions).forEach((acq) => {
+    if (!isTrialAlertEligible(acq, trial)) return;
     acq.alerts.forEach((alert) => {
       if (alert.severity === 'BLOCKING') blockingAlertsCount++;
       if (alert.severity === 'WARNING') warningAlertsCount++;
