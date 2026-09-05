@@ -27,7 +27,7 @@ import {
   AlertTriangle,
   CheckCircle2
 } from 'lucide-react';
-import { getActiveE1E2E3Panels, formatStageShort } from '../../scientific/panelUtils';
+import { getActiveE1E2E3Panels, isAdhesionEligiblePanel, formatStageShort } from '../../scientific/panelUtils';
 
 interface Props {
   trial: Trial;
@@ -108,8 +108,13 @@ export function ResultsFamilyAnalysisView({ trial, ruleSet }: Props) {
           ).toFixed(1);
         }
       } else if (activeFamily === 'ADHESION') {
+        // ADHÉSION : population dépendante du jalon (matrice T0/T, C12/E1-E3),
+        // jamais la population exposée générique (T0/T disparaîtrait).
         const adhList: number[] = [];
-        activePanels.forEach((p) => {
+        const adhPanels = batch.panels.filter(
+          (p) => p.status === 'ACTIVE' && isAdhesionEligiblePanel(p, stage)
+        );
+        adhPanels.forEach((p) => {
           const key = `${stage.id}__${p.id}__ADHESION`;
           const acq = trial.acquisitions[key];
           if (acq?.computed) {

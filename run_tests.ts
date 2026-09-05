@@ -17,6 +17,7 @@ import { runPersozWitnessLockTests } from './src/scientific/tests/persoz_witness
 import { runAdhesionTargetLockTests } from './src/scientific/tests/adhesion_target_lock.test';
 import { runAdhesionQualityCompletenessTests } from './src/scientific/tests/adhesion_quality_completeness.test';
 import { runExposedE1E2E3Tests } from './src/scientific/tests/exposed_e1e2e3_predicate.test';
+import { runAdhesionFamilyRestitutionTests } from './src/scientific/tests/adhesion_family_restitution.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -262,6 +263,19 @@ suite19.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('20. EXÉCUTION DE LA RESTITUTION ADHÉSION T0/T (7 TESTS)');
+console.log('================================================================');
+const suite20 = runAdhesionFamilyRestitutionTests();
+console.log(`Résultats Restitution ADHÉSION : ${suite20.summary.passed} / ${suite20.summary.total} réussis.`);
+suite20.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Adhesion Restitution] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -281,7 +295,8 @@ const totalFailed =
   suite16.summary.failed +
   suite17.summary.failed +
   suite18.summary.failed +
-  suite19.summary.failed;
+  suite19.summary.failed +
+  suite20.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -301,7 +316,8 @@ const totalCount =
   suite16.summary.total +
   suite17.summary.total +
   suite18.summary.total +
-  suite19.summary.total;
+  suite19.summary.total +
+  suite20.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
