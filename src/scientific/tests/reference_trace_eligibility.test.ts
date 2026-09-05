@@ -114,30 +114,26 @@ export function runReferenceEligibilityTests(): {
     record('RT-E01', 'ADHÉSION T0/T → NONE (mesure initiale)', noneOk(t), 'NONE + nulls', JSON.stringify(t));
   }
 
-  // --- RT-E02/03/04 : C1/C6/C11 → NONE ---
+  // --- RT-E02/03/04 : C1/C6/C11 → aucun calcul (verrou population) ---
   ([[1, 'T', '02', 'C1/T'], [6, 'E1', '03', 'C6/E1'], [11, 'E3', '04', 'C11/E3']] as const).forEach(
     ([cycle, panel, num, label]) => {
       const trial = buildTrial();
       seed(trial, 0, 'T', 'ADHESION', adhRaw(0));
       const rec = seed(trial, cycle, panel, 'ADHESION', adhRaw(2));
-      const t = traceOf(rec);
-      const computed = rec.computed as { deltaAdhesionClass?: unknown } | null;
-      record(`RT-E${num}`, `ADHÉSION ${label} → NONE (pas de referenceRaw)`,
-        noneOk(t) && (computed?.deltaAdhesionClass ?? null) === null,
-        'NONE + Δ null', `${JSON.stringify(t)?.slice(0, 80)}, Δ=${String(computed?.deltaAdhesionClass)}`);
+      record(`RT-E${num}`, `ADHÉSION ${label} → aucun COMPUTED (verrou population)`,
+        rec.computed === null && rec.status === 'EMPTY',
+        'computed=null, EMPTY', `computed=${String(rec.computed)}, status=${rec.status}`);
     }
   );
 
-  // --- RT-E05 : C12/T → NONE ---
+  // --- RT-E05 : C12/T → aucun calcul ---
   {
     const trial = buildTrial();
     seed(trial, 0, 'T', 'ADHESION', adhRaw(0));
     const rec = seed(trial, 12, 'T', 'ADHESION', adhRaw(1));
-    const t = traceOf(rec);
-    const computed = rec.computed as { deltaAdhesionClass?: unknown } | null;
-    record('RT-E05', 'ADHÉSION C12/T → NONE',
-      noneOk(t) && (computed?.deltaAdhesionClass ?? null) === null,
-      'NONE + Δ null', `${t?.referenceRule}, Δ=${String(computed?.deltaAdhesionClass)}`);
+    record('RT-E05', 'ADHÉSION C12/T → aucun COMPUTED',
+      rec.computed === null && rec.status === 'EMPTY',
+      'computed=null, EMPTY', `computed=${String(rec.computed)}, status=${rec.status}`);
   }
 
   // --- RT-E06/07/08 : C12/E → T0_WITNESS_REFERENCE ---
@@ -157,15 +153,16 @@ export function runReferenceEligibilityTests(): {
     });
   }
 
-  // --- RT-E09 : PERSOZ/T → NONE ---
+  // --- RT-E09 : PERSOZ/T → aucun calcul ---
   {
     const trial = buildTrial();
     seed(trial, 0, 'T', 'PERSOZ', persozRaw());
     seed(trial, 12, 'T', 'PERSOZ', persozRaw());
     const stageC12 = trial.stages.find((s) => s.cycleIndex === 12)!;
     const rec = trial.acquisitions[`${stageC12.id}__${trial.id}-p-T__PERSOZ`];
-    const t = traceOf(rec);
-    record('RT-E09', 'PERSOZ/T (C12) → NONE', noneOk(t), 'NONE + nulls', JSON.stringify(t));
+    record('RT-E09', 'PERSOZ/T (C12) → aucun COMPUTED',
+      rec.computed === null && rec.status === 'EMPTY',
+      'computed=null, EMPTY', `computed=${String(rec.computed)}, status=${rec.status}`);
   }
 
   // --- RT-E10/11/12 : PERSOZ E → SAME_PANEL_T0 ---
