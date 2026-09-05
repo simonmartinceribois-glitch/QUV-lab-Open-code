@@ -860,6 +860,92 @@ export function runImportRobustnessTests(): {
       ok, 'identique', String(ok));
   }
 
+  // --- IR-51 : doublon stage.id → rejet, sans mutation ---
+  {
+    const trial = buildTrial();
+    const stages = [...trial.stages];
+    stages[2] = { ...stages[1], cycleIndex: 2 };
+    const candidate = { ...trial, stages };
+    const before = JSON.stringify(candidate);
+    const ok = !isStructurallyValidTrial(candidate);
+    const unmutated = JSON.stringify(candidate) === before;
+    record('IR-51', 'Doublon stage.id → Trial rejeté, objet intact',
+      ok && unmutated, 'rejeté, intact', `rejeté=${String(ok)}, intact=${String(unmutated)}`);
+  }
+
+  // --- IR-52 : doublon batch.id → rejet ---
+  {
+    const trial = buildTrial();
+    const batch2 = { ...trial.batches[0], id: trial.batches[0].id, reference: 'LOT DUP' };
+    const candidate = { ...trial, batches: [...trial.batches, batch2] };
+    const before = JSON.stringify(candidate);
+    const ok = !isStructurallyValidTrial(candidate);
+    record('IR-52', 'Doublon batch.id → Trial rejeté, sans écrasement',
+      ok && JSON.stringify(candidate) === before, 'rejeté, intact', String(ok));
+  }
+
+  // --- IR-53 : doublon panel.id dans le même batch → rejet ---
+  {
+    const trial = buildTrial();
+    const batch = trial.batches[0];
+    const candidate = {
+      ...trial,
+      batches: [{ ...batch, panels: [...batch.panels, { ...batch.panels[1] }] }]
+    };
+    const ok = !isStructurallyValidTrial(candidate);
+    record('IR-53', 'Doublon panel.id intra-batch → Trial rejeté',
+      ok, 'false', String(ok ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+  }
+
+  // --- IR-54 : doublon panel.id entre deux batches → rejet ---
+  {
+    const trial = buildTrial();
+    const batch1 = trial.batches[0];
+    const batch2 = {
+      ...batch1,
+      id: `${trial.id}-batch-2`,
+      panels: [{ ...batch1.panels[1], id: batch1.panels[1].id, batchId: `${trial.id}-batch-2` }]
+    };
+    const candidate = { ...trial, batches: [batch1, batch2] };
+    const ok = !isStructurallyValidTrial(candidate);
+    record('IR-54', 'Doublon panel.id inter-batches → Trial rejeté (unicité globale)',
+      ok, 'false', String(ok ? 'rejeté' : 'ACCEPTÉ (fuite)'));
+  }
+
+  // --- IR-55 : IDs uniques + acquisition cohérente → valide ---
+  {
+    const trial = buildTrial();
+    const ok = isStructurallyValidTrial(withOneAcq(trial, coherentEntry(trial)));
+    record('IR-55', 'IDs uniques + acquisition cohérente → Trial valide',
+      ok, 'true', String(ok));
+  }
+
+  // --- IR-56 : [A valide, B doublon structurel, C valide] au chargement ---
+  {
+    const trialA = buildTrial();
+    const trialC = buildTrial();
+    const trialB = buildTrial();
+    const batchB = {
+      ...trialB.batches[0],
+      panels: [...trialB.batches[0].panels, { ...trialB.batches[0].panels[1] }]
+    };
+    const corruptB = { ...trialB, batches: [batchB] };
+    const payload = JSON.stringify([trialA, corruptB, trialC]);
+    const out = withMockStorage(payload, () => new TrialStoreService());
+    const fresh = out.result;
+    const before = JSON.stringify(corruptB);
+    const ok = !out.threw &&
+      Boolean(fresh.getTrial(trialA.id)) &&
+      Boolean(fresh.getTrial(trialC.id)) &&
+      fresh.getTrial(trialB.id) === undefined &&
+      out.warns.length > 0 &&
+      out.box.sets === 0 &&
+      JSON.stringify(corruptB) === before;
+    record('IR-56', 'A+C chargés, B (doublon) ignoré+warn, 0 écriture, B intact',
+      ok, 'A+C chargés, B ignoré',
+      `A=${String(Boolean(fresh.getTrial(trialA.id)))}, C=${String(Boolean(fresh.getTrial(trialC.id)))}, warns=${out.warns.length}, sets=${out.box.sets}`);
+  }
+
   const passed = results.filter((r) => r.passed).length;
   return { results, summary: { total: results.length, passed, failed: results.length - passed } };
 }

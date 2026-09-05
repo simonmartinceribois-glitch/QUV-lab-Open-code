@@ -147,6 +147,31 @@ export function isStructurallyValidTrial(trial: unknown): trial is Trial {
   if (!Array.isArray(trial['batches']) || !(trial['batches'] as unknown[]).every(isValidBatchElement)) return false;
   if (!isPlainRecord(trial['acquisitions'])) return false;
   if (!isPlainRecord(trial['config'])) return false;
+  // Unicité des IDs structurels (aucun écrasement silencieux / "last one wins") :
+  // stages uniques, batches uniques (et rattachés à l'essai via batch.trialId,
+  // champ réel du modèle renseigné à la création), panels globalement uniques
+  // dans tout l'essai (pas seulement par batch).
+  const trialId = trial['id'];
+  const seenStageIds = new Set<string>();
+  for (const stage of trial['stages'] as unknown[]) {
+    const id = (stage as Record<string, unknown>)['id'] as string;
+    if (seenStageIds.has(id)) return false;
+    seenStageIds.add(id);
+  }
+  const seenBatchIds = new Set<string>();
+  const seenPanelIds = new Set<string>();
+  for (const batch of trial['batches'] as unknown[]) {
+    const b = batch as Record<string, unknown>;
+    const batchId = b['id'] as string;
+    if (seenBatchIds.has(batchId)) return false;
+    seenBatchIds.add(batchId);
+    if (b['trialId'] !== trialId) return false;
+    for (const panel of b['panels'] as unknown[]) {
+      const panelId = (panel as Record<string, unknown>)['id'] as string;
+      if (seenPanelIds.has(panelId)) return false;
+      seenPanelIds.add(panelId);
+    }
+  }
   const ctx: RelationalContext = {
     trialId: trial['id'],
     stageIds: new Set(

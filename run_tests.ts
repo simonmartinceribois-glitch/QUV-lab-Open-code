@@ -390,7 +390,7 @@ suite28.results.forEach((r) => {
 });
 
 console.log('\n================================================================');
-console.log('29. EXÉCUTION DE LA ROBUSTESSE IMPORTS (50 TESTS)');
+console.log('29. EXÉCUTION DE LA ROBUSTESSE IMPORTS (56 TESTS)');
 console.log('================================================================');
 const suite29 = runImportRobustnessTests();
 console.log(`Résultats Robustesse Imports : ${suite29.summary.passed} / ${suite29.summary.total} réussis.`);
