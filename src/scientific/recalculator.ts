@@ -53,21 +53,20 @@ export function recalculateAcquisition(
   let referenceStageId: string | null = null;
   let referencePanelId: string | null = null;
   let referenceAcquisitionId: string | null = null;
-  // Verrou d'éligibilité P2 : une acquisition scientifiquement interdite
-  // (ADHÉSION hors matrice, PERSOZ/T) ne reçoit NI referenceRaw NI trace.
-  // La résolution refRecord n'intervient qu'après ce contrôle.
-  // Panneau ou jalon introuvable : repli conservateur (résolution par IDs,
-  // comportement historique) pour ne pas casser les appels directs partiels.
+  // Verrou d'éligibilité P2 (fail-closed) : pour PERSOZ/ADHESION, le calcul
+  // scientifique n'est autorisé que si le contexte démontre l'éligibilité.
+  // - PERSOZ : panel résolu ET isPersozEligiblePanel (jalon inutile au prédicat).
+  // - ADHESION : panel ET stage résolus ET isAdhesionEligiblePanel.
+  // Contexte incomplet ou inéligible → aucun moteur, computed null, EMPTY,
+  // aucune référence. COLOR/GLOSS/OBSERVATIONS : comportement inchangé.
   const currentBatch = trial.batches?.find((b) => b.id === record.batchId);
   const currentPanel = currentBatch?.panels?.find((p) => p.id === record.panelId);
   const currentStage = trial.stages?.find((s) => s.id === record.stageId);
   let acquisitionEligible = true;
-  if (currentPanel && currentStage) {
-    if (record.familyId === 'ADHESION') {
-      acquisitionEligible = isAdhesionEligiblePanel(currentPanel, currentStage);
-    } else if (record.familyId === 'PERSOZ') {
-      acquisitionEligible = isPersozEligiblePanel(currentPanel);
-    }
+  if (record.familyId === 'ADHESION') {
+    acquisitionEligible = !!currentPanel && !!currentStage && isAdhesionEligiblePanel(currentPanel, currentStage);
+  } else if (record.familyId === 'PERSOZ') {
+    acquisitionEligible = !!currentPanel && isPersozEligiblePanel(currentPanel);
   }
   if (!isCurrentInitial && initialStage && acquisitionEligible) {
     // Règle ADHESION : la référence T0 est celle du panneau TÉMOIN du lot
