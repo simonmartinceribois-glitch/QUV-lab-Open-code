@@ -61,6 +61,16 @@ function buildReport(trial: Trial) {
   return buildScientificReport(trial, getDefaultScientificRuleSet(), { operatorId: 'TEST_OP' });
 }
 
+function addComputedAcq(trial: Trial, family: 'COLOR' | 'GLOSS', computed: unknown): void {
+  const stage = trial.stages.find((s) => s.cycleIndex === 0)!;
+  const panelId = `${trial.id}-p-E1`;
+  trial.acquisitions[`${stage.id}__${panelId}__${family}`] = {
+    id: `rf-${family}`, trialId: trial.id, stageId: stage.id, batchId: trial.batches[0].id,
+    panelId, familyId: family, raw: {}, computed,
+    status: 'COMPLETE', alerts: [], trace: {}, mediaIds: []
+  } as unknown as Trial['acquisitions'][string];
+}
+
 const FORBIDDEN_PATTERNS = [
   'Support: Chêne',
   '| Couches: 3',
@@ -267,6 +277,89 @@ export function runReportFidelityTests(): {
     const ok = found.length === 0 && text.includes('Non renseigné');
     record('RF-GLOBAL', 'Rapport minimal : aucun fictif, Non renseigné présent',
       ok, '0 fictif + Non renseigné', found.length === 0 ? 'OK' : `TROUVÉS: ${found.join(', ')}`);
+  }
+
+  // --- RF-18..20 : renforcement vérification displayReportValue nullable ---
+  {
+    // Test : 0 reste 0, jamais "Non renseigné"
+    const ok0 = displayReportValue(0) === '0';
+    record('RF-18', 'displayReportValue(0) === "0" (zéro expérimental conservé)',
+      ok0, '"0"', `obtenu=${displayReportValue(0)}`);
+    // Test : undefined → "Non renseigné"
+    const okUndef = displayReportValue(undefined) === 'Non renseigné';
+    record('RF-19', 'displayReportValue(undefined) === "Non renseigné"',
+      okUndef, '"Non renseigné"', `obtenu=${displayReportValue(undefined)}`);
+    // Test : null → "Non renseigné"
+    const okNull = displayReportValue(null) === 'Non renseigné';
+    record('RF-20', 'displayReportValue(null) === "Non renseigné"',
+      okNull, '"Non renseigné"', `obtenu=${displayReportValue(null)}`);
+  }
+
+  // --- Test global de non-fabrication ---
+
+  // --- RF-21..24 : pipeline réel COLOR/GLOSS (missing vs zéro/100 légitimes) ---
+  {
+    const tMissing = buildSparseTrial();
+    const rMissing = buildReport(tMissing);
+    const okColorMissing = rMissing.sections.colorResults.includes('enregistrée : Non renseigné');
+    record('RF-21', 'COLOR-MISSING : pipeline rapport affiche Non renseigné',
+      okColorMissing, 'enregistrée : Non renseigné', String(okColorMissing));
+    const okGlossMissing = rMissing.sections.glossResults.includes('Non renseigné');
+    record('RF-22', 'GLOSS-MISSING : pipeline rapport affiche Non renseigné',
+      okGlossMissing, 'Non renseigné', String(okGlossMissing));
+  }
+  {
+    const tZero = buildSparseTrial();
+    addComputedAcq(tZero, 'COLOR', { deltaE: 0 });
+    const rZero = buildReport(tZero);
+    const okRealZero = rZero.sections.colorResults.includes('enregistrée : 0.00');
+    record('RF-23', 'COLOR-REAL-ZERO : vrai ΔE=0 affiché 0.00 (pas Non renseigné)',
+      okRealZero, 'enregistrée : 0.00', String(okRealZero));
+    const t100 = buildSparseTrial();
+    addComputedAcq(t100, 'GLOSS', { retentionRatePercent: 100 });
+    const r100 = buildReport(t100);
+    const okReal100 = r100.sections.glossResults.includes('minimale de 100.0 %');
+    record('RF-24', 'GLOSS-REAL-100 : vraie rétention=100 affichée 100.0 %',
+      okReal100, 'minimale de 100.0 %', String(okReal100));
+  }
+
+  // --- RF-25..27 : rapport partiel / C12 (rendu, pas seulement audit) ---
+  {
+    const tPart = buildSparseTrial();
+    const c12 = tPart.stages.find((s) => s.cycleIndex === 12)!;
+    c12.status = 'NOT_STARTED';
+    const rPart = buildReport(tPart);
+    const okPart = rPart.completenessStatus === 'PARTIEL / INTERMÉDIAIRE' &&
+      rPart.executiveSummary.includes('PARTIEL') &&
+      rPart.sections.factualConclusion.includes('aucune conclusion globale');
+    record('RF-25', 'PARTIEL : C12 non validé → statut PARTIEL + blocage conformité',
+      okPart, 'PARTIEL + blocage', String(okPart));
+  }
+  {
+    const tFull = buildSparseTrial();
+    const t0 = tFull.stages.find((s) => s.cycleIndex === 0)!;
+    t0.status = 'VALIDATED';
+    const c12 = tFull.stages.find((s) => s.cycleIndex === 12)!;
+    c12.status = 'VALIDATED';
+    const rFull = buildReport(tFull);
+    const okFull = rFull.isComplete === true &&
+      rFull.completenessStatus === 'COMPLET' &&
+      !rFull.executiveSummary.includes('PARTIEL');
+    record('RF-26', 'COMPLET : T0+C12 validés → COMPLET sans mention PARTIEL',
+      okFull, 'COMPLET', String(okFull));
+  }
+  {
+    const tProg = buildSparseTrial();
+    const c12 = tProg.stages.find((s) => s.cycleIndex === 12)!;
+    c12.status = 'IN_PROGRESS';
+    const audit = auditTrialBeforeReport(tProg, getDefaultScientificRuleSet());
+    const rProg = buildReport(tProg);
+    const okProg = audit.checklist.final2016hAvailableOrFlagged === true &&
+      audit.warnings.some((w) => w.includes('2016')) &&
+      rProg.isComplete === false &&
+      rProg.completenessStatus === 'PARTIEL / INTERMÉDIAIRE';
+    record('RF-27', 'C12 présent non validé → flagué + PARTIEL (pas de conformité)',
+      okProg, 'flagué + PARTIEL', String(okProg));
   }
 
   const passed = results.filter((r) => r.passed).length;

@@ -584,6 +584,7 @@ export interface ScientificReport {
   normativeReference: string;
   protocolStatus: ProtocolComplianceStatus;
   isComplete: boolean;
+  completenessStatus?: string;
   missingCriticalElements: string[];
   sections: {
     identification: string;

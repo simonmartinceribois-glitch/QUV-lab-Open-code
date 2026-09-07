@@ -61,6 +61,16 @@ export function displayReportValue(value: unknown): string {
   return String(value);
 }
 
+/**
+ * Restitution d'une mesure numérique nullable : absence (null/undefined)
+ * → 'Non renseigné' ; valeur réelle (y compris 0 ou 100) → formatée.
+ * Le paramètre étant une valeur (non capturée), le narrowing est total.
+ */
+export function formatNullableMeasure(value: number | null | undefined, decimals: number): string {
+  if (value === null || value === undefined) return displayReportValue(value);
+  return value.toFixed(decimals);
+}
+
 export interface PreReportAuditResult {
   isComplete: boolean;
   canGenerate: boolean;
@@ -224,10 +234,12 @@ export function buildScientificReport(
   const activeExposedPanels = getActiveE1E2E3Panels(allPanels);
   const activeExposedPanelIds = new Set(activeExposedPanels.map((p) => p.id));
 
-  // Synthèse des calculs sans JAMAIS recalculer localement
-  let maxDeltaE = 0;
+  // Synthèse des calculs sans JAMAIS recalculer localement.
+  // Absence de donnée = null (jamais 0 ni 100 : ces valeurs sont des
+  // résultats expérimentaux légitimes et doivent être distinguées).
+  let maxDeltaE: number | null = null;
   let maxDeltaEPanel = '';
-  let minRetention = 100;
+  let minRetention: number | null = null;
   let minRetentionPanel = '';
 
   Object.entries(trial.acquisitions).forEach(([key, acq]) => {
@@ -238,14 +250,14 @@ export function buildScientificReport(
 
     if (acq.familyId === 'COLOR' && acq.computed) {
       const dE = (acq.computed as ColorComputedData).deltaE;
-      if (typeof dE === 'number' && dE > maxDeltaE) {
+      if (typeof dE === 'number' && (maxDeltaE === null || dE > maxDeltaE)) {
         maxDeltaE = dE;
         maxDeltaEPanel = acq.panelId;
       }
     }
     if (acq.familyId === 'GLOSS' && acq.computed) {
       const ret = (acq.computed as GlossComputedData).retentionRatePercent;
-      if (typeof ret === 'number' && ret < minRetention) {
+      if (typeof ret === 'number' && (minRetention === null || ret < minRetention)) {
         minRetention = ret;
         minRetentionPanel = acq.panelId;
       }
@@ -301,8 +313,8 @@ export function buildScientificReport(
         )
         .join('\n'),
     measurementPlan: `Familles de mesure actives : ${trial.config.activeFamilies.join(', ')}\n• Couleur : ${trial.config.familyConfigs.COLOR?.enabled ? 'Active (4 points normatifs par éprouvette)' : 'Désactivée'}\n• Brillance : ${trial.config.familyConfigs.GLOSS?.enabled ? 'Active (2 points sens du fil + 2 points perpendiculaire)' : 'Désactivée'}\n• Persoz : ${trial.config.familyConfigs.PERSOZ?.enabled ? 'Active (3 mesures d\'amortissement - Labo)' : 'Désactivée'}\n• Adhérence au quadrillage : ${trial.config.familyConfigs.ADHESION?.enabled ? 'Active (NF EN ISO 2409:2020 - 6×6 incisions)' : 'Désactivée'}\n• Observations visuelles : ${trial.config.familyConfigs.OBSERVATIONS?.enabled ? 'Active (Évaluation ISO 4628)' : 'Désactivée'}`,
-    colorResults: `Les coordonnées trichromatiques CIE L*a*b* et les variations différentielles ΔL*, Δa*, Δb*, ΔE*ab sont issues exclusivement du moteur scientifique QUV-Lab (version ${ruleSet.version}).\nÉtape initiale T0 : Référence absolue pour chaque éprouvette.\nProgression observée : Variation maximale ΔE* enregistrée : ${maxDeltaE.toFixed(2)} sur les éprouvettes évaluées.\nConsulter l'Annexe B pour le détail des valeurs par éprouvette et par lot.`,
-    glossResults: `Mesures de réflectance spéculaire sous géométrie 60°.\nÉtape initiale T0 : Niveau de brillance initial caractérisé par éprouvette.\nÉvolution temporelle : Rétention résiduelle minimale de ${minRetention.toFixed(1)} % constatée sur la campagne.\nConsulter l'Annexe B pour les calculs de variation absolue ΔGloss et de taux de rétention résiduelle.`,
+    colorResults: `Les coordonnées trichromatiques CIE L*a*b* et les variations différentielles ΔL*, Δa*, Δb*, ΔE*ab sont issues exclusivement du moteur scientifique QUV-Lab (version ${ruleSet.version}).\nÉtape initiale T0 : Référence absolue pour chaque éprouvette.\nProgression observée : Variation maximale ΔE* enregistrée : ${formatNullableMeasure(maxDeltaE, 2)} sur les éprouvettes évaluées.\nConsulter l'Annexe B pour le détail des valeurs par éprouvette et par lot.`,
+    glossResults: `Mesures de réflectance spéculaire sous géométrie 60°.\nÉtape initiale T0 : Niveau de brillance initial caractérisé par éprouvette.\nÉvolution temporelle : Rétention résiduelle minimale de ${formatNullableMeasure(minRetention, 1)} % constatée sur la campagne.\nConsulter l'Annexe B pour les calculs de variation absolue ΔGloss et de taux de rétention résiduelle.`,
     persozResults: `Dureté superficielle par temps d'amortissement du pendule Persoz (secondes).\nNOTE MÉTHODOLOGIQUE : Cette grandeur constitue une recommandation interne du laboratoire (LAB_RECOMMENDATION) et ne constitue pas une exigence normative formelle de la NF EN 927-6.\nÉvolution : Suivi de la cinétique de réticulation / dégradation mécanique superficielle.`,
     adhesionResults: `Évaluation de la résistance à la séparation par quadrillage selon NF EN ISO 2409:2020.\nNOTE MÉTHODOLOGIQUE : L'essai au quadrillage constitue une méthode d'évaluation qualitative de la résistance du revêtement au détachement selon une grille de 6×6 incisions (classes 0 à 5), et ne doit en aucun cas être assimilé à une force d'adhérence quantitative en MPa.\nProtocole : Éprouvette témoin T à T0 (référence initiale), éprouvettes exposées à C12 (2016 h). Espacement de peigne 2 mm (≤ 120 µm) ou 3 mm (121–250 µm) selon l'épaisseur sèche du revêtement.`,
     visualObservations: `Cotations des défauts surfaciques selon les normes ISO 4628 (Cloquage, Écaillage, Craquelage, Farinage) et ISO 2409 (Quadrillage).\nAucun défaut majeur prématuré n'a entraîné d'arrêt anticipé de l'essai.`,
@@ -322,7 +334,7 @@ export function buildScientificReport(
       : `Aucune adaptation de protocole. L'ensemble des acquisitions a suivi les paramètres standards par défaut du référentiel NF EN 927-6.`,
     calculationTraceability: `Traçabilité intégrale du moteur de calcul :\n• Moteur scientifique : QUV-Lab Scientific Engine ${ruleSet.version}\n• RuleSet ID : ${ruleSet.id} (Référence : ${ruleSet.standardReference})\n• Méthode d'écart-type : Échantillon n-1 (${ruleSet.statisticalRules.stdDevMethod})\n• Formule colorimétrique : ${ruleSet.colorimetry.differenceFormula} (${ruleSet.colorimetry.illuminant}/${ruleSet.colorimetry.observer})\n• Géométrie de brillance par défaut : ${ruleSet.statisticalRules.glossGeometryDefault}°\n• Date d'exécution du calcul : ${now}`,
     scientificSynthesis: `Synthèse générale :\nL'essai ${trial.metadata.reference} regroupe ${trial.batches.length} lots expérimentaux sur support bois massif. Les mesures de référence initiales T0 ont été validées pour l'ensemble des grandeurs physiques actives. Le comportement au vieillissement est caractérisé par le couplage des cinétiques colorimétriques (ΔE*ab), de perte de réflectance (rétention de brillance) et de résistance mécanique (Persoz).\nL'ensemble des résultats est conservé avec distinction stricte entre données brutes et résultats calculés.`,
-    factualConclusion: `Les résultats obtenus montrent l'évolution des propriétés mesurées au cours de l'exposition.\n\nLes éventuelles variations observées sont présentées par famille de mesure et comparées aux valeurs initiales T0.\n\nLes relevés présentant des alertes ou des adaptations de protocole sont identifiés dans les tableaux de résultats.\n\nLa présente synthèse ne constitue pas à elle seule une conclusion de conformité à la NF EN 927-6.`
+    factualConclusion: `Les résultats obtenus montrent l'évolution des propriétés mesurées au cours de l'exposition.\n\nLes éventuelles variations observées sont présentées par famille de mesure et comparées aux valeurs initiales T0.\n\nLes relevés présentant des alertes ou des adaptations de protocole sont identifiés dans les tableaux de résultats.\n\nLa présente synthèse ne constitue pas à elle seule une conclusion de conformité à la NF EN 927-6.${audit.isComplete ? '' : ' Essai incomplet (C12 non validé) : aucune conclusion globale de conformité ne peut être émise.'}`
   };
 
   const annexes = {
@@ -339,10 +351,11 @@ export function buildScientificReport(
     metadata,
     status: 'GENERATED' as ScientificReportStatus,
     title: `Rapport Scientifique d'Essai — ${trial.metadata.reference}`,
-    executiveSummary: `Rapport d'essai de vieillissement accéléré NF EN 927-6 émis le ${new Date(now).toLocaleDateString('fr-FR')} pour l'essai ${trial.metadata.reference}. Comprend la synthèse des ${trial.batches.length} lots et l'analyse chronologique de T0 à ${evaluatedStages[evaluatedStages.length - 1]?.scheduledExposureHours || 0} h.`,
+    executiveSummary: `Rapport d'essai de vieillissement accéléré NF EN 927-6 émis le ${new Date(now).toLocaleDateString('fr-FR')} pour l'essai ${trial.metadata.reference}. Comprend la synthèse des ${trial.batches.length} lots et l'analyse chronologique de T0 à ${evaluatedStages[evaluatedStages.length - 1]?.scheduledExposureHours || 0} h.${audit.isComplete ? '' : ' [RAPPORT PARTIEL / INTERMÉDIAIRE — C12 non validé : aucune conclusion de conformité.]'}`,
     normativeReference: ruleSet.standardReference || 'NF EN 927-6',
     protocolStatus,
     isComplete: audit.isComplete,
+    completenessStatus: audit.isComplete ? 'COMPLET' : 'PARTIEL / INTERMÉDIAIRE',
     missingCriticalElements: audit.missingCriticalElements,
     sections,
     annexes,
@@ -375,7 +388,7 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
   trial.batches.forEach((b) => {
     const activeP = b.panels.filter((p) => p.status === 'ACTIVE').length;
     lines.push(
-      `"${b.reference}";"${b.coatingSystem || ''}";"${b.woodSpecies || ''}";"${b.productReference || ''}";${b.coatCount || 3};${b.panels.length};${activeP}`
+      `"${b.reference}";"${b.coatingSystem || ''}";"${b.woodSpecies || ''}";"${b.productReference || ''}";${displayReportValue(b.coatCount)};${b.panels.length};${activeP}`
     );
   });
   lines.push(``);
@@ -420,7 +433,7 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
               valStr = compGloss.meanGloss !== null && compGloss.meanGloss !== undefined ? `${compGloss.meanGloss.toFixed(1)} GU` : '—';
               stdStr = compGloss.stdDevGloss !== null && compGloss.stdDevGloss !== undefined ? `${compGloss.stdDevGloss.toFixed(2)}` : '—';
               deltaStr = compGloss.deltaGloss !== null && compGloss.deltaGloss !== undefined ? `${compGloss.deltaGloss.toFixed(1)} GU` : 'RÉF (T0)';
-              retStr = compGloss.retentionRatePercent !== null && compGloss.retentionRatePercent !== undefined ? `${compGloss.retentionRatePercent.toFixed(1)} %` : '100 %';
+              retStr = compGloss.retentionRatePercent !== null && compGloss.retentionRatePercent !== undefined ? `${compGloss.retentionRatePercent.toFixed(1)} %` : displayReportValue(compGloss.retentionRatePercent);
             } else if (fam === 'PERSOZ') {
               const compPersoz = acq.computed as PersozComputedData;
               valStr = compPersoz.meanDampingTime !== null && compPersoz.meanDampingTime !== undefined ? `${compPersoz.meanDampingTime.toFixed(1)} s` : '—';
@@ -441,7 +454,7 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
               retStr = compAdh.delayCompliance || '—';
             } else if (fam === 'OBSERVATIONS') {
               const compObs = acq.computed as VisualObservationsComputedData;
-              valStr = compObs.summary || 'Aspect conforme';
+              valStr = displayReportValue(compObs.summary);
             }
 
             const qStatus = comp.qualityAssessment?.status || acq.status;
