@@ -50,6 +50,17 @@ export function isComputedExportAdmissible(
 export const REPORT_SCHEMA_VERSION = '1.2.0';
 export const REPORT_GENERATOR_VERSION = 'v1.2.0';
 
+/**
+ * Restitution fidèle d'une donnée expérimentale : absence explicite
+ * ('Non renseigné'), jamais de valeur fictive. Un 0 numérique reste 0
+ * (seuls undefined/null/chaîne vide déclenchent l'absence).
+ */
+export function displayReportValue(value: unknown): string {
+  if (value === undefined || value === null) return 'Non renseigné';
+  if (typeof value === 'string' && value.trim() === '') return 'Non renseigné';
+  return String(value);
+}
+
 export interface PreReportAuditResult {
   isComplete: boolean;
   canGenerate: boolean;
@@ -111,23 +122,33 @@ export function auditTrialBeforeReport(trial: Trial, ruleSet: ScientificRuleSet)
 
   const stage2016 = trial.stages.find((s) => s.stageType === 'FINAL_POST_EXPOSURE' || s.cycleIndex === 12);
   const final2016hAvailable = !!stage2016 && stage2016.status === 'VALIDATED';
-  const final2016hAvailableOrFlagged = true; // Toujours tracé (disponible ou explicitement signalé non atteint)
+  // Tracé explicite : disponible, ou jalon existant signalé non atteint via warning.
+  const final2016hAvailableOrFlagged = final2016hAvailable || !!stage2016;
   if (!final2016hAvailable) {
     warnings.push("Étape finale 2016 h non encore réalisée (essai en cours). Rapport partiel.");
   }
 
-  // Vérification de la disponibilité des calculs computed
+  // Vérification de la disponibilité des calculs computed : seuls des calculs
+  // réellement présents comptent (une absence d'acquisitions ne prouve rien).
   const acquisitionsList = Object.values(trial.acquisitions);
   const hasComputations = acquisitionsList.some((a) => a.computed !== null && a.computed !== undefined);
-  const computationsAvailable = hasComputations || acquisitionsList.length === 0;
+  const computationsAvailable = hasComputations;
 
   const engineVersionAvailable = !!ruleSet.version;
   const ruleSetAvailable = !!ruleSet.standardReference;
 
-  // Adaptations tracées
-  const adaptationsTraced = true;
-  // Alertes recensées
-  const alertsCataloged = true;
+  // Adaptations réellement tracées : aucune dérogation, ou chacune justifiée.
+  const unjustifiedAdaptation = Object.entries(trial.config.familyConfigs).some(
+    ([, cfg]) =>
+      ((cfg?.countConfig?.deviationFromStandard || cfg?.seriesConfig?.deviationFromStandard) &&
+        !(cfg?.countConfig?.justification?.trim() || cfg?.seriesConfig?.justification?.trim()))
+  );
+  const adaptationsTraced = !unjustifiedAdaptation;
+  if (unjustifiedAdaptation) {
+    warnings.push("Adaptation de protocole non justifiée détectée (justification manquante).");
+  }
+  // Alertes recensées : chaque acquisition expose un catalogue d'alertes.
+  const alertsCataloged = acquisitionsList.every((a) => Array.isArray((a as { alerts?: unknown }).alerts));
 
   const isComplete =
     trialIdentified &&
@@ -260,10 +281,10 @@ export function buildScientificReport(
       trial.batches
         .map(
           (b, i) =>
-            `  Lot ${i + 1} [${b.reference}] : ${b.coatingSystem || 'Système non renseigné'} | Support: ${b.woodSpecies || 'Chêne'} | Produit: ${b.productReference || 'N/A'} | Fabricant: ${b.manufacturerOrSupplier || 'N/A'} | Couches: ${b.coatCount || '3'} | Préparation: ${b.substratePreparation || 'P120'} | Application: ${b.applicationMethod || 'Pinceau'} | Séchage: ${b.dryingOrConditioningTime || '7 jours'}`
+            `  Lot ${i + 1} [${b.reference}] : ${b.coatingSystem || 'Système non renseigné'} | Support: ${displayReportValue(b.woodSpecies)} | Produit: ${b.productReference || 'N/A'} | Fabricant: ${b.manufacturerOrSupplier || 'N/A'} | Couches: ${displayReportValue(b.coatCount)} | Préparation: ${displayReportValue(b.substratePreparation)} | Application: ${displayReportValue(b.applicationMethod)} | Séchage: ${displayReportValue(b.dryingOrConditioningTime)}`
         )
         .join('\n'),
-    panelsDefinition: `Nombre total d'éprouvettes : ${totalPanelsCount} (Actives : ${activePanelsCount}, Exclues : ${excludedPanelsCount})\nDimensions normalisées : ${trial.commonCharacteristics?.dimensions?.lengthMm || 150} × ${trial.commonCharacteristics?.dimensions?.widthMm || 75} × ${trial.commonCharacteristics?.dimensions?.thicknessMm || 15} mm\nOrientation du fil : ${trial.commonCharacteristics?.woodGrainOrientation || 'Sur quartier (NF EN 927-6)'}\nConditionnement préalable : ${trial.commonCharacteristics?.conditioningNotes || 'Stabilisation selon NF EN 927-6 §5'}` +
+    panelsDefinition: `Nombre total d'éprouvettes : ${totalPanelsCount} (Actives : ${activePanelsCount}, Exclues : ${excludedPanelsCount})\nDimensions des éprouvettes : ${displayReportValue(trial.commonCharacteristics?.dimensions?.lengthMm)} × ${displayReportValue(trial.commonCharacteristics?.dimensions?.widthMm)} × ${displayReportValue(trial.commonCharacteristics?.dimensions?.thicknessMm)} mm\nOrientation du fil (mesurée) : ${displayReportValue(trial.commonCharacteristics?.woodGrainOrientation)}\nConditionnement préalable (réalisé) : ${displayReportValue(trial.commonCharacteristics?.conditioningNotes)}\nRappel normatif (NF EN 927-6 §5, exigence — à confronter aux valeurs mesurées ci-dessus, jamais une mesure) : éprouvettes stabilisées avant essai selon le référentiel.` +
       (excludedPanelsCount > 0
         ? `\nÉprouvettes exclues : ` +
           allPanels

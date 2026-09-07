@@ -20,6 +20,7 @@ import { runExposedE1E2E3Tests } from './src/scientific/tests/exposed_e1e2e3_pre
 import { runAdhesionFamilyRestitutionTests } from './src/scientific/tests/adhesion_family_restitution.test';
 import { runColorAdhesionStatisticsTests } from './src/scientific/tests/color_adhesion_statistics.test';
 import { runColorRestitutionTests } from './src/scientific/tests/color_statistics_restitution.test';
+import { runReportFidelityTests } from './src/scientific/tests/report_fidelity.test';
 import { runPersozQualityPopulationTests } from './src/scientific/tests/persoz_quality_population.test';
 import { runExportComputedPopulationTests } from './src/scientific/tests/export_computed_population.test';
 import { runReferenceTraceabilityTests } from './src/scientific/tests/reference_traceability.test';
@@ -443,6 +444,19 @@ suite32.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('33. EXÉCUTION DE LA FIDÉLITÉ DU RAPPORT (18 TESTS)');
+console.log('================================================================');
+const suite33 = runReportFidelityTests();
+console.log(`Résultats Fidélité Rapport : ${suite33.summary.passed} / ${suite33.summary.total} réussis.`);
+suite33.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Report Fidelity] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -475,7 +489,8 @@ const totalFailed =
   suite29.summary.failed +
   suite30.summary.failed +
   suite31.summary.failed +
-  suite32.summary.failed;
+  suite32.summary.failed +
+  suite33.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -508,7 +523,8 @@ const totalCount =
   suite29.summary.total +
   suite30.summary.total +
   suite31.summary.total +
-  suite32.summary.total;
+  suite32.summary.total +
+  suite33.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
