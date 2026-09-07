@@ -362,6 +362,42 @@ export function runReportFidelityTests(): {
       okProg, 'flagué + PARTIEL', String(okProg));
   }
 
+  // --- RF-28 : synthèse T0 conditionnée à l'audit (pas d'affirmation fictive) ---
+  {
+    const tNoT0 = buildSparseTrial();
+    const st0 = tNoT0.stages.find((s) => s.cycleIndex === 0)!;
+    st0.status = 'NOT_STARTED';
+    const rNoT0 = buildReport(tNoT0);
+    const okNoT0 = rNoT0.sections.scientificSynthesis.includes('ne sont pas validées') &&
+      !rNoT0.sections.scientificSynthesis.includes('ont été validées');
+    const tT0 = buildSparseTrial();
+    const st0v = tT0.stages.find((s) => s.cycleIndex === 0)!;
+    st0v.status = 'VALIDATED';
+    const rT0 = buildReport(tT0);
+    const okT0 = rT0.sections.scientificSynthesis.includes('ont été validées');
+    const ok = okNoT0 && okT0;
+    record('RF-28', 'T0 non validé → synthèse prudente ; T0 validé → synthèse affirmative',
+      ok, 'prudent/affirmatif selon audit', String(ok));
+  }
+
+  // --- RF-29 : cinétique, étape finale 2016 h conditionnée à C12 validé ---
+  {
+    const tInc = buildSparseTrial();
+    const c12i = tInc.stages.find((s) => s.cycleIndex === 12)!;
+    c12i.status = 'NOT_STARTED';
+    const rInc = buildReport(tInc);
+    const okInc = rInc.sections.kineticsAnalysis.includes('2016 h restant à réaliser') &&
+      !rInc.sections.kineticsAnalysis.includes('finale à 2016 h.');
+    const tDone = buildSparseTrial();
+    const c12d = tDone.stages.find((s) => s.cycleIndex === 12)!;
+    c12d.status = 'VALIDATED';
+    const rDone = buildReport(tDone);
+    const okDone = rDone.sections.kineticsAnalysis.includes('finale à 2016 h.');
+    const ok = okInc && okDone;
+    record('RF-29', 'C12 non validé → finale restante ; C12 validé → finale observée',
+      ok, 'restante/observée selon C12', String(ok));
+  }
+
   const passed = results.filter((r) => r.passed).length;
   return { results, summary: { total: results.length, passed, failed: results.length - passed } };
 }
