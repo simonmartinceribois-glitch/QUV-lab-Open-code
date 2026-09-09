@@ -110,13 +110,11 @@ export function Tab06MeasurementsBench({
     b.panels.filter((p) => p.status === 'ACTIVE').map((p) => ({ batch: b, panel: p }))
   );
 
-  // Verrou UI ADHÉSION (matrice T0/T, C12/E1-E3) : la liste de travail est
-  // restreinte aux cibles éligibles au jalon courant (vide à C1-C11).
-  // Autres familles : liste inchangée. Le runtime reste l'autorité finale.
-  const benchPanelsList =
-    selectedFamilyId === 'ADHESION'
-      ? activePanelsList.filter((item) => isAdhesionEligiblePanel(item.panel, currentStage))
-      : activePanelsList;
+  // Verrou UI ADHÉSION (matrice T0/T, C1-C11 aucun, C12/E1-E3) : les cibles
+  // interdites restent AFFICHÉES mais désactivées dans la grille (pattern
+  // PERSOZ, voir BenchPanelGrid) — JAMAIS filtrées hors de la liste.
+  // Le runtime (garde avant recordAcquisition) reste l'autorité finale.
+  const benchPanelsList = activePanelsList;
 
   const [selectedPanelId, setSelectedPanelId] = useState<string>(
     benchPanelsList.length > 0 ? benchPanelsList[0].panel.id : ''
@@ -372,6 +370,7 @@ export function Tab06MeasurementsBench({
       const nextIncomplete = benchPanelsList.find((item, idx) => {
         if (idx <= currentIdx) return false;
         if (selectedFamilyId === 'PERSOZ' && !isPersozEligiblePanel(item.panel)) return false;
+        if (selectedFamilyId === 'ADHESION' && !isAdhesionEligiblePanel(item.panel, currentStage)) return false;
         const key = `${currentStage.id}__${item.panel.id}__${selectedFamilyId}`;
         const r = trial.acquisitions[key];
         return !r || !r.computed;
@@ -380,7 +379,11 @@ export function Tab06MeasurementsBench({
       if (nextIncomplete) {
         setSelectedPanelId(nextIncomplete.panel.id);
       } else if (currentIdx < benchPanelsList.length - 1) {
-        const following = benchPanelsList.slice(currentIdx + 1).find((item) => selectedFamilyId !== 'PERSOZ' || isPersozEligiblePanel(item.panel));
+        const following = benchPanelsList.slice(currentIdx + 1).find((item) => {
+          if (selectedFamilyId === 'PERSOZ' && !isPersozEligiblePanel(item.panel)) return false;
+          if (selectedFamilyId === 'ADHESION' && !isAdhesionEligiblePanel(item.panel, currentStage)) return false;
+          return true;
+        });
         if (following) setSelectedPanelId(following.panel.id);
       }
     }
@@ -415,13 +418,19 @@ export function Tab06MeasurementsBench({
   const computed: unknown = currentRecord?.computed;
 
   // Calcul du résumé de la campagne pour la famille
-  const completedPanelsCount = benchPanelsList.filter((item) => {
+  // Complétude de campagne : décomptée sur les seules cibles éligibles pour
+  // ADHÉSION (matrice du jalon courant), sur toute la liste sinon.
+  const countPanelsList =
+    selectedFamilyId === 'ADHESION'
+      ? activePanelsList.filter((item) => isAdhesionEligiblePanel(item.panel, currentStage))
+      : benchPanelsList;
+  const completedPanelsCount = countPanelsList.filter((item) => {
     const k = `${currentStage.id}__${item.panel.id}__${selectedFamilyId}`;
     const r = trial.acquisitions[k];
     return r && r.computed;
   }).length;
 
-  const totalPanelsCount = benchPanelsList.length;
+  const totalPanelsCount = countPanelsList.length;
   const isFamilyCampaignComplete = completedPanelsCount === totalPanelsCount && totalPanelsCount > 0;
 
   const currentMeasuredIndex = measuredStages.findIndex((s) => s.id === currentStage.id);
@@ -466,6 +475,7 @@ export function Tab06MeasurementsBench({
         activePanelsList={benchPanelsList}
         currentPanelId={currentPanel?.id}
         currentStageId={currentStage.id}
+        currentStage={currentStage}
         acquisitions={trial.acquisitions}
         onSelectPanel={(panelId) => {
           // Verrou UI PERSOZ (E1/E2/E3 strict) : T et panneaux non identifiés
@@ -473,6 +483,12 @@ export function Tab06MeasurementsBench({
           if (selectedFamilyId === 'PERSOZ') {
             const target = benchPanelsList.find((item) => item.panel.id === panelId);
             if (target && !isPersozEligiblePanel(target.panel)) return;
+          }
+          // Verrou UI ADHÉSION : cible interdite non sélectionnable (matrice
+          // T0/T, C1-C11 aucun, C12/E1-E3 ; contexte invalide → fermé).
+          if (selectedFamilyId === 'ADHESION') {
+            const target = benchPanelsList.find((item) => item.panel.id === panelId);
+            if (target && !isAdhesionEligiblePanel(target.panel, currentStage)) return;
           }
           setSelectedPanelId(panelId);
         }}

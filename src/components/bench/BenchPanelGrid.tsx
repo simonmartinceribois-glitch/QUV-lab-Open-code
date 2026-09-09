@@ -7,7 +7,7 @@
 import { CheckCircle2 } from 'lucide-react';
 import type { MeasurementFamilyId } from '../../types/scientific';
 import type { Trial } from '../../types/trial';
-import { isPersozEligiblePanel } from '../../scientific/panelUtils';
+import { isPersozEligiblePanel, isAdhesionEligiblePanel } from '../../scientific/panelUtils';
 import type { PanelListItem } from './benchTypes';
 
 interface Props {
@@ -18,6 +18,9 @@ interface Props {
   activePanelsList: PanelListItem[];
   currentPanelId: string | undefined;
   currentStageId: string;
+  // Jalon courant RÉEL (objet) : le verrou ADHÉSION utilise son cycleIndex.
+  // UUID (currentStageId) jamais parsé. Absent → verrou fermé (fail closed).
+  currentStage?: { cycleIndex?: number };
   acquisitions: Trial['acquisitions'];
   onSelectPanel: (panelId: string) => void;
   onOpenValidationModal: () => void;
@@ -31,6 +34,7 @@ export function BenchPanelGrid({
   activePanelsList,
   currentPanelId,
   currentStageId,
+  currentStage,
   acquisitions,
   onSelectPanel,
   onOpenValidationModal
@@ -73,16 +77,32 @@ export function BenchPanelGrid({
           // sont des cibles PERSOZ valides.
           // Le verrou runtime (recordAcquisition) reste le rempart décisif.
           const isPersozLocked = selectedFamilyId === 'PERSOZ' && !isPersozEligiblePanel(panel);
+          // Verrou UI ADHÉSION (matrice T0/T, C1-C11 aucun, C12/E1-E3) : prédicat
+          // canonique unique, jalon réel (cycleIndex), jamais l'UUID parsé.
+          // Contexte invalide/absent → isAdhesionEligiblePanel false → verrouillé.
+          // Cibles interdites AFFICHÉES désactivées (pattern PERSOZ), jamais filtrées.
+          const isAdhesionLocked =
+            selectedFamilyId === 'ADHESION' && !isAdhesionEligiblePanel(panel, currentStage ?? {});
+          const isLocked = isPersozLocked || isAdhesionLocked;
+          const lockTitle = isPersozLocked
+            ? 'PERSOZ interdit sur le témoin T (E1, E2, E3 uniquement)'
+            : isAdhesionLocked
+            ? currentStage?.cycleIndex === 0
+              ? 'ADHÉSION à T0 : témoin T uniquement (E1/E2/E3 désactivés)'
+              : currentStage?.cycleIndex === 12
+              ? 'ADHÉSION à C12 : E1/E2/E3 uniquement (témoin T interdit)'
+              : 'ADHÉSION inaccessible à ce jalon (T0 et C12 uniquement)'
+            : undefined;
 
           return (
             <button
               key={panel.id}
               type="button"
-              disabled={isPersozLocked}
-              title={isPersozLocked ? 'PERSOZ interdit sur le témoin T (E1, E2, E3 uniquement)' : undefined}
+              disabled={isLocked}
+              title={lockTitle}
               onClick={() => onSelectPanel(panel.id)}
               className={`p-2 rounded-xl text-left border transition-all ${
-                isPersozLocked
+                isLocked
                   ? 'border-slate-200 bg-slate-100 opacity-50 cursor-not-allowed'
                   : isSelected
                   ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-500/20'
@@ -99,7 +119,7 @@ export function BenchPanelGrid({
               <div className="flex items-center justify-between font-bold text-xs">
                 <span className="text-slate-900">{panel.label}</span>
                 <span>
-                  {isPersozLocked ? (
+                  {isLocked ? (
                     '🔒'
                   ) : isDone ? (
                     hasError ? (
