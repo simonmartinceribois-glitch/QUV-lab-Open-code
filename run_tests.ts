@@ -35,6 +35,7 @@ import { runRecalculatorPopulationTests, runRecalculatorContextTests } from './s
 import { runAggregatorPopulationLockTests } from './src/scientific/tests/aggregator_population_lock.test';
 import { runReferenceEligibilityTests } from './src/scientific/tests/reference_trace_eligibility.test';
 import { runObservationsIntegrityTests } from './src/scientific/tests/observations_integrity.test';
+import { runSynthesisObsTests } from './src/scientific/tests/technical_synthesis_observations.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -527,6 +528,19 @@ suite38.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('39. EXÉCUTION DE LA SYNTHÈSE TECHNIQUE — OBSERVATIONS COMPUTED (8 TESTS)');
+console.log('================================================================');
+const suite39 = runSynthesisObsTests();
+console.log(`Résultats Synthèse Observations : ${suite39.summary.passed} / ${suite39.summary.total} réussis.`);
+suite39.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Synth Obs] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -565,7 +579,8 @@ const totalFailed =
   suite35.summary.failed +
   suite36.summary.failed +
   suite37.summary.failed +
-  suite38.summary.failed;
+  suite38.summary.failed +
+  suite39.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -604,7 +619,8 @@ const totalCount =
   suite35.summary.total +
   suite36.summary.total +
   suite37.summary.total +
-  suite38.summary.total;
+  suite38.summary.total +
+  suite39.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
