@@ -350,7 +350,7 @@ export function buildScientificReport(
     id: reportId,
     metadata,
     status: 'GENERATED' as ScientificReportStatus,
-    title: `Rapport OPENCODE — Rapport Scientifique d'Essai — ${trial.metadata.reference}`,
+    title: `Rapport Open Code — Rapport Scientifique d'Essai — ${trial.metadata.reference}`,
     executiveSummary: `Rapport d'essai de vieillissement accéléré NF EN 927-6 émis le ${new Date(now).toLocaleDateString('fr-FR')} pour l'essai ${trial.metadata.reference}. Comprend la synthèse des ${trial.batches.length} lots et l'analyse chronologique de T0 à ${evaluatedStages[evaluatedStages.length - 1]?.scheduledExposureHours || 0} h.${audit.isComplete ? '' : ' [RAPPORT PARTIEL / INTERMÉDIAIRE — C12 non validé : aucune conclusion de conformité.]'}`,
     normativeReference: ruleSet.standardReference || 'NF EN 927-6',
     protocolStatus,
