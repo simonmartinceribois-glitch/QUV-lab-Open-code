@@ -9,6 +9,7 @@ import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
 import { SystemComparisonItem, DescriptiveRanking, ComparisonResult } from '../../types/analysis';
 import { calculateStdDevByMethod, calculateCoefficientOfVariation } from '../statistics';
 import { getActiveExposedPanels } from '../panelUtils';
+import { getEffectiveExposureHours } from './TrendAnalyzer';
 
 export function compareSystemsAtStage(
   trial: Trial,
@@ -155,6 +156,8 @@ export function compareSystemsAtStage(
     let persozDeltaSum = 0;
     let persozDeltaPercentSum = 0;
     let persozCount = 0;
+    let persozDeltaCount = 0;
+    let persozDeltaPercentCount = 0;
     const persozList: number[] = [];
 
     for (const panel of activePanels) {
@@ -172,9 +175,11 @@ export function compareSystemsAtStage(
         }
         if (comp.deltaDampingTime !== null && comp.deltaDampingTime !== undefined) {
           persozDeltaSum += comp.deltaDampingTime;
+          persozDeltaCount++;
         }
         if (comp.relativeHardnessVariationPercent !== null && comp.relativeHardnessVariationPercent !== undefined) {
           persozDeltaPercentSum += comp.relativeHardnessVariationPercent;
+          persozDeltaPercentCount++;
         }
       }
     }
@@ -187,8 +192,8 @@ export function compareSystemsAtStage(
       item.persoz = {
         meanInitialSeconds: null,
         meanCurrentSeconds: meanCurrent,
-        deltaSeconds: +(persozDeltaSum / persozCount).toFixed(1),
-        persozDeltaPercent: +(persozDeltaPercentSum / persozCount).toFixed(1),
+        deltaSeconds: persozDeltaCount > 0 ? +(persozDeltaSum / persozDeltaCount).toFixed(1) : null,
+        persozDeltaPercent: persozDeltaPercentCount > 0 ? +(persozDeltaPercentSum / persozDeltaPercentCount).toFixed(1) : null,
         stdDevSeconds: stdDev !== null ? +stdDev.toFixed(1) : null,
         cvPercent: cv !== null ? +cv.toFixed(1) : null
       };
@@ -266,7 +271,7 @@ export function compareSystemsAtStage(
       lowestValue: lowest.color!.meanDeltaE!,
       highestBatchRef: highest.batchReference,
       highestValue: highest.color!.meanDeltaE!,
-      factualStatement: `Le système ${lowest.batchReference} présente la valeur moyenne de ΔE*ab la plus faible (${lowest.color!.meanDeltaE!.toFixed(2)}) et le système ${highest.batchReference} présente la valeur la plus élevée (${highest.color!.meanDeltaE!.toFixed(2)}) parmi les systèmes comparés à ${stage.scheduledExposureHours} h.`
+      factualStatement: `Le système ${lowest.batchReference} présente la valeur moyenne de ΔE*ab la plus faible (${lowest.color!.meanDeltaE!.toFixed(2)}) et le système ${highest.batchReference} présente la valeur la plus élevée (${highest.color!.meanDeltaE!.toFixed(2)}) parmi les systèmes comparés à ${getEffectiveExposureHours(stage)} h.`
     });
   }
 
@@ -285,7 +290,7 @@ export function compareSystemsAtStage(
       lowestValue: lowest.gloss!.glossRetentionPercent!,
       highestBatchRef: highest.batchReference,
       highestValue: highest.gloss!.glossRetentionPercent!,
-      factualStatement: `Le système ${highest.batchReference} présente la rétention de brillance la plus élevée (${highest.gloss!.glossRetentionPercent!.toFixed(1)} %) et le système ${lowest.batchReference} la rétention la plus faible (${lowest.gloss!.glossRetentionPercent!.toFixed(1)} %) parmi les lots disposant de données complètes à ${stage.scheduledExposureHours} h.`
+      factualStatement: `Le système ${highest.batchReference} présente la rétention de brillance la plus élevée (${highest.gloss!.glossRetentionPercent!.toFixed(1)} %) et le système ${lowest.batchReference} la rétention la plus faible (${lowest.gloss!.glossRetentionPercent!.toFixed(1)} %) parmi les lots disposant de données complètes à ${getEffectiveExposureHours(stage)} h.`
     });
   }
 
@@ -315,7 +320,7 @@ export function compareSystemsAtStage(
   return {
     stageId: stage.id,
     stageName: stage.name,
-    exposureHours: stage.scheduledExposureHours,
+    exposureHours: getEffectiveExposureHours(stage),
     items,
     rankings,
     incompatibilities,

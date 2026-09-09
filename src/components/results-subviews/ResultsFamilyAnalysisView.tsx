@@ -28,6 +28,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { getActiveE1E2E3Panels, isAdhesionEligiblePanel, formatStageShort } from '../../scientific/panelUtils';
+import { getEffectiveExposureHours } from '../../scientific/analysis/TrendAnalyzer';
 import {
   aggregateBatchColorExposed,
   aggregateBatchGlossExposed,
@@ -53,7 +54,7 @@ export function ResultsFamilyAnalysisView({ trial, ruleSet }: Props) {
   // Préparation des données pour les graphiques Recharts (1 point par étape d'exposition)
   const chartData = evaluatedStages.map((stage) => {
     const point: Record<string, any> = {
-      exposureHours: stage.scheduledExposureHours,
+      exposureHours: getEffectiveExposureHours(stage),
       stageLabel: formatStageShort(stage)
     };
 

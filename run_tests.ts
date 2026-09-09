@@ -24,6 +24,7 @@ import { runReportFidelityTests } from './src/scientific/tests/report_fidelity.t
 import { runAdhesionUiLockTests } from './src/scientific/tests/adhesion_ui_lock.test';
 import { runStep05MilestoneTests } from './src/scientific/tests/step05_exposure_milestones.test';
 import { runWizardPanelConfigurationTests } from './src/scientific/tests/wizard_panel_configuration.test';
+import { runPersozIntegrityTests } from './src/scientific/tests/persoz_integrity_durations.test';
 import { runPersozQualityPopulationTests } from './src/scientific/tests/persoz_quality_population.test';
 import { runExportComputedPopulationTests } from './src/scientific/tests/export_computed_population.test';
 import { runReferenceTraceabilityTests } from './src/scientific/tests/reference_traceability.test';
@@ -499,6 +500,19 @@ suite36.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('37. EXÉCUTION INTÉGRITÉ PERSOZ & DURÉE RÉELLE (8 TESTS)');
+console.log('================================================================');
+const suite37 = runPersozIntegrityTests();
+console.log(`Résultats Intégrité Persoz : ${suite37.summary.passed} / ${suite37.summary.total} réussis.`);
+suite37.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Persoz Integrity] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -535,7 +549,8 @@ const totalFailed =
   suite33.summary.failed +
   suite34.summary.failed +
   suite35.summary.failed +
-  suite36.summary.failed;
+  suite36.summary.failed +
+  suite37.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -572,7 +587,8 @@ const totalCount =
   suite33.summary.total +
   suite34.summary.total +
   suite35.summary.total +
-  suite36.summary.total;
+  suite36.summary.total +
+  suite37.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
