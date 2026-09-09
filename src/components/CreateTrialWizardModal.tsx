@@ -130,8 +130,7 @@ export function CreateTrialWizardModal({
       applicationConditions: '21°C, 55% HR',
       applicationDate: new Date().toISOString().slice(0, 10),
       dryingOrConditioningTime: '7 jours à 20°C/65% HR',
-      batchNotes: 'Lot témoin sans stabilisant UV renforcé',
-      panelCount: 4
+      batchNotes: 'Lot témoin sans stabilisant UV renforcé'
     },
     {
       id: '2',
@@ -146,8 +145,7 @@ export function CreateTrialWizardModal({
       applicationConditions: '21°C, 55% HR',
       applicationDate: new Date().toISOString().slice(0, 10),
       dryingOrConditioningTime: '7 jours à 20°C/65% HR',
-      batchNotes: 'Formulation avec absorbeurs UV organiques',
-      panelCount: 4
+      batchNotes: 'Formulation avec absorbeurs UV organiques'
     },
     {
       id: '3',
@@ -162,8 +160,7 @@ export function CreateTrialWizardModal({
       applicationConditions: '21°C, 55% HR',
       applicationDate: new Date().toISOString().slice(0, 10),
       dryingOrConditioningTime: '7 jours à 20°C/65% HR',
-      batchNotes: 'Formulation avec nano-charges minérales',
-      panelCount: 4
+      batchNotes: 'Formulation avec nano-charges minérales'
     }
   ]);
 
@@ -219,7 +216,6 @@ export function CreateTrialWizardModal({
         applicationDate: new Date().toISOString().slice(0, 10),
         dryingOrConditioningTime: '7 jours à 20°C/65% HR',
         batchNotes: '',
-        panelCount: 4
       }
     ]);
   };
@@ -252,8 +248,9 @@ export function CreateTrialWizardModal({
   const isStep5Valid = !isColorAdaptationInvalid && !isGlossAdaptationInvalid && !isPersozAdaptationInvalid && !isAdhAdaptationInvalid;
   const isFinalStepValid = Boolean(createdBy.trim());
 
-  // Calcul du nombre total de panneaux
-  const totalPanelsCount = batches.reduce((sum, b) => sum + (Number(b.panelCount) || 1), 0);
+  // Calcul du nombre total de panneaux : configuration canonique,
+  // 4 panneaux par lot (T, E1, E2, E3).
+  const totalPanelsCount = batches.length * 4;
 
   // Soumission finale
   const handleFinalCreate = () => {
@@ -331,8 +328,7 @@ export function CreateTrialWizardModal({
         applicationConditions: b.applicationConditions.trim(),
         applicationDate: b.applicationDate,
         dryingOrConditioningTime: b.dryingOrConditioningTime.trim(),
-        batchNotes: b.batchNotes.trim(),
-        panelCount: Number(b.panelCount) || 4
+        batchNotes: b.batchNotes.trim()
       })),
       activeFamilies,
       familyConfigs: {
