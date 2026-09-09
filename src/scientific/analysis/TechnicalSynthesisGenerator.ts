@@ -5,7 +5,7 @@
  */
 
 import { Trial, BatchDefinition, ExposureStage } from '../../types/trial';
-import { ScientificRuleSet } from '../../types/scientific';
+import { ScientificRuleSet, VisualObservationsComputedData } from '../../types/scientific';
 import { extractTemporalKinetics, hasActualExposureHours } from './TrendAnalyzer';
 import { getActiveExposedPanels } from '../panelUtils';
 
@@ -149,37 +149,48 @@ export function generateTechnicalSynthesis(
   // --------------------------------------------------------------------------
   // PHRASE 5 — OBSERVATIONS VISUELLES
   // --------------------------------------------------------------------------
+  // Consommation EXCLUSIVE du COMPUTED du moteur observationsEngine (source de
+  // vérité). Aucune lecture de cotation RAW, aucun Math.max/parseFloat/`|| 0`
+  // ici : la validation valid/missing/invalid, maxRating, defectsCount et le
+  // statut de qualité sont déjà calculés par le moteur.
+  // maxRating === null → non évalué ; maxRating === 0 → cotation réelle zéro.
   const activePanels = getActiveExposedPanels(targetBatch.panels);
   let hasRecordedObs = false;
-  let maxBlister = 0;
-  let maxFlake = 0;
+  let hasMissingObs = false;
+  let overallMaxRating: number | null = null;
 
   for (const p of activePanels) {
     const obsAcq = trial.acquisitions[`${targetStage.id}__${p.id}__OBSERVATIONS`];
-    if (obsAcq && obsAcq.raw) {
-      hasRecordedObs = true;
-      const rawObs = obsAcq.raw as { observations?: Array<{ category: string; rating: number }> };
-      if (rawObs.observations) {
-        for (const o of rawObs.observations) {
-          if (o.category === 'BLISTERING') maxBlister = Math.max(maxBlister, o.rating);
-          if (o.category === 'FLAKING') maxFlake = Math.max(maxFlake, o.rating);
-        }
-      }
+    const comp = obsAcq?.computed as VisualObservationsComputedData | null | undefined;
+    if (!comp) {
+      hasMissingObs = true;
+      continue;
+    }
+    if (comp.maxRating === null) {
+      hasMissingObs = true;
+      continue;
+    }
+    hasRecordedObs = true;
+    if (overallMaxRating === null || comp.maxRating > overallMaxRating) {
+      overallMaxRating = comp.maxRating;
     }
   }
 
-  if (hasRecordedObs) {
-    if (maxBlister === 0 && maxFlake === 0) {
+  if (!hasRecordedObs) {
+    limitations.push('Aucune observation visuelle valide n\'a été enregistrée pour cette étape.');
+  } else {
+    if (hasMissingObs) {
+      limitations.push('Les observations visuelles sont partiellement disponibles pour cette étape.');
+    }
+    if (overallMaxRating === 0) {
       sentences.push(
-        'L\'examen visuel des éprouvettes ne met en évidence aucun cloquage ni écaillage (cotations 0 selon ISO 4628).'
+        'L\'examen visuel des éprouvettes ne met en évidence aucun défaut coté pour les catégories évaluées.'
       );
-    } else {
+    } else if (overallMaxRating !== null) {
       sentences.push(
-        `L'examen visuel révèle des altérations avec une cotation maximale de ${maxBlister} pour le cloquage et ${maxFlake} pour l'écaillage.`
+        `L'examen visuel révèle des altérations, avec une cotation maximale de ${overallMaxRating} pour les observations disponibles.`
       );
     }
-  } else {
-    limitations.push('Aucune observation visuelle n\'a été enregistrée pour cette étape.');
   }
 
   // --------------------------------------------------------------------------

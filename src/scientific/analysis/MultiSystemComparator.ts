@@ -10,6 +10,7 @@ import { SystemComparisonItem, DescriptiveRanking, ComparisonResult } from '../.
 import { calculateStdDevByMethod, calculateCoefficientOfVariation } from '../statistics';
 import { getActiveExposedPanels } from '../panelUtils';
 import { getEffectiveExposureHours } from './TrendAnalyzer';
+import { parseObservationRating } from '../observationsEngine';
 
 export function compareSystemsAtStage(
   trial: Trial,
@@ -200,37 +201,53 @@ export function compareSystemsAtStage(
     }
 
     // 4. Observations
-    let blisteringMax = 0;
-    let flakingMax = 0;
-    let crackingMax = 0;
-    let chalkingMax = 0;
-    let hasObs = false;
+    // Cotation maximale par catégorie, calculée UNIQUEMENT sur les cotations
+    // valides (domaine 0..5, source de vérité partagée parseObservationRating).
+    // Une catégorie sans cotation valide restera « non évaluée » (null),
+    // jamais fabriquée à 0. Un vrai 0 enregistré reste 0 et compte comme donnée.
+    type ObsCategory = 'BLISTERING' | 'FLAKING' | 'CRACKING' | 'CHALKING';
+    const obsRatings: Partial<Record<ObsCategory, number>> = {};
+    let hasRecordedData = false;
 
     for (const panel of activePanels) {
       const obsAcq = trial.acquisitions[`${stage.id}__${panel.id}__OBSERVATIONS`];
       if (obsAcq && obsAcq.raw) {
-        hasObs = true;
-        const rawObs = obsAcq.raw as { observations?: Array<{ category: string; rating: number }> };
+        const rawObs = obsAcq.raw as {
+          observations?: Array<{ category: string; rating: string | number | null | undefined }>;
+        };
         if (rawObs.observations) {
           for (const obs of rawObs.observations) {
-            if (obs.category === 'BLISTERING') blisteringMax = Math.max(blisteringMax, obs.rating);
-            if (obs.category === 'FLAKING') flakingMax = Math.max(flakingMax, obs.rating);
-            if (obs.category === 'CRACKING') crackingMax = Math.max(crackingMax, obs.rating);
-            if (obs.category === 'CHALKING') chalkingMax = Math.max(chalkingMax, obs.rating);
+            const { validity, value } = parseObservationRating(obs.rating);
+            if (validity !== 'VALID' || value === null) continue;
+            hasRecordedData = true;
+            const key = obs.category as ObsCategory;
+            if (key !== 'BLISTERING' && key !== 'FLAKING' && key !== 'CRACKING' && key !== 'CHALKING') continue;
+            const current = obsRatings[key];
+            if (current === undefined || value > current) obsRatings[key] = value;
           }
         }
       }
     }
 
-    if (hasObs) {
+    const ratingOf = (category: ObsCategory): number | null => {
+      const v = obsRatings[category];
+      return v === undefined ? null : v;
+    };
+
+    const blisteringMax = ratingOf('BLISTERING');
+    const flakingMax = ratingOf('FLAKING');
+    const crackingMax = ratingOf('CRACKING');
+    const chalkingMax = ratingOf('CHALKING');
+
+    if (hasRecordedData) {
       const defects: string[] = [];
-      if (blisteringMax > 0) defects.push(`Cloquage coté ${blisteringMax}`);
-      if (flakingMax > 0) defects.push(`Écaillage coté ${flakingMax}`);
-      if (crackingMax > 0) defects.push(`Craquelage coté ${crackingMax}`);
-      if (chalkingMax > 0) defects.push(`Farinage coté ${chalkingMax}`);
+      if (blisteringMax !== null && blisteringMax > 0) defects.push(`Cloquage coté ${blisteringMax}`);
+      if (flakingMax !== null && flakingMax > 0) defects.push(`Écaillage coté ${flakingMax}`);
+      if (crackingMax !== null && crackingMax > 0) defects.push(`Craquelage coté ${crackingMax}`);
+      if (chalkingMax !== null && chalkingMax > 0) defects.push(`Farinage coté ${chalkingMax}`);
 
       item.observations = {
-        summary: defects.length === 0 ? 'Aucun défaut majeur coté (cotations 0)' : defects.join(', '),
+        summary: defects.length === 0 ? 'Aucun défaut majeur coté' : defects.join(', '),
         blisteringRating: blisteringMax,
         flakingRating: flakingMax,
         crackingRating: crackingMax,
@@ -240,10 +257,10 @@ export function compareSystemsAtStage(
     } else {
       item.observations = {
         summary: 'Données non renseignées',
-        blisteringRating: 0,
-        flakingRating: 0,
-        crackingRating: 0,
-        chalkingRating: 0,
+        blisteringRating: null,
+        flakingRating: null,
+        crackingRating: null,
+        chalkingRating: null,
         hasRecordedData: false
       };
     }
