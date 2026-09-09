@@ -8,6 +8,7 @@ import { Trial } from '../types/trial';
 import {
   ScientificRuleSet,
   ScientificReport,
+  ProtocolComplianceStatus,
   ScientificReportMetadata,
   ScientificReportStatus,
   ScientificReportReviewComment,
@@ -25,6 +26,7 @@ import {
   isExposedE1E2E3Panel
 } from '../scientific/panelUtils';
 import { aggregateBatchColorExposed, PanelComputedItem } from '../scientific/aggregations';
+import { evaluateCountProtocolCompliance, evaluateSeriesProtocolCompliance } from '../scientific/protocolEngine';
 import type { MeasurementFamilyId } from '../types/scientific';
 
 /**
@@ -217,16 +219,34 @@ export function buildScientificReport(
   const activePanelsCount = allPanels.filter((p) => p.status === 'ACTIVE').length;
   const excludedPanelsCount = allPanels.filter((p) => p.status === 'EXCLUDED').length;
 
-  // Détection des adaptations
+  // Détection des adaptations via le moteur canonique (protocolEngine) :
+  // chaque configuration présente est évaluée ; le statut rapport agrège
+  // le pire cas. Aucune règle métier dupliquée ici.
   const adaptedFamilies: string[] = [];
+  const unjustifiedFamilies: string[] = [];
+  const familyProtocolStatuses: ProtocolComplianceStatus[] = [];
+  const rankProtocolStatus = (s: ProtocolComplianceStatus): number =>
+    s === 'INVALID' ? 4 : s === 'ADAPTED_UNJUSTIFIED' ? 3 : s === 'INCOMPLETE' ? 2 : s === 'ADAPTED_JUSTIFIED' ? 1 : 0;
   Object.entries(trial.config.familyConfigs).forEach(([fam, cfg]) => {
     if (cfg?.countConfig?.deviationFromStandard || cfg?.seriesConfig?.deviationFromStandard) {
       adaptedFamilies.push(fam);
     }
+    const evaluated: ProtocolComplianceStatus[] = [];
+    if (cfg?.countConfig) evaluated.push(evaluateCountProtocolCompliance(cfg.countConfig, ruleSet).status);
+    if (cfg?.seriesConfig) evaluated.push(evaluateSeriesProtocolCompliance(cfg.seriesConfig, ruleSet).status);
+    if (evaluated.length === 0) {
+      evaluated.push('INCOMPLETE');
+    }
+    for (const s of evaluated) {
+      familyProtocolStatuses.push(s);
+      if (s === 'ADAPTED_UNJUSTIFIED' && !unjustifiedFamilies.includes(fam)) unjustifiedFamilies.push(fam);
+    }
   });
 
-  const protocolStatus =
-    adaptedFamilies.length > 0 ? 'ADAPTED_JUSTIFIED' : 'STANDARD';
+  let protocolStatus: ProtocolComplianceStatus = 'STANDARD';
+  for (const s of familyProtocolStatuses) {
+    if (rankProtocolStatus(s) > rankProtocolStatus(protocolStatus)) protocolStatus = s;
+  }
 
   // GATE 55 — SÉGRÉGATION TÉMOIN / EXPOSÉ (population E1/E2/E3 normalisée) :
   // Le panneau Témoin T, conservé à l'obscurité, ne doit JAMAIS entrer dans les calculs
@@ -262,6 +282,21 @@ export function buildScientificReport(
         minRetentionPanel = acq.panelId;
       }
     }
+  });
+
+  // Observations visuelles réellement calculées (P1-1 : jamais de conclusion
+  // « aucun défaut » sans données) et distribution qualité réelle (P1-3).
+  const observationAcqs = Object.values(trial.acquisitions).filter(
+    (a) => a.familyId === 'OBSERVATIONS' && a.computed !== null && a.computed !== undefined
+  );
+  const qualityCounts: Record<string, number> = { GOOD: 0, ACCEPTABLE: 0, WARNING: 0, INVALID: 0, NON_QUALIFIE: 0 };
+  let qualifiedTotal = 0;
+  Object.values(trial.acquisitions).forEach((a) => {
+    if (a.computed === null || a.computed === undefined) return;
+    qualifiedTotal += 1;
+    const st = (a.computed as { qualityAssessment?: { status?: string } }).qualityAssessment?.status;
+    if (st === 'GOOD' || st === 'ACCEPTABLE' || st === 'WARNING' || st === 'INVALID') qualityCounts[st] += 1;
+    else qualityCounts.NON_QUALIFIE += 1;
   });
 
   const metadata: ScientificReportMetadata = {
@@ -317,7 +352,7 @@ export function buildScientificReport(
     glossResults: `Mesures de réflectance spéculaire sous géométrie 60°.\nÉtape initiale T0 : Niveau de brillance initial caractérisé par éprouvette.\nÉvolution temporelle : Rétention résiduelle minimale de ${formatNullableMeasure(minRetention, 1)} % constatée sur la campagne.\nConsulter l'Annexe B pour les calculs de variation absolue ΔGloss et de taux de rétention résiduelle.`,
     persozResults: `Dureté superficielle par temps d'amortissement du pendule Persoz (secondes).\nNOTE MÉTHODOLOGIQUE : Cette grandeur constitue une recommandation interne du laboratoire (LAB_RECOMMENDATION) et ne constitue pas une exigence normative formelle de la NF EN 927-6.\nÉvolution : Suivi de la cinétique de réticulation / dégradation mécanique superficielle.`,
     adhesionResults: `Évaluation de la résistance à la séparation par quadrillage selon NF EN ISO 2409:2020.\nNOTE MÉTHODOLOGIQUE : L'essai au quadrillage constitue une méthode d'évaluation qualitative de la résistance du revêtement au détachement selon une grille de 6×6 incisions (classes 0 à 5), et ne doit en aucun cas être assimilé à une force d'adhérence quantitative en MPa.\nProtocole : Éprouvette témoin T à T0 (référence initiale), éprouvettes exposées à C12 (2016 h). Espacement de peigne 2 mm (≤ 120 µm) ou 3 mm (121–250 µm) selon l'épaisseur sèche du revêtement.`,
-    visualObservations: `Cotations des défauts surfaciques selon les normes ISO 4628 (Cloquage, Écaillage, Craquelage, Farinage) et ISO 2409 (Quadrillage).\nAucun défaut majeur prématuré n'a entraîné d'arrêt anticipé de l'essai.`,
+    visualObservations: `Cotations des défauts surfaciques selon les normes ISO 4628 (Cloquage, Écaillage, Craquelage, Farinage) et ISO 2409 (Quadrillage).\n` + (observationAcqs.length > 0 ? `${observationAcqs.length} relevé(s) d'observations calculé(s) — détail en Annexe B.` : `Aucune cotation d'observation enregistrée : état Non renseigné.`),
     kineticsAnalysis: `Analyse cinétique de la dégradation : Les données compilées permettent d'observer les courbes d'évolution temporelle depuis T0 (0 h) jusqu'aux étapes en cours d'exposition (168 h à ${evaluatedStages[evaluatedStages.length - 1]?.scheduledExposureHours || 0} h)${stage2016 && stage2016.status === 'VALIDATED' ? ' et l’étape finale à 2016 h.' : ' ; l’étape finale à 2016 h restant à réaliser.'}\nDistinction rigoureuse : La dispersion intra-panneau (répétabilité de la mesure) est isolée de la dispersion inter-panneaux (homogénéité du lot).`,
     qualityControl: `Contrôle qualité des acquisitions : Chaque mesure est qualifiée selon 4 niveaux (GOOD, ACCEPTABLE, WARNING, INVALID).\nToutes les données brutes (RAW) sont préservées dans leur intégralité sans modification ni arrondissement destructif.\nRelevés avec alerte qualité : dûment signalés avec mention explicite dans les tableaux d'annexes.`,
     deviationsAndAdaptations: adaptedFamilies.length > 0
@@ -330,17 +365,20 @@ export function buildScientificReport(
             return `  • Famille ${fam} : Statut ${countCfg?.mode || seriesCfg?.mode || 'ADAPTED'} | Justification : "${countCfg?.justification || seriesCfg?.justification || 'Non précisée'}" (Configuré par ${countCfg?.configuredBy || seriesCfg?.configuredBy} le ${countCfg?.configuredAt || seriesCfg?.configuredAt})`;
           })
           .join('\n') +
-        `\nNOTE IMPORTANTE : Une adaptation justifiée (ADAPTED_JUSTIFIED) ne constitue pas une conformité standard automatique à la NF EN 927-6.`
+        `\nNOTE IMPORTANTE : Une adaptation justifiée (ADAPTED_JUSTIFIED) ne constitue pas une conformité standard automatique à la NF EN 927-6.` +
+        (unjustifiedFamilies.length > 0
+          ? `\nALERTE : ${unjustifiedFamilies.join(', ')} — adaptation(s) SANS justification (statut ADAPTED_UNJUSTIFIED, bloquant pour toute conclusion de conformité).`
+          : '')
       : `Aucune adaptation de protocole. L'ensemble des acquisitions a suivi les paramètres standards par défaut du référentiel NF EN 927-6.`,
     calculationTraceability: `Traçabilité intégrale du moteur de calcul :\n• Moteur scientifique : QUV-Lab Scientific Engine ${ruleSet.version}\n• RuleSet ID : ${ruleSet.id} (Référence : ${ruleSet.standardReference})\n• Méthode d'écart-type : Échantillon n-1 (${ruleSet.statisticalRules.stdDevMethod})\n• Formule colorimétrique : ${ruleSet.colorimetry.differenceFormula} (${ruleSet.colorimetry.illuminant}/${ruleSet.colorimetry.observer})\n• Géométrie de brillance par défaut : ${ruleSet.statisticalRules.glossGeometryDefault}°\n• Date d'exécution du calcul : ${now}`,
-    scientificSynthesis: `Synthèse générale :\nL'essai ${trial.metadata.reference} regroupe ${trial.batches.length} lots expérimentaux sur support bois massif. Les mesures de référence initiales T0 ${audit.checklist.t0Available ? 'ont été validées pour l’ensemble des grandeurs physiques actives' : 'ne sont pas validées pour cet essai (voir audit pré-rapport) : aucune référence initiale ne peut être présumée'}. Le comportement au vieillissement est caractérisé par le couplage des cinétiques colorimétriques (ΔE*ab), de perte de réflectance (rétention de brillance) et de résistance mécanique (Persoz).\nL'ensemble des résultats est conservé avec distinction stricte entre données brutes et résultats calculés.`,
+    scientificSynthesis: `Synthèse générale :\nL'essai ${trial.metadata.reference} regroupe ${trial.batches.length} lots expérimentaux (support : ${displayReportValue(trial.metadata.substrateDescription)}). Les mesures de référence initiales T0 ${audit.checklist.t0Available ? 'ont été validées pour l’ensemble des grandeurs physiques actives' : 'ne sont pas validées pour cet essai (voir audit pré-rapport) : aucune référence initiale ne peut être présumée'}. Le comportement au vieillissement est caractérisé par le couplage des cinétiques colorimétriques (ΔE*ab), de perte de réflectance (rétention de brillance) et de résistance mécanique (Persoz).\nL'ensemble des résultats est conservé avec distinction stricte entre données brutes et résultats calculés.`,
     factualConclusion: `Les résultats obtenus montrent l'évolution des propriétés mesurées au cours de l'exposition.\n\nLes éventuelles variations observées sont présentées par famille de mesure et comparées aux valeurs initiales T0.\n\nLes relevés présentant des alertes ou des adaptations de protocole sont identifiés dans les tableaux de résultats.\n\nLa présente synthèse ne constitue pas à elle seule une conclusion de conformité à la NF EN 927-6.${audit.isComplete ? '' : ' Essai incomplet (C12 non validé) : aucune conclusion globale de conformité ne peut être émise.'}`
   };
 
   const annexes = {
-    annexA_RawDataSummary: `ANNEXE A — DONNÉES DE MESURE BRUTES (RAW DATA)\nTotal acquisitions : ${Object.keys(trial.acquisitions).length} relevés enregistrés.\nIntégrité : 100% des points bruts conservés dans leur précision native d'acquisition sans altération.`,
+    annexA_RawDataSummary: `ANNEXE A — DONNÉES DE MESURE BRUTES (RAW DATA)\nTotal acquisitions : ${Object.keys(trial.acquisitions).length} relevés enregistrés.\nIntégrité : Non déterminée (aucun résultat d'audit d'intégrité enregistré pour cet essai).`,
     annexB_ComputedResultsSummary: `ANNEXE B — RÉSULTATS CALCULÉS (COMPUTED DATA)\nMoyennes arithmétiques, écarts-types d'échantillon, variations différentielles (ΔE*ab, ΔGloss, rétention %, ΔDureté) calculés par le moteur scientifique v${ruleSet.version}.`,
-    annexC_QualityAssessmentSummary: `ANNEXE C — CONTRÔLE QUALITÉ DES MESURES\nSynthèse de qualification métrologique (VALID / SUSPECT / INVALID / MISSING).\nTous les avertissements et anomalies sont répertoriés sans masquage.`,
+    annexC_QualityAssessmentSummary: `ANNEXE C — CONTRÔLE QUALITÉ DES MESURES\nSynthèse de qualification métrologique (GOOD / ACCEPTABLE / WARNING / INVALID).` + (qualifiedTotal > 0 ? `\nMesures qualifiées : ${qualifiedTotal} (GOOD : ${qualityCounts.GOOD}, ACCEPTABLE : ${qualityCounts.ACCEPTABLE}, WARNING : ${qualityCounts.WARNING}, INVALID : ${qualityCounts.INVALID}, non qualifiées : ${qualityCounts.NON_QUALIFIE}).` : `\nÉtat de traçabilité qualité : Non déterminé (aucune mesure qualifiée).`),
     annexD_ProtocolAdaptationsSummary: `ANNEXE D — ADAPTATIONS DE PROTOCOLE & DÉROGATIONS\nRegistre des modifications de paramétrage, motifs techniques et signatures opérateurs.`,
     annexE_AuditTrailSummary: `ANNEXE E — JOURNAL D'AUDIT SCIENTIFIQUE (AUDIT TRAIL)\nHistorique chronologique immuable des ${trial.auditTrail.length} événements enregistrés pour cet essai.`,
     annexF_ScientificVersionSummary: `ANNEXE F — RÉFÉRENTIEL SCIENTIFIQUE & VERSIONS\nRuleSet : ${ruleSet.id} | Standard : ${ruleSet.standardReference} | Schéma : ${REPORT_SCHEMA_VERSION} | Moteur : ${ruleSet.version}`
@@ -529,8 +567,8 @@ export function exportRawDataToCsv(trial: Trial): string {
           const acq = trial.acquisitions[key];
           if (acq && acq.raw) {
             const raw = acq.raw as any;
-            const src = acq.trace?.source || 'MANUAL_KEYPAD';
-            const op = acq.trace?.createdBy || 'OP';
+            const src = acq.trace?.source ?? '';
+            const op = acq.trace?.createdBy ?? '';
             const dt = acq.trace?.createdAt || '';
 
             if (fam === 'COLOR' && Array.isArray(raw.readings)) {

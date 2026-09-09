@@ -446,7 +446,7 @@ suite32.results.forEach((r) => {
 });
 
 console.log('\n================================================================');
-console.log('33. EXÉCUTION DE LA FIDÉLITÉ DU RAPPORT (30 TESTS)');
+console.log('33. EXÉCUTION DE LA FIDÉLITÉ DU RAPPORT (42 TESTS)');
 console.log('================================================================');
 const suite33 = runReportFidelityTests();
 console.log(`Résultats Fidélité Rapport : ${suite33.summary.passed} / ${suite33.summary.total} réussis.`);

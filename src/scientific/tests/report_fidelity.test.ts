@@ -10,7 +10,8 @@ import { generateStandardExposureStages } from '../../services/trialStore';
 import {
   buildScientificReport,
   auditTrialBeforeReport,
-  displayReportValue
+  displayReportValue,
+  exportRawDataToCsv
 } from '../../services/reportGenerator';
 import { getDefaultScientificRuleSet, createCountConfiguration } from '../ruleSet';
 import { isPersozEligiblePanel, isAdhesionEligiblePanel, getActiveE1E2E3Panels } from '../panelUtils';
@@ -61,7 +62,7 @@ function buildReport(trial: Trial) {
   return buildScientificReport(trial, getDefaultScientificRuleSet(), { operatorId: 'TEST_OP' });
 }
 
-function addComputedAcq(trial: Trial, family: 'COLOR' | 'GLOSS', computed: unknown): void {
+function addComputedAcq(trial: Trial, family: 'COLOR' | 'GLOSS' | 'OBSERVATIONS', computed: unknown): void {
   const stage = trial.stages.find((s) => s.cycleIndex === 0)!;
   const panelId = `${trial.id}-p-E1`;
   trial.acquisitions[`${stage.id}__${panelId}__${family}`] = {
@@ -396,6 +397,131 @@ export function runReportFidelityTests(): {
     const ok = okInc && okDone;
     record('RF-29', 'C12 non validé → finale restante ; C12 validé → finale observée',
       ok, 'restante/observée selon C12', String(ok));
+  }
+
+  // --- RF-30/31 : P1-1 observations visuelles (données réelles ou Non renseigné) ---
+  {
+    const tNone = buildSparseTrial();
+    const rNone = buildReport(tNone);
+    const okNone = rNone.sections.visualObservations.includes('Non renseigné') &&
+      !rNone.sections.visualObservations.includes('Aucun défaut majeur');
+    record('RF-30', 'VIS-ABSENT : sans cotation, pas de conclusion aucun-defaut',
+      okNone, 'Non renseigné, sans Aucun défaut majeur', String(okNone));
+    const tObs = buildSparseTrial();
+    addComputedAcq(tObs, 'OBSERVATIONS', {});
+    const rObs = buildReport(tObs);
+    const okObs = rObs.sections.visualObservations.includes("relevé(s) d'observations") &&
+      !rObs.sections.visualObservations.includes('Aucun défaut majeur');
+    record('RF-31', 'VIS-DATA : cotation présente, conclusion dérivée des données',
+      okObs, "relevé(s) d'observations", String(okObs));
+  }
+
+  // --- RF-32/33 : P1-2 Annexe A (intégrité seulement si auditée) ---
+  {
+    const tNone = buildSparseTrial();
+    const rNone = buildReport(tNone);
+    const okNone = rNone.annexes.annexA_RawDataSummary.includes('Non déterminée') &&
+      !rNone.annexes.annexA_RawDataSummary.includes('100%');
+    record('RF-32', 'ANNEXA : sans preuve, intégrité Non déterminée (jamais 100%)',
+      okNone, 'Non déterminée, sans 100%', String(okNone));
+    const tData = buildSparseTrial();
+    addComputedAcq(tData, 'COLOR', { deltaE: 1 });
+    const rData = buildReport(tData);
+    const okData = rData.annexes.annexA_RawDataSummary.includes('Non déterminée') &&
+      rData.annexes.annexA_RawDataSummary.includes('Total acquisitions : 1');
+    record('RF-33', 'ANNEXA-DATA : comptage réel, intégrité toujours Non déterminée',
+      okData, 'Total 1 + Non déterminée', String(okData));
+  }
+
+  // --- RF-34/35 : P1-3 Annexe C (distribution qualité réelle ou Non déterminé) ---
+  {
+    const tNone = buildSparseTrial();
+    const rNone = buildReport(tNone);
+    const okNone = rNone.annexes.annexC_QualityAssessmentSummary.includes('Non déterminé') &&
+      !rNone.annexes.annexC_QualityAssessmentSummary.includes('sans masquage');
+    record('RF-34', 'ANNEXC : sans mesure qualifiée, sans revendication totale',
+      okNone, 'Non déterminé, sans sans-masquage', String(okNone));
+    const tQ = buildSparseTrial();
+    addComputedAcq(tQ, 'COLOR', { deltaE: 1, qualityAssessment: { status: 'GOOD' } });
+    const rQ = buildReport(tQ);
+    const okQ = rQ.annexes.annexC_QualityAssessmentSummary.includes('GOOD : 1') &&
+      !rQ.annexes.annexC_QualityAssessmentSummary.includes('sans masquage');
+    record('RF-35', 'ANNEXC-DATA : distribution réelle GOOD:1, sans revendication',
+      okQ, 'GOOD : 1', String(okQ));
+  }
+
+  // --- RF-36..39 : P1-4 statuts protocolaires réels (moteur canonique) ---
+  {
+    const ruleSet = getDefaultScientificRuleSet();
+    const tStd = buildSparseTrial();
+    const okStd = buildReport(tStd).protocolStatus === 'STANDARD';
+    record('RF-36', 'PROTO-STANDARD : sans adaptation → STANDARD',
+      okStd, 'STANDARD', String(buildReport(tStd).protocolStatus));
+    const tJust = buildSparseTrial();
+    (tJust.config.familyConfigs as Record<string, unknown>)['COLOR'] = {
+      familyId: 'COLOR', enabled: true,
+      countConfig: createCountConfiguration('COLOR', 2, ruleSet, { justification: 'Motif reel.' })
+    };
+    const okJust = buildReport(tJust).protocolStatus === 'ADAPTED_JUSTIFIED';
+    record('RF-37', 'PROTO-JUSTIFIED : adaptation motivée → ADAPTED_JUSTIFIED',
+      okJust, 'ADAPTED_JUSTIFIED', String(buildReport(tJust).protocolStatus));
+    const tUnjust = buildSparseTrial();
+    (tUnjust.config.familyConfigs as Record<string, unknown>)['COLOR'] = {
+      familyId: 'COLOR', enabled: true,
+      countConfig: createCountConfiguration('COLOR', 2, ruleSet)
+    };
+    const rUnjust = buildReport(tUnjust);
+    const okUnjust = rUnjust.protocolStatus === 'ADAPTED_UNJUSTIFIED' &&
+      rUnjust.sections.deviationsAndAdaptations.includes('ADAPTED_UNJUSTIFIED');
+    record('RF-38', 'PROTO-UNJUSTIFIED : sans motif → ADAPTED_UNJUSTIFIED explicite',
+      okUnjust, 'ADAPTED_UNJUSTIFIED', String(rUnjust.protocolStatus));
+    const tInc = buildSparseTrial();
+    (tInc.config.familyConfigs as Record<string, unknown>)['COLOR'] = {
+      familyId: 'COLOR', enabled: true
+    };
+    const okInc = buildReport(tInc).protocolStatus === 'INCOMPLETE';
+    record('RF-39', 'PROTO-INCOMPLETE : config vide → INCOMPLETE (jamais STANDARD)',
+      okInc, 'INCOMPLETE', String(buildReport(tInc).protocolStatus));
+  }
+
+  // --- RF-40 : P1-5 provenance RAW (réelle préservée, absente vide) ---
+  {
+    const tProv = buildSparseTrial();
+    const stage = tProv.stages.find((s) => s.cycleIndex === 0)!;
+    tProv.acquisitions[`${stage.id}__${tProv.id}-p-E1__COLOR`] = {
+      id: 'rf-real', trialId: tProv.id, stageId: stage.id, batchId: tProv.batches[0].id,
+      panelId: `${tProv.id}-p-E1`, familyId: 'COLOR',
+      raw: { readings: [{ pointIndex: 1, L: 60, a: 2, b: 3 }] }, computed: null,
+      status: 'COMPLETE', alerts: [],
+      trace: { source: 'BENCH_TABLET', createdBy: 'OP_7', createdAt: '2026-09-01T00:00:00Z' }, mediaIds: []
+    } as unknown as Trial['acquisitions'][string];
+    tProv.acquisitions[`${stage.id}__${tProv.id}-p-T__COLOR`] = {
+      id: 'rf-missing', trialId: tProv.id, stageId: stage.id, batchId: tProv.batches[0].id,
+      panelId: `${tProv.id}-p-T`, familyId: 'COLOR',
+      raw: { readings: [{ pointIndex: 1, L: 61, a: 1, b: 2 }] }, computed: null,
+      status: 'COMPLETE', alerts: [], trace: {}, mediaIds: []
+    } as unknown as Trial['acquisitions'][string];
+    const csv = exportRawDataToCsv(tProv);
+    const okReal = csv.includes('BENCH_TABLET') && csv.includes('"OP_7"');
+    const okMissing = !csv.includes('MANUAL_KEYPAD') && !csv.includes(';"OP";');
+    const ok = okReal && okMissing;
+    record('RF-40', 'RAW-PROV : source/opérateur réels préservés, absents vides',
+      ok, 'réels + aucun fallback', String(ok));
+  }
+
+  // --- RF-41 : P2-1 support depuis metadata (jamais bois massif inféré) ---
+  {
+    const tNone = buildSparseTrial();
+    const rNone = buildReport(tNone);
+    const okNone = rNone.sections.scientificSynthesis.includes('Non renseigné') &&
+      !rNone.sections.scientificSynthesis.includes('bois massif');
+    const tWood = buildSparseTrial();
+    (tWood.metadata as { substrateDescription?: string }).substrateDescription = 'Chêne massif';
+    const rWood = buildReport(tWood);
+    const okWood = rWood.sections.scientificSynthesis.includes('Chêne massif');
+    const ok = okNone && okWood;
+    record('RF-41', 'SUBSTRAT : absent→Non renseigné, présent→verbatim metadata',
+      ok, 'Non renseigné / Chêne massif', String(ok));
   }
 
   const passed = results.filter((r) => r.passed).length;
