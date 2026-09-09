@@ -271,7 +271,7 @@ export function compareSystemsAtStage(
       lowestValue: lowest.color!.meanDeltaE!,
       highestBatchRef: highest.batchReference,
       highestValue: highest.color!.meanDeltaE!,
-      factualStatement: `Le système ${lowest.batchReference} présente la valeur moyenne de ΔE*ab la plus faible (${lowest.color!.meanDeltaE!.toFixed(2)}) et le système ${highest.batchReference} présente la valeur la plus élevée (${highest.color!.meanDeltaE!.toFixed(2)}) parmi les systèmes comparés à ${stage.scheduledExposureHours} h.`
+      factualStatement: `Le système ${lowest.batchReference} présente la valeur moyenne de ΔE*ab la plus faible (${lowest.color!.meanDeltaE!.toFixed(2)}) et le système ${highest.batchReference} présente la valeur la plus élevée (${highest.color!.meanDeltaE!.toFixed(2)}) parmi les systèmes comparés à ${getEffectiveExposureHours(stage)} h.`
     });
   }
 
@@ -290,7 +290,7 @@ export function compareSystemsAtStage(
       lowestValue: lowest.gloss!.glossRetentionPercent!,
       highestBatchRef: highest.batchReference,
       highestValue: highest.gloss!.glossRetentionPercent!,
-      factualStatement: `Le système ${highest.batchReference} présente la rétention de brillance la plus élevée (${highest.gloss!.glossRetentionPercent!.toFixed(1)} %) et le système ${lowest.batchReference} la rétention la plus faible (${lowest.gloss!.glossRetentionPercent!.toFixed(1)} %) parmi les lots disposant de données complètes à ${stage.scheduledExposureHours} h.`
+      factualStatement: `Le système ${highest.batchReference} présente la rétention de brillance la plus élevée (${highest.gloss!.glossRetentionPercent!.toFixed(1)} %) et le système ${lowest.batchReference} la rétention la plus faible (${lowest.gloss!.glossRetentionPercent!.toFixed(1)} %) parmi les lots disposant de données complètes à ${getEffectiveExposureHours(stage)} h.`
     });
   }
 
