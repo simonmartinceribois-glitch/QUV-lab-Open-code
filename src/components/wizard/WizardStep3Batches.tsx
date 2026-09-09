@@ -23,7 +23,7 @@ export function WizardStep3Batches({ batches, onAddBatch, onUpdateBatch, onRemov
             Définition des Lots Expérimentaux ({batches.length} lots configurés)
           </h3>
           <p className="text-xs text-slate-500">
-            Chaque lot possède ses propres paramètres d'application et son propre nombre de panneaux.
+            Chaque lot possède ses propres paramètres d'application et la configuration canonique de panneaux (T, E1, E2, E3).
           </p>
         </div>
         <button
@@ -58,17 +58,11 @@ export function WizardStep3Batches({ batches, onAddBatch, onUpdateBatch, onRemov
               </div>
 
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                  <span>Nombre de panneaux :</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={24}
-                    value={batch.panelCount}
-                    onChange={(e) => onUpdateBatch(batch.id, 'panelCount', Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-16 px-2 py-1 text-xs border border-slate-300 rounded text-center font-bold bg-blue-50 text-blue-900"
-                  />
-                </div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                <span className="px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold">
+                  4 panneaux — T, E1, E2, E3
+                </span>
+              </div>
                 {batches.length > 1 && (
                   <button
                     onClick={() => onRemoveBatch(batch.id)}

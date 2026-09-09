@@ -285,7 +285,8 @@ export class TrialStoreService {
       applicationDate?: string;
       dryingOrConditioningTime?: string;
       batchNotes?: string;
-      panelCount: number;
+      // Pas de panelCount : chaque lot reçoit la configuration canonique
+      // (4 panneaux — T témoin, E1/E2/E3 exposées), voir ci-dessous.
     }[];
     activeFamilies: MeasurementFamilyId[];
     familyConfigs?: Partial<TrialProtocolConfig['familyConfigs']>;
@@ -301,6 +302,8 @@ export class TrialStoreService {
 
     const createdBatches: BatchDefinition[] = params.batches.map((b, bIdx) => {
       const batchId = generateUUID();
+      // Configuration canonique : exactement 4 panneaux (T, E1, E2, E3).
+      // Aucun nombre variable : toute valeur panelCount éventuelle est ignorée.
       const panels: PanelDefinition[] = [
         {
           id: generateUUID(),
