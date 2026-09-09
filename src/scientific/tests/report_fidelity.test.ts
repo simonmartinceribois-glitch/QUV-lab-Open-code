@@ -363,22 +363,29 @@ export function runReportFidelityTests(): {
       okProg, 'flagué + PARTIEL', String(okProg));
   }
 
-  // --- RF-28 : synthèse T0 conditionnée à l'audit (pas d'affirmation fictive) ---
+  // --- RF-28 : T0 wording par statut exact (P1-4 : VALIDATED/IN_PROGRESS/NOT_STARTED/absent) ---
   {
-    const tNoT0 = buildSparseTrial();
-    const st0 = tNoT0.stages.find((s) => s.cycleIndex === 0)!;
-    st0.status = 'NOT_STARTED';
-    const rNoT0 = buildReport(tNoT0);
-    const okNoT0 = rNoT0.sections.scientificSynthesis.includes('ne sont pas validées') &&
-      !rNoT0.sections.scientificSynthesis.includes('ont été validées');
-    const tT0 = buildSparseTrial();
-    const st0v = tT0.stages.find((s) => s.cycleIndex === 0)!;
-    st0v.status = 'VALIDATED';
-    const rT0 = buildReport(tT0);
-    const okT0 = rT0.sections.scientificSynthesis.includes('ont été validées');
-    const ok = okNoT0 && okT0;
-    record('RF-28', 'T0 non validé → synthèse prudente ; T0 validé → synthèse affirmative',
-      ok, 'prudent/affirmatif selon audit', String(ok));
+    const tVal = buildSparseTrial();
+    tVal.stages.find((s) => s.cycleIndex === 0)!.status = 'VALIDATED';
+    const okVal = buildReport(tVal).sections.scientificSynthesis.includes('ont été validées');
+    const tProg = buildSparseTrial();
+    tProg.stages.find((s) => s.cycleIndex === 0)!.status = 'IN_PROGRESS';
+    const rProg = buildReport(tProg);
+    const okProg = rProg.sections.scientificSynthesis.includes('en cours de réalisation') &&
+      !rProg.sections.scientificSynthesis.includes('ont été validées');
+    const tNot = buildSparseTrial();
+    tNot.stages.find((s) => s.cycleIndex === 0)!.status = 'NOT_STARTED';
+    const rNot = buildReport(tNot);
+    const okNot = rNot.sections.scientificSynthesis.includes('non effectué') &&
+      !rNot.sections.scientificSynthesis.includes('ont été validées');
+    const tMiss = buildSparseTrial();
+    tMiss.stages = tMiss.stages.filter((s) => s.cycleIndex !== 0);
+    const rMiss = buildReport(tMiss);
+    const okMiss = rMiss.sections.scientificSynthesis.includes('non traçable') &&
+      !rMiss.sections.scientificSynthesis.includes('ont été validées');
+    const ok = okVal && okProg && okNot && okMiss;
+    record('RF-28', 'T0 : VALIDATED affirmatif / IN_PROGRESS en cours / NOT_STARTED non effectué / absent non traçable',
+      ok, '4 wordings exacts', String(ok));
   }
 
   // --- RF-29 : cinétique, étape finale 2016 h conditionnée à C12 validé ---
@@ -454,8 +461,12 @@ export function runReportFidelityTests(): {
   {
     const ruleSet = getDefaultScientificRuleSet();
     const tStd = buildSparseTrial();
+    (tStd.config.familyConfigs as Record<string, unknown>)['COLOR'] = {
+      familyId: 'COLOR', enabled: true,
+      countConfig: createCountConfiguration('COLOR', 4, ruleSet)
+    };
     const okStd = buildReport(tStd).protocolStatus === 'STANDARD';
-    record('RF-36', 'PROTO-STANDARD : sans adaptation → STANDARD',
+    record('RF-36', 'PROTO-STANDARD : config standard réelle → STANDARD',
       okStd, 'STANDARD', String(buildReport(tStd).protocolStatus));
     const tJust = buildSparseTrial();
     (tJust.config.familyConfigs as Record<string, unknown>)['COLOR'] = {
@@ -522,6 +533,67 @@ export function runReportFidelityTests(): {
     const ok = okNone && okWood;
     record('RF-41', 'SUBSTRAT : absent→Non renseigné, présent→verbatim metadata',
       ok, 'Non renseigné / Chêne massif', String(ok));
+  }
+
+  // --- RF-42 : P1-1 conditions exécutées explicites, normatif étiqueté ---
+  {
+    const r = buildReport(buildSparseTrial());
+    const ok = r.sections.experimentalConditions.includes('Conditions réellement exécutées : Non renseigné') &&
+      r.sections.experimentalConditions.includes('normatif');
+    record('RF-42', 'COND-EXEC : normatif étiqueté, exécuté Non renseigné',
+      ok, 'normatif + Non renseigné', String(ok));
+  }
+
+  // --- RF-43/44/45 : P1-2 plan de mesurage configuré (standard/adapté/absent) ---
+  {
+    const ruleSet = getDefaultScientificRuleSet();
+    const tStd = buildSparseTrial();
+    (tStd.config.familyConfigs as Record<string, unknown>)['COLOR'] = {
+      familyId: 'COLOR', enabled: true,
+      countConfig: createCountConfiguration('COLOR', 4, ruleSet)
+    };
+    const rStd = buildReport(tStd);
+    const okStd = rStd.sections.measurementPlan.includes('4 points par éprouvette') &&
+      !rStd.sections.measurementPlan.includes('4 points normatifs');
+    record('RF-43', 'PLAN-STD : comptage configuré réel, sans hardcodage',
+      okStd, '4 points par éprouvette', String(okStd));
+    const tAdp = buildSparseTrial();
+    (tAdp.config.familyConfigs as Record<string, unknown>)['COLOR'] = {
+      familyId: 'COLOR', enabled: true,
+      countConfig: createCountConfiguration('COLOR', 2, ruleSet, { justification: 'Motif reel.' })
+    };
+    const rAdp = buildReport(tAdp);
+    const okAdp = rAdp.sections.measurementPlan.includes('2 points par éprouvette') &&
+      rAdp.sections.measurementPlan.includes('adaptation justifiée');
+    record('RF-44', 'PLAN-ADAPT : 2 points + adaptation justifiée affichés',
+      okAdp, '2 points + justifiée', String(okAdp));
+    const tMiss = buildSparseTrial();
+    (tMiss.config.familyConfigs as Record<string, unknown>)['COLOR'] = {
+      familyId: 'COLOR', enabled: true
+    };
+    const rMiss = buildReport(tMiss);
+    const okMiss = rMiss.sections.measurementPlan.includes('Non renseigné');
+    record('RF-45', 'PLAN-MISSING : config absente → Non renseigné (jamais 4)',
+      okMiss, 'Non renseigné', String(okMiss));
+  }
+
+  // --- RF-46 : P1-3 famille active sans entrée familyConfigs → INCOMPLETE ---
+  {
+    const t = buildSparseTrial();
+    const ok = buildReport(t).protocolStatus === 'INCOMPLETE';
+    record('RF-46', 'PROTO-MISSING-ENTRY : active sans config → INCOMPLETE (fail-closed)',
+      ok, 'INCOMPLETE', String(buildReport(t).protocolStatus));
+  }
+
+  // --- RF-47 : P1-4 T0 IN_PROGRESS obligatoire (jamais décrit validé) ---
+  {
+    const t = buildSparseTrial();
+    t.stages.find((s) => s.cycleIndex === 0)!.status = 'IN_PROGRESS';
+    const r = buildReport(t);
+    const ok = r.sections.scientificSynthesis.includes('en cours de réalisation') &&
+      !r.sections.scientificSynthesis.includes('ont été validées');
+    record('RF-47', 'T0 IN_PROGRESS : en cours, jamais validé',
+      ok, 'en cours, sans ont été validées', String(ok));
   }
 
   const passed = results.filter((r) => r.passed).length;

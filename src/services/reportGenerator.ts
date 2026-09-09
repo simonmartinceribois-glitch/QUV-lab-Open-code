@@ -26,7 +26,7 @@ import {
   isExposedE1E2E3Panel
 } from '../scientific/panelUtils';
 import { aggregateBatchColorExposed, PanelComputedItem } from '../scientific/aggregations';
-import { evaluateCountProtocolCompliance, evaluateSeriesProtocolCompliance } from '../scientific/protocolEngine';
+import { evaluateCountProtocolCompliance, evaluateSeriesProtocolCompliance, buildProtocolDefinition } from '../scientific/protocolEngine';
 import type { MeasurementFamilyId } from '../types/scientific';
 
 /**
@@ -244,6 +244,14 @@ export function buildScientificReport(
   });
 
   let protocolStatus: ProtocolComplianceStatus = 'STANDARD';
+  // Fail-closed (P1-3) : toute famille active doit disposer d'une configuration
+  // exploitable ; une famille active absente de familyConfigs rend INCOMPLETE.
+  for (const fam of trial.config.activeFamilies) {
+    const cfg = trial.config.familyConfigs[fam];
+    if (!cfg || (!cfg.countConfig && !cfg.seriesConfig)) {
+      familyProtocolStatuses.push('INCOMPLETE');
+    }
+  }
   for (const s of familyProtocolStatuses) {
     if (rankProtocolStatus(s) > rankProtocolStatus(protocolStatus)) protocolStatus = s;
   }
@@ -299,6 +307,25 @@ export function buildScientificReport(
     else qualityCounts.NON_QUALIFIE += 1;
   });
 
+  // Plan de mesurage restitué depuis la configuration réelle (P1-2) via la
+  // définition protocolaire canonique : configuré vs référence, adaptation
+  // signalée, absence explicite. Aucun comptage codé en dur.
+  const planDetail = (fam: MeasurementFamilyId, unit: string): string => {
+    const cfg = trial.config.familyConfigs[fam];
+    if (!cfg?.enabled) return 'Désactivée';
+    const defs: { n: number | undefined; std: number | undefined; adapted: boolean; just: string }[] = [];
+    if (cfg.countConfig) {
+      const d = buildProtocolDefinition(cfg.countConfig, ruleSet);
+      defs.push({ n: d.configuredCount, std: d.standardRecommendedCount, adapted: d.isAdapted, just: d.justification || '' });
+    }
+    if (cfg.seriesConfig) {
+      const d = buildProtocolDefinition(cfg.seriesConfig, ruleSet);
+      defs.push({ n: d.configuredCount, std: d.standardRecommendedCount, adapted: d.isAdapted, just: d.justification || '' });
+    }
+    if (defs.length === 0) return 'Active (détail de configuration Non renseigné)';
+    return `Active (${defs.map((d) => `${displayReportValue(d.n)} ${unit} (référence : ${displayReportValue(d.std)})${d.adapted ? (d.just ? ' — adaptation justifiée' : ' — ADAPTATION NON JUSTIFIÉE') : ''}`).join(' ; ')})`;
+  };
+
   const metadata: ScientificReportMetadata = {
     reportId,
     trialId: trial.id,
@@ -339,7 +366,7 @@ export function buildScientificReport(
             .map((p) => `${p.label} (Motif : ${p.exclusionReason || 'Non précisé'}, par ${p.excludedBy} le ${p.excludedAt})`)
             .join(' ; ')
         : ''),
-    experimentalConditions: `Enceinte de vieillissement accéléré type QUV / UV-A 340 nm.\nCycle standard 168 heures : 24 h condensation à 45°C suivi de 144 h d'exposition alternée UV-A (2,5 h à 60°C, irradiance 0,89 W/(m²·nm)) / pulvérisation d'eau (0,5 h à température ambiante).`,
+    experimentalConditions: `Conditions d'exposition — référentiel normatif NF EN 927-6 (paramètres de principe, non enregistrés comme exécution réelle) : enceinte type QUV / UV-A 340 nm ; cycle de 168 heures : 24 h condensation à 45°C puis 144 h d'exposition alternée UV-A / pulvérisation d'eau (irradiance 0,89 W/(m²·nm)).\nConditions réellement exécutées : Non renseigné (aucune donnée d'exécution enregistrée pour cet essai).`,
     exposureSchedule: `Calendrier complet en 13 étapes (1 étape initiale + 12 cycles de 168 h) :\n` +
       trial.stages
         .map(
@@ -347,7 +374,7 @@ export function buildScientificReport(
             `  - [${st.stageType}] ${st.name} | Planifié : ${st.scheduledExposureHours} h | Réel : ${st.actualExposureHours !== undefined ? st.actualExposureHours + ' h' : 'Non mesuré'} | Statut : ${st.status}`
         )
         .join('\n'),
-    measurementPlan: `Familles de mesure actives : ${trial.config.activeFamilies.join(', ')}\n• Couleur : ${trial.config.familyConfigs.COLOR?.enabled ? 'Active (4 points normatifs par éprouvette)' : 'Désactivée'}\n• Brillance : ${trial.config.familyConfigs.GLOSS?.enabled ? 'Active (2 points sens du fil + 2 points perpendiculaire)' : 'Désactivée'}\n• Persoz : ${trial.config.familyConfigs.PERSOZ?.enabled ? 'Active (3 mesures d\'amortissement - Labo)' : 'Désactivée'}\n• Adhérence au quadrillage : ${trial.config.familyConfigs.ADHESION?.enabled ? 'Active (NF EN ISO 2409:2020 - 6×6 incisions)' : 'Désactivée'}\n• Observations visuelles : ${trial.config.familyConfigs.OBSERVATIONS?.enabled ? 'Active (Évaluation ISO 4628)' : 'Désactivée'}`,
+    measurementPlan: `Familles de mesure actives : ${trial.config.activeFamilies.join(', ')}\n• Couleur : ${planDetail('COLOR', 'points par éprouvette')}\n• Brillance : ${planDetail('GLOSS', 'lectures')}\n• Persoz : ${planDetail('PERSOZ', 'mesures')}\n• Adhérence au quadrillage : ${planDetail('ADHESION', 'mesures (NF EN ISO 2409:2020)')}\n• Observations visuelles : ${trial.config.familyConfigs.OBSERVATIONS?.enabled ? 'Active (Évaluation ISO 4628)' : 'Désactivée'}`,
     colorResults: `Les coordonnées trichromatiques CIE L*a*b* et les variations différentielles ΔL*, Δa*, Δb*, ΔE*ab sont issues exclusivement du moteur scientifique QUV-Lab (version ${ruleSet.version}).\nÉtape initiale T0 : Référence absolue pour chaque éprouvette.\nProgression observée : Variation maximale ΔE* enregistrée : ${formatNullableMeasure(maxDeltaE, 2)} sur les éprouvettes évaluées.\nConsulter l'Annexe B pour le détail des valeurs par éprouvette et par lot.`,
     glossResults: `Mesures de réflectance spéculaire sous géométrie 60°.\nÉtape initiale T0 : Niveau de brillance initial caractérisé par éprouvette.\nÉvolution temporelle : Rétention résiduelle minimale de ${formatNullableMeasure(minRetention, 1)} % constatée sur la campagne.\nConsulter l'Annexe B pour les calculs de variation absolue ΔGloss et de taux de rétention résiduelle.`,
     persozResults: `Dureté superficielle par temps d'amortissement du pendule Persoz (secondes).\nNOTE MÉTHODOLOGIQUE : Cette grandeur constitue une recommandation interne du laboratoire (LAB_RECOMMENDATION) et ne constitue pas une exigence normative formelle de la NF EN 927-6.\nÉvolution : Suivi de la cinétique de réticulation / dégradation mécanique superficielle.`,
@@ -371,7 +398,7 @@ export function buildScientificReport(
           : '')
       : `Aucune adaptation de protocole. L'ensemble des acquisitions a suivi les paramètres standards par défaut du référentiel NF EN 927-6.`,
     calculationTraceability: `Traçabilité intégrale du moteur de calcul :\n• Moteur scientifique : QUV-Lab Scientific Engine ${ruleSet.version}\n• RuleSet ID : ${ruleSet.id} (Référence : ${ruleSet.standardReference})\n• Méthode d'écart-type : Échantillon n-1 (${ruleSet.statisticalRules.stdDevMethod})\n• Formule colorimétrique : ${ruleSet.colorimetry.differenceFormula} (${ruleSet.colorimetry.illuminant}/${ruleSet.colorimetry.observer})\n• Géométrie de brillance par défaut : ${ruleSet.statisticalRules.glossGeometryDefault}°\n• Date d'exécution du calcul : ${now}`,
-    scientificSynthesis: `Synthèse générale :\nL'essai ${trial.metadata.reference} regroupe ${trial.batches.length} lots expérimentaux (support : ${displayReportValue(trial.metadata.substrateDescription)}). Les mesures de référence initiales T0 ${audit.checklist.t0Available ? 'ont été validées pour l’ensemble des grandeurs physiques actives' : 'ne sont pas validées pour cet essai (voir audit pré-rapport) : aucune référence initiale ne peut être présumée'}. Le comportement au vieillissement est caractérisé par le couplage des cinétiques colorimétriques (ΔE*ab), de perte de réflectance (rétention de brillance) et de résistance mécanique (Persoz).\nL'ensemble des résultats est conservé avec distinction stricte entre données brutes et résultats calculés.`,
+    scientificSynthesis: `Synthèse générale :\nL'essai ${trial.metadata.reference} regroupe ${trial.batches.length} lots expérimentaux (support : ${displayReportValue(trial.metadata.substrateDescription)}). Les mesures de référence initiales T0 ${stageT0?.status === 'VALIDATED' ? 'ont été validées pour l’ensemble des grandeurs physiques actives' : stageT0?.status === 'IN_PROGRESS' || stageT0?.status === 'READY_FOR_VALIDATION' ? 'sont en cours de réalisation (T0 non encore validé)' : stageT0?.status === 'NOT_STARTED' ? 'n’ont pas été réalisées (T0 non effectué)' : 'sont de statut indisponible (T0 non traçable)'}. Le comportement au vieillissement est caractérisé par le couplage des cinétiques colorimétriques (ΔE*ab), de perte de réflectance (rétention de brillance) et de résistance mécanique (Persoz).\nL'ensemble des résultats est conservé avec distinction stricte entre données brutes et résultats calculés.`,
     factualConclusion: `Les résultats obtenus montrent l'évolution des propriétés mesurées au cours de l'exposition.\n\nLes éventuelles variations observées sont présentées par famille de mesure et comparées aux valeurs initiales T0.\n\nLes relevés présentant des alertes ou des adaptations de protocole sont identifiés dans les tableaux de résultats.\n\nLa présente synthèse ne constitue pas à elle seule une conclusion de conformité à la NF EN 927-6.${audit.isComplete ? '' : ' Essai incomplet (C12 non validé) : aucune conclusion globale de conformité ne peut être émise.'}`
   };
 
