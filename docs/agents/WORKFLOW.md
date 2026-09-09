@@ -50,3 +50,37 @@ Jamais de dev direct sur `main`. Branches : `main / develop / feature/* / fix/* 
 8. ~~Release docs~~ — manifest 195/195 (#5), D-00→D-07, releases v1.2.0/v1.3.0/v1.4.0 taguées.
 
 Nouveaux tickets : ouvrir une section §5 ci-dessous (ne pas réécrire l'historique ci-dessus).
+
+## 5. Pont ChatGPT ↔ GitHub ↔ OpenCode (depuis 2026-09-09)
+
+### 5.1 Boucle automatisée
+
+```text
+ChatGPT (pilote : analyse, audit, décision)
+  → Issue GitHub (Coding Task Contract, voir .github/ISSUE_TEMPLATE/coding_task.md)
+      → label "opencode"
+          → commentaire "/oc fix this"
+              → workflow .github/workflows/opencode.yml → OpenCode (exécutant)
+                  → analyse → modification → npm ci + lint + test + build → commit → PR
+                      → CI (ci.yml) sur la PR
+                          → commentaire de réponse d'OpenCode sur l'issue (digest)
+                              → ChatGPT récupère PR + statuts CI + digest → reprise de l'audit
+```
+
+### 5.2 Règles du pont
+
+- OpenCode = **exécutant** : garde-fous dans `AGENTS.md` (règles scientifiques, tests
+  obligatoires avant PR, digest structuré, interdictions : jamais de test supprimé/affaibli,
+  jamais de critère scientifique modifié pour verdir, jamais de merge auto critique).
+- GitHub = **bus** : Issue = tâche ; label `opencode` = autorisation (contrôle positif,
+  dépôt public) ; commentaire `/oc ...` = déclencheur ; PR + statuts CI = résultat.
+- Sécurité workflow : `use_github_token: true` + permissions écriture ; réponses des issues
+  uniquement si label `opencode` ; commentaires de review PR uniquement si auteur = propriétaire.
+- Secrets requis : `OPENCODE_API_KEY` (modèle). `GITHUB_TOKEN` fourni par le runner.
+- Documentation pilote : `docs/chatgpt/CONTEXT_FOR_CHATGPT.md`.
+
+### 5.3 Ce qui reste manuel
+
+- Connecter ChatGPT à GitHub (intégration OpenAI "Actions") pour supprimer la création
+  manuelle d'issue. Sinon : créer l'issue depuis le template + `/oc fix this` (≈1 min).
+- Merge d'une PR à modification scientifique critique : validation humaine obligatoire.

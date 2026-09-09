@@ -1,3 +1,11 @@
+# Pont ChatGPT → GitHub → OpenCode → GitHub (QUV-Lab)
+# Déclenché par un commentaire `/oc` ou `/opencode` sur :
+#   - une Issue portant le label `opencode` (contrôle positif, dépôt public),
+#   - un commentaire de review PR émis par le propriétaire du dépôt.
+# OpenCode (mode use_github_token) lit tout le fil, modifie le code, lance les
+# tests (cf. AGENTS.md), crée une branche, pousse, ouvre une PR et répond sur le fil.
+# Secrets requis : OPENCODE_API_KEY (modèle) ; GITHUB_TOKEN fourni par le runner.
+
 name: opencode
 
 on:
@@ -9,25 +17,35 @@ on:
 jobs:
   opencode:
     if: |
-      contains(github.event.comment.body, ' /oc') ||
-      startsWith(github.event.comment.body, '/oc') ||
-      contains(github.event.comment.body, ' /opencode') ||
-      startsWith(github.event.comment.body, '/opencode')
+      (github.event_name == 'issue_comment' &&
+       contains(github.event.issue.labels.*.name, 'opencode') &&
+       (startsWith(github.event.comment.body, '/oc') ||
+        startsWith(github.event.comment.body, '/opencode') ||
+        contains(github.event.comment.body, ' /oc') ||
+        contains(github.event.comment.body, ' /opencode'))) ||
+      (github.event_name == 'pull_request_review_comment' &&
+       github.event.comment.user.login == github.repository_owner &&
+       (startsWith(github.event.comment.body, '/oc') ||
+        startsWith(github.event.comment.body, '/opencode') ||
+        contains(github.event.comment.body, ' /oc') ||
+        contains(github.event.comment.body, ' /opencode')))
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
-      contents: read
-      pull-requests: read
-      issues: read
+      contents: write
+      pull-requests: write
+      issues: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Run opencode
         uses: anomalyco/opencode/github@latest
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           model: opencode/big-pickle
+          use_github_token: true
