@@ -46,20 +46,73 @@ rejoue ces mêmes étapes sur la PR — pas de vert artificiel.
 - Ne jamais transformer une hypothèse en règle.
 - Ne jamais merge automatiquement une modification scientifique critique (PR seule, validation humaine obligatoire).
 
-## 4. Résultat attendu sur le fil / dans la PR
+## 4. DEV REPORT de fin de développement (obligatoire)
 
-Retourner un digest structuré :
+À chaque tâche de DEV terminée (CORRECTIF / EVOLUTION / REFACTOR, y compris AUDIT avec PR),
+publier un commentaire DEV REPORT sur la PR créée/mise à jour, dans cet ordre impératif :
+
+1. modifier le code ;
+2. exécuter les validations (`npm ci`, `npm run lint`, `npm test`, `npm run build`) ;
+3. commit ;
+4. push ;
+5. créer/mettre à jour la PR ;
+6. **puis** publier le DEV REPORT en commentaire sur cette PR (via l'accès GitHub de l'exécution,
+   `use_github_token: true`).
+
+Le rapport contient uniquement des informations correspondant à l'état réellement produit.
+Bloc machine strictement délimité (modèle canonique : `docs/opencode/DEV_REPORT_TEMPLATE.md`) :
 
 ```text
-STATUS: PASS | WARNING | FAIL
+<!-- OPENCODE_DEV_REPORT -->
+
+STATUS: PASS | FAIL
+TASK_ID:
+TASK_TYPE: AUDIT | CORRECTIF | EVOLUTION | REFACTOR
+PR:
 BRANCH:
 COMMIT:
-PR:
 FILES_MODIFIED:
-TESTS: <lint : x / test : y/y / build : ok|fail>
+- ...
+SCIENTIFIC_FILES_MODIFIED:
+- ...
+ou
+NONE
+TESTS:
+- npm ci:
+- npm run lint:
+- npm test:
+- npm run build:
+TEST_COUNT:
+SCENARIOS:
+- ...
+ou
+NONE
 PROBLEMS:
+- ...
+ou
+NONE
 REMAINING_ISSUES:
+- ...
+ou
+NONE
+SCIENTIFIC_IMPACT:
+- ...
+ou
+NONE
+RECOMMENDATION:
+READY_FOR_AUDIT | NEEDS_CORRECTION
+
+<!-- /OPENCODE_DEV_REPORT -->
 ```
 
+Interdits dans le DEV REPORT :
+- écrire `AUDIT: PASS` ou toute conclusion/validation scientifique (la validation appartient à ChatGPT) ;
+- inventer une donnée de test (`TEST_COUNT` = résultat réel de `npm test`) ;
+- référencer des fichiers non réellement modifiés.
+
+`STATUS` / `RECOMMENDATION` restent des jugements de **DEV** (tests + build).
+Règle ambiguë/source manquante → `🔵 DONNÉES/RÈGLE INSUFFISANTES`, validation humaine.
+
 Références internes : `docs/architecture/ARCHITECTURE.md`, `docs/agents/WORKFLOW.md`,
-`docs/agents/AGENTS.md`, `docs/audits/`, `docs/decisions/DECISIONS.md`, `src/scientific/ruleSet.ts`.
+`docs/agents/AGENTS.md`, `docs/opencode/DEV_REPORT_TEMPLATE.md`, `docs/audits/`,
+`docs/decisions/DECISIONS.md`, `src/scientific/ruleSet.ts`.

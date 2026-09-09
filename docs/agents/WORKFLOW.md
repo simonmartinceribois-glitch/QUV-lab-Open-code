@@ -63,19 +63,26 @@ ChatGPT (pilote : analyse, audit, décision)
               → workflow .github/workflows/opencode.yml → OpenCode (exécutant)
                   → analyse → modification → npm ci + lint + test + build → commit → PR
                       → CI (ci.yml) sur la PR
-                          → commentaire de réponse d'OpenCode sur l'issue (digest)
-                              → ChatGPT récupère PR + statuts CI + digest → reprise de l'audit
+                          → DEV REPORT (commentaire structuré sur la PR, voir
+                            docs/opencode/DEV_REPORT_TEMPLATE.md)
+                              → ChatGPT récupère PR + DEV REPORT + diff + commits + CI
+                                  → audit ChatGPT → décision utilisateur
 ```
 
 ### 5.2 Règles du pont
 
 - OpenCode = **exécutant** : garde-fous dans `AGENTS.md` (règles scientifiques, tests
-  obligatoires avant PR, digest structuré, interdictions : jamais de test supprimé/affaibli,
-  jamais de critère scientifique modifié pour verdir, jamais de merge auto critique).
+  obligatoires avant PR, DEV REPORT structuré, interdictions : jamais de test supprimé/affaibli,
+  jamais de critère scientifique modifié pour verdir, jamais de merge auto critique,
+  jamais `AUDIT: PASS` dans le rapport — la validation scientifique appartient à ChatGPT).
 - GitHub = **bus** : Issue = tâche ; label `opencode` = autorisation (contrôle positif,
-  dépôt public) ; commentaire `/oc ...` = déclencheur ; PR + statuts CI = résultat.
-- Sécurité workflow : `use_github_token: true` + permissions écriture ; réponses des issues
-  uniquement si label `opencode` ; commentaires de review PR uniquement si auteur = propriétaire.
+  dépôt public) ; commentaire `/oc ...` = déclencheur ; PR + statuts CI = résultat ;
+  DEV REPORT = compte rendu de DEV persistent, identifiable par les marqueurs
+  `<!-- OPENCODE_DEV_REPORT -->` / `<!-- /OPENCODE_DEV_REPORT -->`.
+- Sécurité workflow : `use_github_token: true` + permissions écriture ; commentaires
+  `issue_comment` uniquement si label `opencode` **et** auteur du commentaire = propriétaire ;
+  commentaires de review PR uniquement si auteur = propriétaire ; commande stricte en début
+  de commentaire (`/oc` ou `/opencode`).
 - Secrets requis : `OPENCODE_API_KEY` (modèle). `GITHUB_TOKEN` fourni par le runner.
 - Documentation pilote : `docs/chatgpt/CONTEXT_FOR_CHATGPT.md`.
 
@@ -83,4 +90,7 @@ ChatGPT (pilote : analyse, audit, décision)
 
 - Connecter ChatGPT à GitHub (intégration OpenAI "Actions") pour supprimer la création
   manuelle d'issue. Sinon : créer l'issue depuis le template + `/oc fix this` (≈1 min).
+- La récupération *automatique* du DEV REPORT par ChatGPT (sans intervention) dépend de
+  cette intégration ChatGPT/GitHub côté OpenAI — **non implémentée dans le dépôt**.
+  Le dépôt garantit la publication structurée et persistante du rapport dans GitHub.
 - Merge d'une PR à modification scientifique critique : validation humaine obligatoire.

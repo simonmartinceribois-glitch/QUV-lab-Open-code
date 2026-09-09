@@ -7,8 +7,8 @@
 ## Rôle
 
 - **ChatGPT** : analyse, audit, décision, formulation de la tâche, relecture des résultats.
-- **OpenCode** : reçoit un `Coding Task Contract`, exécute (modif → tests → commit → PR), renvoie un digest.
-- GitHub sert de **bus** : Issue = tâche, label `opencode` = autorisation, commentaire `/oc fix this` = déclencheur, PR + CI = résultat.
+- **OpenCode** : reçoit un `Coding Task Contract`, exécute (modif → tests → commit → PR), publie un **DEV REPORT** structuré en commentaire sur sa PR.
+- GitHub sert de **bus** : Issue = tâche, label `opencode` = autorisation, commentaire `/oc fix this` = déclencheur, PR + CI = résultat, DEV REPORT = compte rendu de DEV exploitable.
 
 ## 1. Produire une tâche
 
@@ -42,11 +42,24 @@ OpenCode prend le relais — aucune étape supplémentaire n'est nécessaire.
 
 ## 3. Lire les résultats
 
-Après exécution, chercher sur l'issue :
+Après exécution, OpenCode publie sur la **PR produite** un commentaire contenant le
+**DEV REPORT** (modèle : `docs/opencode/DEV_REPORT_TEMPLATE.md`), strictement délimité par :
 
-- le **commentaire de réponse** d'OpenCode (digest `STATUS / BRANCH / COMMIT / PR / FILES_MODIFIED / TESTS / BUILD / PROBLEMS / REMAINING_ISSUES`) ;
-- la **PR** référencée, avec ses **statuts CI** (lint + test + build) ;
-- relire le diff pour poursuivre l'audit et décider de la suite (validation humaine requise pour toute modification scientifique critique ; jamais de merge automatique).
+```text
+<!-- OPENCODE_DEV_REPORT -->
+...
+<!-- /OPENCODE_DEV_REPORT -->
+```
+
+Ce bloc machine est la source d'information prioritaire de l'audit. Il rapporte le DEV,
+**jamais une validation scientifique** (OpenCode n'écrit pas `AUDIT: PASS`). Pour auditer :
+
+- récupérer le DEV REPORT (statut, test/build réels, fichiers modifiés, SCIENTIFIC_FILES_MODIFIED,
+  SCIENTIFIC_IMPACT, problèmes) ;
+- la **PR** référencée, avec son **diff** et ses **commits** ;
+- les **statuts CI** (lint + test + build) ;
+- puis réaliser l'audit scientifique (validation humaine requise pour toute modification
+  scientifique critique ; jamais de merge automatique).
 
 ## 4. Contraintes scientifiques à toujours rappeler dans le contrat
 
@@ -63,10 +76,15 @@ Après exécution, chercher sur l'issue :
 | Formulation du contrat par ChatGPT | ✅ (cet instruction-ci) |
 | Création de l'issue + label + commentaire `/oc` | ✅ si ChatGPT connecté à GitHub ; sinon Simon (1 min) |
 | OpenCode : analyse, modif, tests, commit, PR | ✅ |
+| OpenCode : publication du DEV REPORT sur la PR | ✅ (via `use_github_token`, mécanisme PR #88) |
 | CI sur la PR | ✅ |
-| Réponse en commentaire sur l'issue | ✅ |
-| Récupération du résultat par ChatGPT | ✅ si connecté ; sinon Simon colle le digeste |
+| Récupération du DEV REPORT par ChatGPT (marqueurs sur la PR) | ✅ si ChatGPT connecté à GitHub ; sinon Simon relève le bloc |
 | Merge de PR scientifique critique | ❌ validation humaine obligatoire |
 
 Security : le workflow ne réagit qu'aux issues labellisées `opencode` (contrôle positif) et aux
 commentaires PR du propriétaire. Secret requis côté dépôt : `OPENCODE_API_KEY`.
+
+Note : la récupération *automatique* par ChatGPT (lecture de la PR, du DEV REPORT, du diff et
+des statuts CI sans intervention) dépend d'une intégration ChatGPT/GitHub côté OpenAI — elle
+**n'est pas implémentée dans le dépôt**. Le dépôt garantit que le rapport est réellement publié,
+structuré (`<!-- OPENCODE_DEV_REPORT -->`), persistant dans GitHub et récupérable.
