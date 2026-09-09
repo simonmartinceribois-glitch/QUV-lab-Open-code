@@ -5,7 +5,7 @@
  */
 
 import { Trial, ExposureStage, BatchDefinition } from '../../types/trial';
-import { ScientificRuleSet } from '../../types/scientific';
+import { ScientificRuleSet, VisualObservationsComputedData } from '../../types/scientific';
 import { TrendFinding, FactualFinding, InterpretationFinding, TrendDirection } from '../../types/analysis';
 import { getActiveExposedPanels, getActiveStages } from '../panelUtils';
 
@@ -133,8 +133,14 @@ export function extractTemporalKinetics(
       }
 
       // 4. Observations
+      // Disponibilité issue EXCLUSIVEMENT du COMPUTED du moteur
+      // (RAW → observationsEngine → COMPUTED). La seule présence d'un RAW n'est
+      // jamais une observation évaluée. maxRating null = non évalué ;
+      // maxRating 0 = observation réelle (aspect intact) ; maxRating ≥ 1 =
+      // observation réelle avec défaut.
       const obsAcq = trial.acquisitions[`${stage.id}__${panel.id}__OBSERVATIONS`];
-      if (obsAcq && obsAcq.raw) {
+      const obsComp = obsAcq?.computed as VisualObservationsComputedData | null | undefined;
+      if (obsComp && obsComp.maxRating !== null && obsComp.maxRating !== undefined) {
         obsCount++;
       }
     }
@@ -467,41 +473,39 @@ export function analyzeBatchTrends(
     || [...trial.stages].sort((a, b) => b.scheduledExposureHours - a.scheduledExposureHours)[0];
 
   if (actualFinalStage) {
+    const exposedPanels = getActiveExposedPanels(batch.panels);
     let recordedObsCount = 0;
-    let blisteringMax = 0;
-    let flakingMax = 0;
-    let crackingMax = 0;
-    let chalkingMax = 0;
+    let overallMaxRating: number | null = null;
 
-    for (const panel of getActiveExposedPanels(batch.panels)) {
+    // Consommation EXCLUSIVE du COMPUTED (RAW → observationsEngine → COMPUTED) :
+    // une acquisition dont le COMPUTED est absent ou dont maxRating est null ne
+    // constitue pas une observation évaluée (missing/invalid ≠ 0). Un maxRating 0
+    // réel reste une observation valide (aucun défaut coté).
+    for (const panel of exposedPanels) {
       const obsAcq = trial.acquisitions[`${actualFinalStage.id}__${panel.id}__OBSERVATIONS`];
-      if (obsAcq && obsAcq.raw) {
+      const obsComp = obsAcq?.computed as VisualObservationsComputedData | null | undefined;
+      if (obsComp && obsComp.maxRating !== null && obsComp.maxRating !== undefined) {
         recordedObsCount++;
-        const rawObs = obsAcq.raw as { observations?: Array<{ category: string; rating: number }> };
-        if (rawObs.observations) {
-          for (const item of rawObs.observations) {
-            if (item.category === 'BLISTERING') blisteringMax = Math.max(blisteringMax, item.rating);
-            if (item.category === 'FLAKING') flakingMax = Math.max(flakingMax, item.rating);
-            if (item.category === 'CRACKING') crackingMax = Math.max(crackingMax, item.rating);
-            if (item.category === 'CHALKING') chalkingMax = Math.max(chalkingMax, item.rating);
-          }
+        if (overallMaxRating === null || obsComp.maxRating > overallMaxRating) {
+          overallMaxRating = obsComp.maxRating;
         }
       }
     }
 
     if (recordedObsCount > 0) {
-      const obsList: string[] = [];
-      obsList.push(`Cloquage (ISO 4628-2) : ${blisteringMax === 0 ? 'aucun cloquage enregistré (cotation 0)' : `cotation maximale ${blisteringMax}`}`);
-      obsList.push(`Écaillage (ISO 4628-5) : ${flakingMax === 0 ? 'aucun écaillage enregistré (cotation 0)' : `cotation maximale ${flakingMax}`}`);
-      obsList.push(`Craquelage (ISO 4628-4) : ${crackingMax === 0 ? 'aucun craquelage enregistré (cotation 0)' : `cotation maximale ${crackingMax}`}`);
-      obsList.push(`Farinage (ISO 4628-6) : ${chalkingMax === 0 ? 'aucun farinage enregistré (cotation 0)' : `cotation maximale ${chalkingMax}`}`);
+      const obsDesc = overallMaxRating === 0
+        ? 'Aucun défaut coté pour les catégories évaluées (cotation réelle 0)'
+        : `Cotation maximale ${overallMaxRating} pour les observations disponibles`;
+      const partial = recordedObsCount < exposedPanels.length
+        ? ' – observations partiellement disponibles'
+        : '';
 
       factualFindings.push({
         id: `FACT-OBS-${batch.reference}`,
         level: 3,
         familyId: 'OBSERVATIONS',
         title: `Observations visuelles enregistrées (${batch.reference})`,
-        description: `Examen visuel à ${getEffectiveExposureHours(actualFinalStage)} h${hasActualExposureHours(actualFinalStage) ? ' (durée réelle)' : ' (durée prévue)'} : ${obsList.join(' ; ')}.`,
+        description: `Examen visuel à ${getEffectiveExposureHours(actualFinalStage)} h${hasActualExposureHours(actualFinalStage) ? ' (durée réelle)' : ' (durée prévue)'} : ${obsDesc}.${partial}`,
         confidence: 'CERTAIN'
       });
     } else {
