@@ -58,15 +58,11 @@ export function Tab05Stages({
     }
   }, [selectedStageId, activeStages, currentStage, onSelectStageId]);
 
-  const [actualHours, setActualHours] = useState<string>(
-    currentStage.actualExposureHours !== undefined ? currentStage.actualExposureHours.toString() : ''
-  );
   const [operatorId, setOperatorId] = useState<string>('Simon Martin (Technicien)');
   const [validationNotes, setValidationNotes] = useState<string>('');
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [showDeactivationModal, setShowDeactivationModal] = useState(false);
   const [deactivationReason, setDeactivationReason] = useState<string>('');
-  const [saveHoursSuccess, setSaveHoursSuccess] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const isMandatory = isMandatoryStage(currentStage);
@@ -117,17 +113,6 @@ export function Tab05Stages({
   const allFamiliesComplete = stageActiveFamilies.every(
     (fam) => (familyStats[fam]?.completed ?? 0) === totalActivePanelsCount && totalActivePanelsCount > 0
   );
-
-  const handleSaveHours = () => {
-    const val = parseFloat(actualHours);
-    if (!isNaN(val)) {
-      currentStage.actualExposureHours = val;
-      globalTrialStore.saveTrial(trial);
-      setSaveHoursSuccess(true);
-      setTimeout(() => setSaveHoursSuccess(false), 2000);
-      onTrialUpdated();
-    }
-  };
 
   const handleConfirmValidation = () => {
     globalTrialStore.validateStage(trial.id, currentStage.id, operatorId, validationNotes);
@@ -204,7 +189,6 @@ export function Tab05Stages({
               onClick={() => {
                 if (isStInactive) return;
                 onSelectStageId(stage.id);
-                setActualHours(stage.actualExposureHours !== undefined ? stage.actualExposureHours.toString() : '');
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 transition-all ${
                 isSelected
@@ -308,30 +292,15 @@ export function Tab05Stages({
           </div>
         </div>
 
-        {/* Input Heures réelles */}
+        {/* Jalon d'exposition déterministe (lecture seule) : le cycle QUV
+            détermine la durée — aucune saisie manuelle d'heures. */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Heures réelles constatées (h)
+              Jalon d'exposition : {currentStage.scheduledExposureHours} h
             </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                step="0.1"
-                disabled={isInactive}
-                value={actualHours}
-                onChange={(e) => setActualHours(e.target.value)}
-                placeholder={currentStage.scheduledExposureHours.toString()}
-                className="w-full text-xs font-mono font-bold px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
-              />
-              <button
-                type="button"
-                disabled={isInactive}
-                onClick={handleSaveHours}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold disabled:opacity-50"
-              >
-                {saveHoursSuccess ? '✓' : 'Fixer'}
-              </button>
+            <div className="text-xs text-slate-600 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg">
+              Déterminé automatiquement par le cycle QUV (cycle {currentStage.cycleIndex} × 168 h).
             </div>
           </div>
 

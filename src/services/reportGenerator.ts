@@ -371,7 +371,7 @@ export function buildScientificReport(
       trial.stages
         .map(
           (st) =>
-            `  - [${st.stageType}] ${st.name} | Planifié : ${st.scheduledExposureHours} h | Réel : ${st.actualExposureHours !== undefined ? st.actualExposureHours + ' h' : 'Non mesuré'} | Statut : ${st.status}`
+            `  - [${st.stageType}] ${st.name} | Jalon d'exposition : ${st.scheduledExposureHours} h (cycle ${st.cycleIndex} × 168 h) | Relevé le : ${st.measuredAt ? new Date(st.measuredAt).toLocaleString('fr-FR') : 'Non relevé'} | Statut : ${st.status}`
         )
         .join('\n'),
     measurementPlan: `Familles de mesure actives : ${trial.config.activeFamilies.join(', ')}\n• Couleur : ${planDetail('COLOR', 'points par éprouvette')}\n• Brillance : ${planDetail('GLOSS', 'lectures')}\n• Persoz : ${planDetail('PERSOZ', 'mesures')}\n• Adhérence au quadrillage : ${planDetail('ADHESION', 'mesures (NF EN ISO 2409:2020)')}\n• Observations visuelles : ${trial.config.familyConfigs.OBSERVATIONS?.enabled ? 'Active (Évaluation ISO 4628)' : 'Désactivée'}`,

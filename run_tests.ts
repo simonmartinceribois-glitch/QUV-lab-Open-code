@@ -22,6 +22,7 @@ import { runColorAdhesionStatisticsTests } from './src/scientific/tests/color_ad
 import { runColorRestitutionTests } from './src/scientific/tests/color_statistics_restitution.test';
 import { runReportFidelityTests } from './src/scientific/tests/report_fidelity.test';
 import { runAdhesionUiLockTests } from './src/scientific/tests/adhesion_ui_lock.test';
+import { runStep05MilestoneTests } from './src/scientific/tests/step05_exposure_milestones.test';
 import { runPersozQualityPopulationTests } from './src/scientific/tests/persoz_quality_population.test';
 import { runExportComputedPopulationTests } from './src/scientific/tests/export_computed_population.test';
 import { runReferenceTraceabilityTests } from './src/scientific/tests/reference_traceability.test';
@@ -471,6 +472,19 @@ suite34.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('35. EXÉCUTION DES JALONS QUV DÉTERMINISTES (10 TESTS)');
+console.log('================================================================');
+const suite35 = runStep05MilestoneTests();
+console.log(`Résultats Jalons QUV : ${suite35.summary.passed} / ${suite35.summary.total} réussis.`);
+suite35.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Step05 Milestones] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -505,7 +519,8 @@ const totalFailed =
   suite31.summary.failed +
   suite32.summary.failed +
   suite33.summary.failed +
-  suite34.summary.failed;
+  suite34.summary.failed +
+  suite35.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -540,7 +555,8 @@ const totalCount =
   suite31.summary.total +
   suite32.summary.total +
   suite33.summary.total +
-  suite34.summary.total;
+  suite34.summary.total +
+  suite35.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

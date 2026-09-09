@@ -23,7 +23,6 @@ export function generateStandardExposureStages(trialId: UUID, selectedMeasuremen
     stageType: 'INITIAL_PRE_EXPOSURE',
     name: 'T0 — MESURES INITIALES AVANT EXPOSITION',
     scheduledExposureHours: 0,
-    actualExposureHours: 0,
     scheduledAt: baseDate.toISOString(),
     measuredAt: baseDate.toISOString(),
     status: 'VALIDATED',
@@ -52,7 +51,6 @@ export function generateStandardExposureStages(trialId: UUID, selectedMeasuremen
         ? '2016 h — MESURES FINALES APRÈS EXPOSITION'
         : `${cycleHours} h — MESURES EN COURS D'EXPOSITION`,
       scheduledExposureHours: cycleHours,
-      actualExposureHours: i === 1 && isPlannedForMeasurement ? 168 : (i === 2 && isPlannedForMeasurement ? 335.8 : undefined),
       scheduledAt: scheduledDate.toISOString(),
       measuredAt: i === 1 && isPlannedForMeasurement ? '2026-09-06T14:30:00Z' : (i === 2 && isPlannedForMeasurement ? '2026-09-13T10:15:00Z' : undefined),
       status: !isPlannedForMeasurement ? 'INACTIVE' : (i === 1 ? 'VALIDATED' : i === 2 ? 'IN_PROGRESS' : 'NOT_STARTED'),
