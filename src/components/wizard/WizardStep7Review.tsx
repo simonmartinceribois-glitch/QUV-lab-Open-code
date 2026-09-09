@@ -104,7 +104,7 @@ export function WizardStep7Review({
                 <span className="text-slate-500 ml-2">({b.coatingSystem})</span>
               </div>
               <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold font-mono">
-                {b.panelCount} panneaux
+                4 panneaux — T, E1, E2, E3
               </span>
             </div>
           ))}

@@ -23,7 +23,8 @@ export interface LotFormItem {
   applicationDate: string;
   dryingOrConditioningTime: string;
   batchNotes: string;
-  panelCount: number;
+  // Pas de panelCount : chaque lot utilise la configuration canonique
+  // (4 panneaux — T, E1, E2, E3) créée par createTrial().
 }
 
 export type TextSetter = Dispatch<SetStateAction<string>>;
