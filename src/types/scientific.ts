@@ -462,7 +462,8 @@ export interface VisualObservationsRawData {
 export interface VisualObservationsComputedData {
   totalEvaluated: number;
   defectsCount: number;
-  maxRating: number;
+  /** Cotation maximale relevée : null lorsque aucune cotation valide n'est enregistrée (jamais 0). */
+  maxRating: number | null;
   summary: string;
   qualityAssessment: QualityAssessment;
   protocolStatus: ProtocolComplianceStatus;

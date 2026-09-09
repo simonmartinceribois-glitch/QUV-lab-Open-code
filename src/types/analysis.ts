@@ -129,10 +129,11 @@ export interface SystemComparisonItem {
   };
   observations?: {
     summary: string;
-    blisteringRating: number;
-    flakingRating: number;
-    crackingRating: number;
-    chalkingRating: number;
+    /** null (non évalué) quand aucune cotation valide est enregistrée pour la catégorie — jamais 0 par défaut. */
+    blisteringRating: number | null;
+    flakingRating: number | null;
+    crackingRating: number | null;
+    chalkingRating: number | null;
     hasRecordedData: boolean;
   };
   isComplete: boolean;

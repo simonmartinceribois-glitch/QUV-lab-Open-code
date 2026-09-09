@@ -34,6 +34,7 @@ import { runImportRobustnessTests } from './src/scientific/tests/import_robustne
 import { runRecalculatorPopulationTests, runRecalculatorContextTests } from './src/scientific/tests/recalculator_population_lock.test';
 import { runAggregatorPopulationLockTests } from './src/scientific/tests/aggregator_population_lock.test';
 import { runReferenceEligibilityTests } from './src/scientific/tests/reference_trace_eligibility.test';
+import { runObservationsIntegrityTests } from './src/scientific/tests/observations_integrity.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -513,6 +514,19 @@ suite37.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('38. EXÉCUTION DE L\'INTÉGRITÉ DES OBSERVATIONS VISUELLES (15 TESTS)');
+console.log('================================================================');
+const suite38 = runObservationsIntegrityTests();
+console.log(`Résultats Intégrité Observations : ${suite38.summary.passed} / ${suite38.summary.total} réussis.`);
+suite38.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Obs Integrity] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -550,7 +564,8 @@ const totalFailed =
   suite34.summary.failed +
   suite35.summary.failed +
   suite36.summary.failed +
-  suite37.summary.failed;
+  suite37.summary.failed +
+  suite38.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -588,7 +603,8 @@ const totalCount =
   suite34.summary.total +
   suite35.summary.total +
   suite36.summary.total +
-  suite37.summary.total;
+  suite37.summary.total +
+  suite38.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
