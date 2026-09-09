@@ -8,6 +8,7 @@ import { Trial, ExposureStage, BatchDefinition } from '../../types/trial';
 import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
 import { AnalysisAnomaly } from '../../types/analysis';
 import { getActiveFamiliesForStage } from '../panelUtils';
+import { parseObservationRating } from '../observationsEngine';
 
 export function detectTrialAnomalies(
   trial: Trial,
@@ -249,10 +250,15 @@ export function detectTrialAnomalies(
         const obsKey = `${stage.id}__${panel.id}__OBSERVATIONS`;
         const obsAcq = trial.acquisitions[obsKey];
         if (obsAcq && obsAcq.raw) {
-          const rawObs = obsAcq.raw as { observations?: Array<{ category: string; rating: number; comment?: string }> };
+          const rawObs = obsAcq.raw as { observations?: Array<{ category: string; rating: string | number | null | undefined; comment?: string }> };
           if (rawObs.observations) {
             for (const item of rawObs.observations) {
-              if (item.rating === 0 && item.comment && /(important|sévère|marqué|fort|décollement)/i.test(item.comment)) {
+              // Validation par la source de vérité commune parseObservationRating :
+              // seules les cotations réellement VALID et égales à 0 déclenchent le
+              // contrôle de cohérence. Une cotation MISSING ou INVALID n'est jamais
+              // transformée en 0 (pas de contradiction fabriquée par absence).
+              const { validity, value } = parseObservationRating(item.rating);
+              if (validity === 'VALID' && value === 0 && item.comment && /(important|sévère|marqué|fort|décollement)/i.test(item.comment)) {
                 addAnomaly(
                   'CRITICAL',
                   'DATA',
