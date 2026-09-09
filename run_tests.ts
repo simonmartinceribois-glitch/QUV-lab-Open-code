@@ -21,6 +21,7 @@ import { runAdhesionFamilyRestitutionTests } from './src/scientific/tests/adhesi
 import { runColorAdhesionStatisticsTests } from './src/scientific/tests/color_adhesion_statistics.test';
 import { runColorRestitutionTests } from './src/scientific/tests/color_statistics_restitution.test';
 import { runReportFidelityTests } from './src/scientific/tests/report_fidelity.test';
+import { runAdhesionUiLockTests } from './src/scientific/tests/adhesion_ui_lock.test';
 import { runPersozQualityPopulationTests } from './src/scientific/tests/persoz_quality_population.test';
 import { runExportComputedPopulationTests } from './src/scientific/tests/export_computed_population.test';
 import { runReferenceTraceabilityTests } from './src/scientific/tests/reference_traceability.test';
@@ -457,6 +458,19 @@ suite33.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('34. EXÉCUTION DU VERROU UI ADHÉSION (6 TESTS)');
+console.log('================================================================');
+const suite34 = runAdhesionUiLockTests();
+console.log(`Résultats Verrou UI ADHÉSION : ${suite34.summary.passed} / ${suite34.summary.total} réussis.`);
+suite34.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Adhesion UI Lock] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -490,7 +504,8 @@ const totalFailed =
   suite30.summary.failed +
   suite31.summary.failed +
   suite32.summary.failed +
-  suite33.summary.failed;
+  suite33.summary.failed +
+  suite34.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -524,7 +539,8 @@ const totalCount =
   suite30.summary.total +
   suite31.summary.total +
   suite32.summary.total +
-  suite33.summary.total;
+  suite33.summary.total +
+  suite34.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
