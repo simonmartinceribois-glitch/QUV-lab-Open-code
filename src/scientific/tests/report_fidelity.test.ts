@@ -596,6 +596,35 @@ export function runReportFidelityTests(): {
       ok, 'en cours, sans ont été validées', String(ok));
   }
 
+  // --- RF-48 : P2-1 endpoint cinétique absent → Non renseigné, jamais 0 h ---
+  {
+    const t = buildSparseTrial();
+    for (const st of t.stages) st.status = 'NOT_STARTED';
+    const r = buildReport(t);
+    const ok = r.sections.kineticsAnalysis.includes('à Non renseigné h') &&
+      !r.sections.kineticsAnalysis.includes('168 h à 0 h');
+    record('RF-48', 'KINETIC-ENDPOINT : absent → Non renseigné (jamais 0 h fabriqué)',
+      ok, 'à Non renseigné h, sans 168 h à 0 h', String(ok));
+  }
+
+  // --- RF-49 : P2-2 absence d'adaptation → constat factuel, pas d'exécution standard ---
+  {
+    const r = buildReport(buildSparseTrial());
+    const ok = r.sections.deviationsAndAdaptations.includes("n'est enregistrée dans la configuration") &&
+      !r.sections.deviationsAndAdaptations.includes('ont suivi les paramètres standards');
+    record('RF-49', 'NO-ADAPT : constat factuel uniquement, sans claim exécution standard',
+      ok, "n'est enregistrée, sans ont suivi", String(ok));
+  }
+
+  // --- RF-50 : P2-3 sans audit d'intégrité → intégrité complète non revendiquée ---
+  {
+    const r = buildReport(buildSparseTrial());
+    const ok = r.sections.qualityControl.includes("n'est pas déterminée") &&
+      !r.sections.qualityControl.includes('préservées dans leur intégralité');
+    record('RF-50', 'RAW-INTEGRITY : non déterminée sans audit, jamais intégralité revendiquée',
+      ok, "pas déterminée, sans intégralité", String(ok));
+  }
+
   const passed = results.filter((r) => r.passed).length;
   return { results, summary: { total: results.length, passed, failed: results.length - passed } };
 }
