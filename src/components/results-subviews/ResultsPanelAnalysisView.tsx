@@ -202,7 +202,7 @@ export function ResultsPanelAnalysisView({
               <thead>
                 <tr className="bg-slate-100 text-slate-700 border-b border-slate-200 font-bold">
                   <th className="p-2.5">Étape d'Exposition</th>
-                  <th className="p-2.5">Heures Réelles</th>
+                  <th className="p-2.5">Jalon (h)</th>
                   {selectedFamily === 'COLOR' && (
                     <>
                       <th className="p-2.5">Moyenne L*</th>
@@ -294,7 +294,7 @@ export function ResultsPanelAnalysisView({
                         {stage.cycleIndex === 0 ? 'T0 (Initiale)' : stage.cycleIndex === 12 ? '2016 h (Finale)' : `Cycle ${stage.cycleIndex}`}
                       </td>
                       <td className="p-2.5 font-mono text-slate-600">
-                        {stage.actualExposureHours !== undefined ? `${stage.actualExposureHours} h` : '—'}
+                        {stage.scheduledExposureHours} h
                       </td>
 
                       {selectedFamily === 'COLOR' && (() => {

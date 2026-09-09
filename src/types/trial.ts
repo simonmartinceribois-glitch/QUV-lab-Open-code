@@ -124,6 +124,10 @@ export interface ExposureStage {
   stageType: ExposureStageType;
   name: string;
   scheduledExposureHours: number;
+  // Compatibilité historique UNIQUEMENT : durée jadis saisissable manuellement.
+  // Ne plus renseigner : le jalon déterministe (scheduledExposureHours =
+  // cycleIndex × 168) est la seule source scientifique. Ne jamais l'éditer
+  // depuis Step 05, ne jamais l'utiliser comme source de durée scientifique.
   actualExposureHours?: number;
   scheduledAt?: ISODateString;
   measuredAt?: ISODateString;

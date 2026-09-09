@@ -243,9 +243,9 @@ export function Tab04Calendar({ trial, onSelectStage, onTrialUpdated }: Props) {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Heures réelles d'exposition :</span>
+                  <span>Jalon d'exposition :</span>
                   <strong className="text-slate-900 font-mono">
-                    {stage.actualExposureHours !== undefined ? `${stage.actualExposureHours} h` : '—'}
+                    {stage.scheduledExposureHours} h
                   </strong>
                 </div>
 
