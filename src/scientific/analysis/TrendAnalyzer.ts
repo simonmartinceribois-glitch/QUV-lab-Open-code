@@ -9,6 +9,24 @@ import { ScientificRuleSet } from '../../types/scientific';
 import { TrendFinding, FactualFinding, InterpretationFinding, TrendDirection } from '../../types/analysis';
 import { getActiveExposedPanels, getActiveStages } from '../panelUtils';
 
+/**
+ * Durée d'exposition effective d'un jalon (P1 — priorité au réel).
+ * Règle : actualExposureHours si présente (y compris 0 réel), sinon
+ * scheduledExposureHours. Vérification explicite de présence : jamais
+ * `actual || scheduled` (un 0 réel ne doit pas retomber en théorique).
+ */
+export function hasActualExposureHours(stage: { actualExposureHours?: number | null }): boolean {
+  return stage.actualExposureHours !== null && stage.actualExposureHours !== undefined;
+}
+
+export function getEffectiveExposureHours(stage: {
+  actualExposureHours?: number | null;
+  scheduledExposureHours: number;
+}): number {
+  if (hasActualExposureHours(stage)) return stage.actualExposureHours as number;
+  return stage.scheduledExposureHours;
+}
+
 export interface TemporalKineticsSeries {
   exposureHours: number;
   stageName: string;
@@ -123,7 +141,7 @@ export function extractTemporalKinetics(
 
     if (colorCount > 0 || glossCount > 0 || persozCount > 0 || obsCount > 0) {
       series.push({
-        exposureHours: stage.scheduledExposureHours,
+        exposureHours: getEffectiveExposureHours(stage),
         stageName: stage.name,
         cycleIndex: stage.cycleIndex,
         stageType: stage.stageType,
@@ -483,7 +501,7 @@ export function analyzeBatchTrends(
         level: 3,
         familyId: 'OBSERVATIONS',
         title: `Observations visuelles enregistrées (${batch.reference})`,
-        description: `Examen visuel à ${actualFinalStage.scheduledExposureHours} h : ${obsList.join(' ; ')}.`,
+        description: `Examen visuel à ${getEffectiveExposureHours(actualFinalStage)} h${hasActualExposureHours(actualFinalStage) ? ' (durée réelle)' : ' (durée prévue)'} : ${obsList.join(' ; ')}.`,
         confidence: 'CERTAIN'
       });
     } else {

@@ -6,7 +6,7 @@
 
 import { Trial, BatchDefinition, ExposureStage } from '../../types/trial';
 import { ScientificRuleSet } from '../../types/scientific';
-import { extractTemporalKinetics } from './TrendAnalyzer';
+import { extractTemporalKinetics, hasActualExposureHours } from './TrendAnalyzer';
 import { getActiveExposedPanels } from '../panelUtils';
 
 export interface TechnicalSynthesisOptions {
@@ -55,7 +55,13 @@ export function generateTechnicalSynthesis(
     throw new Error(`Jalon cible introuvable pour la synthèse (targetStageId=${options?.targetStageId || 'non défini'}).`);
   }
 
-  const targetExposureHours = targetStage.scheduledExposureHours || (targetStage.cycleIndex * 168);
+  // Durée cible effective (P1) : réelle si enregistrée (0 réel conservé),
+  // sinon prévue (cycle de référence). Substitution traçable via durationTag.
+  const targetIsActual = hasActualExposureHours(targetStage);
+  const targetExposureHours = targetIsActual
+    ? targetStage.actualExposureHours as number
+    : (targetStage.scheduledExposureHours ?? targetStage.cycleIndex * 168);
+  const durationTag = targetIsActual ? ' (durée réelle)' : ' (durée prévue)';
   const kinetics = extractTemporalKinetics(trial, targetBatch.id);
   const finalKinetics = kinetics.find((k) => k.exposureHours === targetExposureHours) || kinetics[kinetics.length - 1];
 
@@ -68,7 +74,7 @@ export function generateTechnicalSynthesis(
   const species = targetBatch.woodSpecies || trial.commonCharacteristics?.materialType || 'essence non précisée';
 
   sentences.push(
-    `L'essai de vieillissement accéléré QUV (${trialRef}) a été conduit jusqu'à ${targetExposureHours} h selon la norme NF EN 927-6 sur le système "${systemName}" (${manufacturer}) appliqué sur ${species}.`
+    `L'essai de vieillissement accéléré QUV (${trialRef}) a été conduit jusqu'à ${targetExposureHours} h${durationTag} selon la norme NF EN 927-6 sur le système "${systemName}" (${manufacturer}) appliqué sur ${species}.`
   );
 
   // --------------------------------------------------------------------------
@@ -83,7 +89,7 @@ export function generateTechnicalSynthesis(
     const deltaPercent = finalKinetics.meanPersozDeltaPercent ?? +( ((pf - p0) / p0) * 100 ).toFixed(1);
 
     sentences.push(
-      `À ${targetExposureHours} h, la dureté pendulaire Persoz évolue de ${p0.toFixed(0)} s à ${pf.toFixed(0)} s, soit une variation de ${deltaP > 0 ? '+' : ''}${deltaP.toFixed(0)} s (${deltaPercent > 0 ? '+' : ''}${deltaPercent.toFixed(1)} %).`
+      `À ${targetExposureHours} h${durationTag}, la dureté pendulaire Persoz évolue de ${p0.toFixed(0)} s à ${pf.toFixed(0)} s, soit une variation de ${deltaP > 0 ? '+' : ''}${deltaP.toFixed(0)} s (${deltaPercent > 0 ? '+' : ''}${deltaPercent.toFixed(1)} %).`
     );
   } else {
     limitations.push('Données de dureté pendulaire Persoz non disponibles à cette étape.');
