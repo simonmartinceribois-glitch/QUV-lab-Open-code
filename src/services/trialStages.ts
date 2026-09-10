@@ -1,6 +1,9 @@
 /**
  * QUV-Lab — Calendrier d'exposition standard NF EN 927-6 (T0 + 12x168h)
  * Issu du decoupage de trialStore.ts (refactor/split-trialstore). Code deplace a l'identique.
+ * Le générateur produit UNIQUEMENT le calendrier/protocole : aucune acquisition fictive.
+ * Les métadonnées d'acquisition (measuredAt, validatedBy, validatedAt, notes) restent
+ * undefined tant qu'une opération métier réelle ne les renseigne (G52-CAL / étape 06).
  */
 import { ExposureStage } from '../types/trial';
 import { UUID } from '../types/scientific';
@@ -10,6 +13,11 @@ import { UUID } from '../types/scientific';
  * Si un plan de mesurage restreint est fourni, les cycles non mesurés restent présents
  * dans le modèle physique en tant que cycles d'exposition, avec le statut 'INACTIVE' (masqués de la paillasse).
  * T0 et C12 sont obligatoires et ne peuvent jamais être inactifs.
+ *
+ * À la création d'un essai réel, chaque jalon planifié démarre en 'NOT_STARTED' sans
+ * aucune donnée d'acquisition fabriquée (status n'est jamais 'VALIDATED'/'IN_PROGRESS'
+ * et measuredAt/validatedBy/validatedAt/notes restent undefined). Les données de
+ * démonstration ne vivent que dans trialSeed.ts, jamais ici.
  */
 export function generateStandardExposureStages(trialId: UUID, selectedMeasurementCycles?: number[]): ExposureStage[] {
   const stages: ExposureStage[] = [];
@@ -24,11 +32,7 @@ export function generateStandardExposureStages(trialId: UUID, selectedMeasuremen
     name: 'T0 — MESURES INITIALES AVANT EXPOSITION',
     scheduledExposureHours: 0,
     scheduledAt: baseDate.toISOString(),
-    measuredAt: baseDate.toISOString(),
-    status: 'VALIDATED',
-    validatedBy: 'SM',
-    validatedAt: '2026-08-30T12:00:00Z',
-    notes: 'Mesures initiales de référence réalisées avant toute exposition UV.'
+    status: 'NOT_STARTED'
   });
 
   // 12 Cycles de 168h (168h à 2016h)
@@ -52,11 +56,7 @@ export function generateStandardExposureStages(trialId: UUID, selectedMeasuremen
         : `${cycleHours} h — MESURES EN COURS D'EXPOSITION`,
       scheduledExposureHours: cycleHours,
       scheduledAt: scheduledDate.toISOString(),
-      measuredAt: i === 1 && isPlannedForMeasurement ? '2026-09-06T14:30:00Z' : (i === 2 && isPlannedForMeasurement ? '2026-09-13T10:15:00Z' : undefined),
-      status: !isPlannedForMeasurement ? 'INACTIVE' : (i === 1 ? 'VALIDATED' : i === 2 ? 'IN_PROGRESS' : 'NOT_STARTED'),
-      validatedBy: i === 1 && isPlannedForMeasurement ? 'SM' : undefined,
-      validatedAt: i === 1 && isPlannedForMeasurement ? '2026-09-06T17:00:00Z' : undefined,
-      notes: i === 1 && isPlannedForMeasurement ? 'Relevé intermédiaire 168h validé sans anomalie.' : undefined
+      status: !isPlannedForMeasurement ? 'INACTIVE' : 'NOT_STARTED'
     });
   }
 

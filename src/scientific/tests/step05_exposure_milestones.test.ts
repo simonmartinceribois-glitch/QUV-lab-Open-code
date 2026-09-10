@@ -128,14 +128,17 @@ export function runStep05MilestoneTests(): {
       ok, 'tous undefined', String(ok));
   }
 
-  // --- STEP05-HOURS-08 : traçabilité horodatée préservée ---
+  // --- STEP05-HOURS-08 : traçabilité planifiée préservée, aucune acquisition fictive ---
   {
     const t0 = byCycle(stages, 0);
     const c1 = byCycle(stages, 1);
-    const ok = typeof t0.measuredAt === 'string' && typeof t0.scheduledAt === 'string' &&
-      typeof c1.measuredAt === 'string' && typeof c1.scheduledAt === 'string';
-    record('STEP05-HOURS-08', 'measuredAt/scheduledAt présents (traçabilité, pas durée)',
-      ok, 'timestamps présents', String(ok));
+    const ok = typeof t0.scheduledAt === 'string' &&
+      typeof c1.scheduledAt === 'string' &&
+      t0.measuredAt === undefined && t0.validatedBy === undefined &&
+      c1.measuredAt === undefined && c1.validatedBy === undefined &&
+      t0.status === 'NOT_STARTED' && c1.status === 'NOT_STARTED';
+    record('STEP05-HOURS-08', 'Génération à la création : scheduledAt (calendrier) présent, measuredAt/validatedBy absents (aucune mesure fictive)',
+      ok, 'scheduledAt string, measuredAt/validatedBy undefined, NOT_STARTED', String(ok));
   }
 
   // --- STEP05-HOURS-09 : legacy 335.8 ne supplante jamais le jalon ---
