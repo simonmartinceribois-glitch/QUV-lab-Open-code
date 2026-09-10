@@ -21,9 +21,9 @@ import {
 } from './scientific';
 
 export interface TrialMetadata {
-  reference: string;                 // ex: "QUV-2026-042"
-  orderNumber?: string;              // Commande ex: "CO-VAN2026-001"
-  reportNumber?: string;             // Rapport d'essai ex: "RA-VAN2026-001"
+  reference: string;                 // ex: "QUV-2030-004"
+  orderNumber?: string;              // Commande ex: "CO-2030-001"
+  reportNumber?: string;             // Rapport d'essai ex: "RA-2030-001"
   title?: string;
   projectOrClient?: string;
   coatingSystemDescription?: string;
@@ -269,6 +269,9 @@ export interface Trial {
   schemaVersion: string;
   createdAt: ISODateString;
   updatedAt: ISODateString;
+  // Date de début de l'exposition (jalon T0) — source unique de vérité du calendrier.
+  // Renseignée à la création (générateur de stages paramétré par cette date).
+  startDate?: ISODateString;
   metadata: TrialMetadata;
   commonCharacteristics?: CommonCharacteristics;
   status: TrialStatus;

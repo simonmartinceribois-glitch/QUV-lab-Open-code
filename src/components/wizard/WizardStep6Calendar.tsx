@@ -10,6 +10,8 @@ import type { MeasurementFamilyId } from '../../types/scientific';
 interface Props {
   activeFamilies: MeasurementFamilyId[];
   selectedMeasurementCycles: number[];
+  startDate: string;
+  onStartDateChange: (value: string) => void;
   onPreset: (preset: 'FULL' | 'QUARTERLY' | 'LIGHT') => void;
   onToggleCycle: (cycleIndex: number) => void;
 }
@@ -17,6 +19,8 @@ interface Props {
 export function WizardStep6Calendar({
   activeFamilies,
   selectedMeasurementCycles,
+  startDate,
+  onStartDateChange,
   onPreset,
   onToggleCycle
 }: Props) {
@@ -34,6 +38,23 @@ export function WizardStep6Calendar({
               </p>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Date de début de l'exposition (T0) — source unique du calendrier */}
+      <div className="bg-white border border-blue-200 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-xs text-slate-700">
+          <Calendar className="w-4 h-4 text-blue-600" />
+          <span className="font-bold">Date de début de l'exposition (T0) :</span>
+          <span className="text-slate-500">les jalons C1…C12 seront planifiés à T0 + cycle × 168 h.</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => onStartDateChange(e.target.value)}
+            className="px-3 py-1.5 text-xs font-mono font-bold border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          />
         </div>
       </div>
 

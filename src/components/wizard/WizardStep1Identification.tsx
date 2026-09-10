@@ -45,7 +45,7 @@ export function WizardStep1Identification({
             className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 font-mono font-bold ${
               !reference.trim() ? 'border-rose-300 bg-rose-50/20' : 'border-slate-300'
             }`}
-            placeholder="Ex: QUV-2026-042"
+            placeholder="Ex: QUV-2030-004"
           />
           {!reference.trim() && (
             <p className="text-[11px] text-rose-600 mt-1 font-medium">

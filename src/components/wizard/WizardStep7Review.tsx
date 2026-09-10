@@ -28,6 +28,7 @@ interface Props {
   adhCount: number;
   isAdhAdapted: boolean;
   selectedMeasurementCycles: number[];
+  startDate: string;
 }
 
 export function WizardStep7Review({
@@ -51,7 +52,8 @@ export function WizardStep7Review({
   persozReps,
   adhCount,
   isAdhAdapted,
-  selectedMeasurementCycles
+  selectedMeasurementCycles,
+  startDate
 }: Props) {
   return (
     <div className="space-y-5">
@@ -141,6 +143,10 @@ export function WizardStep7Review({
           <span className="font-mono text-emerald-700 font-bold">2016 h cumulées (12 cycles)</span>
         </h4>
         <div className="space-y-2">
+          <p className="text-slate-600 text-[11px]">
+            <span className="text-slate-500 font-medium">Début (T0) :</span>{' '}
+            <strong className="font-mono">{startDate ? new Date(startDate).toLocaleDateString('fr-FR') : '—'}</strong> — les jalons C1…C12 suivront à T0 + cycle × 168 h.
+          </p>
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-slate-500 font-medium">Jalons mesurés prévus :</span>
             <div className="flex flex-wrap gap-1 font-mono font-bold">

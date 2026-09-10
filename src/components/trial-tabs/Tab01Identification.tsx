@@ -24,8 +24,8 @@ interface Props {
 
 export function Tab01Identification({ trial, onTrialUpdated }: Props) {
   const [title, setTitle] = useState(trial.metadata.title || '');
-  const [orderNumber, setOrderNumber] = useState(trial.metadata.orderNumber || 'CO-VAN2026-001');
-  const [reportNumber, setReportNumber] = useState(trial.metadata.reportNumber || 'RA-VAN2026-001');
+  const [orderNumber, setOrderNumber] = useState(trial.metadata.orderNumber || '');
+  const [reportNumber, setReportNumber] = useState(trial.metadata.reportNumber || '');
   const [projectOrClient, setProjectOrClient] = useState(trial.metadata.projectOrClient || '');
   const [coatingSystemDescription, setCoatingSystemDescription] = useState(trial.metadata.coatingSystemDescription || '');
   const [substrateDescription, setSubstrateDescription] = useState(trial.metadata.substrateDescription || '');
@@ -121,7 +121,7 @@ export function Tab01Identification({ trial, onTrialUpdated }: Props) {
               type="text"
               value={orderNumber}
               onChange={(e) => setOrderNumber(e.target.value)}
-              placeholder="Ex: CO-VAN2026-001"
+              placeholder="Ex: CO-2030-001"
               className="w-full text-xs font-mono font-semibold px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -134,7 +134,7 @@ export function Tab01Identification({ trial, onTrialUpdated }: Props) {
               type="text"
               value={reportNumber}
               onChange={(e) => setReportNumber(e.target.value)}
-              placeholder="Ex: RA-VAN2026-001"
+              placeholder="Ex: RA-2030-001"
               className="w-full text-xs font-mono font-semibold px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             />
           </div>

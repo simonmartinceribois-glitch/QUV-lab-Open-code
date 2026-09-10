@@ -73,7 +73,7 @@ export function CreateTrialWizardModal({
   // ==========================================
   // ÉTAPE 1 : Identification & Métadonnées
   // ==========================================
-  const [reference, setReference] = useState(`QUV-2026-0${Math.floor(Math.random() * 80 + 20)}`);
+  const [reference, setReference] = useState(`QUV-${new Date().getFullYear()}-0${Math.floor(Math.random() * 80 + 20)}`);
   const [title, setTitle] = useState('');
   const [projectOrClient, setProjectOrClient] = useState('');
   const [createdBy, setCreatedBy] = useState('Simon Martin (Technicien Labo)');
@@ -99,6 +99,10 @@ export function CreateTrialWizardModal({
   const [selectedMeasurementCycles, setSelectedMeasurementCycles] = useState<number[]>([
     0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
   ]);
+
+  // Date de début de l'exposition (jalon T0) — saisie explicite par le technicien.
+  // Défaut : date du jour (dynamique), modifiable à l'étape 6 Calendrier (G52-DATE).
+  const [startDate, setStartDate] = useState<string>(new Date().toISOString().slice(0, 10));
 
   const toggleCycleMeasurement = (cycleIndex: number) => {
     if (cycleIndex === 0 || cycleIndex === 12) return; // T0 et C12 obligatoires
@@ -338,7 +342,8 @@ export function CreateTrialWizardModal({
         ADHESION: { familyId: 'ADHESION', enabled: activeFamilies.includes('ADHESION'), countConfig: adhConfig },
         OBSERVATIONS: { familyId: 'OBSERVATIONS', enabled: activeFamilies.includes('OBSERVATIONS') }
       },
-      selectedMeasurementCycles
+      selectedMeasurementCycles,
+      startDate
     });
 
     if (onCreated) onCreated(createdTrial.id);
@@ -497,6 +502,8 @@ export function CreateTrialWizardModal({
             <WizardStep6Calendar
               activeFamilies={activeFamilies}
               selectedMeasurementCycles={selectedMeasurementCycles}
+              startDate={startDate}
+              onStartDateChange={setStartDate}
               onPreset={setPlanPreset}
               onToggleCycle={toggleCycleMeasurement}
             />
@@ -525,6 +532,7 @@ export function CreateTrialWizardModal({
               adhCount={adhCount}
               isAdhAdapted={isAdhAdapted}
               selectedMeasurementCycles={selectedMeasurementCycles}
+              startDate={startDate}
             />
           )}
         </div>

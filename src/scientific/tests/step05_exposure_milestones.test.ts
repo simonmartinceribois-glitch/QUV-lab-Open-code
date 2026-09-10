@@ -114,7 +114,7 @@ export function runStep05MilestoneTests(): {
   {
     const full = generateStandardExposureStages('trial-step05-full');
     const okFull = full.length === 13 && full.every((s) => s.scheduledExposureHours === s.cycleIndex * 168);
-    const restricted = generateStandardExposureStages('trial-step05-restr', [3, 9]);
+    const restricted = generateStandardExposureStages('trial-step05-restr', undefined, [3, 9]);
     const okRestr = restricted.every((s) => s.scheduledExposureHours === s.cycleIndex * 168);
     const ok = okFull && okRestr;
     record('STEP05-HOURS-06', 'Invariant cycleIndex × 168 (complet + restreint)',
@@ -155,7 +155,7 @@ export function runStep05MilestoneTests(): {
 
   // --- STEP05-HOURS-10 : INACTIVE = cycle physique conservé, hors plan mesure ---
   {
-    const restricted = generateStandardExposureStages('trial-step05-inact', [3, 9]);
+    const restricted = generateStandardExposureStages('trial-step05-inact', undefined, [3, 9]);
     const c1 = restricted.find((s) => s.cycleIndex === 1)!;
     const c2 = restricted.find((s) => s.cycleIndex === 2)!;
     const t0 = restricted.find((s) => s.cycleIndex === 0)!;
