@@ -4,8 +4,10 @@
  * P0 : les variations Persoz sont moyennées uniquement sur les éprouvettes
  * à variation calculable (compteurs séparés) ; absence → null, jamais 0 ;
  * vrai 0 conservé ; témoin T exclu.
- * P1 : durée effective = actualExposureHours si présente (0 réel conservé),
- * sinon scheduledExposureHours (jamais `actual || scheduled`).
+ * P1 : la durée scientifique d'un jalon est déterminée exclusivement par son
+ * cycle QUV (scheduledExposureHours = cycleIndex × 168 ; T0 = 0 h valide,
+ * jamais 0 → null). Une durée machine (actualExposureHours) est une traçabilité
+ * distincte qui ne remplace jamais la durée scientifique du jalon.
  */
 
 import { compareSystemsAtStage } from '../analysis/MultiSystemComparator';
@@ -208,31 +210,31 @@ export function runPersozIntegrityTests(): {
       ok, '20', String(got));
   }
 
-  // --- PERSOZ-DURATION-01 : actual prioritaire ---
+  // --- PERSOZ-DURATION-01 : durée scientifique (cycle × 168) prioritaire ---
   {
     const got = getEffectiveExposureHours({ scheduledExposureHours: 2016, actualExposureHours: 2024 });
-    const ok = got === 2024;
-    record('PERSOZ-DURATION-01', 'actual=2024 prioritaire sur scheduled=2016',
-      ok, '2024', String(got));
-  }
-
-  // --- PERSOZ-DURATION-02 : actual 0 conservé ---
-  {
-    const got = getEffectiveExposureHours({ scheduledExposureHours: 2016, actualExposureHours: 0 });
-    const ok = got === 0;
-    record('PERSOZ-DURATION-02', 'actual=0 conservé (pas de retour à 2016)',
-      ok, '0', String(got));
-  }
-
-  // --- PERSOZ-DURATION-03 : fallback scheduled si absent ---
-  {
-    const got = getEffectiveExposureHours({ scheduledExposureHours: 2016, actualExposureHours: undefined });
     const ok = got === 2016;
-    record('PERSOZ-DURATION-03', 'actual absent → scheduled 2016',
+    record('PERSOZ-DURATION-01', 'Durée créée 2024 ne remplace pas la durée scientifique 2016',
       ok, '2016', String(got));
   }
 
-  // --- PERSOZ-DURATION-04 : axe cinétique utilise la durée effective ---
+  // --- PERSOZ-DURATION-02 : durée machine 0 ≠ durée scientifique (jamais 0 fabriqué) ---
+  {
+    const got = getEffectiveExposureHours({ scheduledExposureHours: 2016, actualExposureHours: 0 });
+    const ok = got === 2016;
+    record('PERSOZ-DURATION-02', 'Durée machine 0 ne supplante pas la durée scientifique 2016',
+      ok, '2016', String(got));
+  }
+
+  // --- PERSOZ-DURATION-03 : jalon sans durée machine → durée scientifique ---
+  {
+    const got = getEffectiveExposureHours({ scheduledExposureHours: 2016, actualExposureHours: undefined });
+    const ok = got === 2016;
+    record('PERSOZ-DURATION-03', 'Sans durée machine → durée scientifique 2016',
+      ok, '2016', String(got));
+  }
+
+  // --- PERSOZ-DURATION-04 : axe cinétique = durée scientifique du jalon ---
   {
     const t = buildPersozTrial('pi-dur', {
       E1: { mean: 100, delta: 5, rel: 5 },
@@ -243,35 +245,35 @@ export function runPersozIntegrityTests(): {
     st.actualExposureHours = 2024;
     const kinetics = extractTemporalKinetics(t, t.batches[0].id);
     const point = kinetics.find((k) => k.cycleIndex === 12);
-    const ok = point?.exposureHours === 2024;
-    record('PERSOZ-DURATION-04', 'Axe cinétique : point C12 à 2024 h effectifs',
-      ok, '2024', String(point?.exposureHours));
+    const ok = point?.exposureHours === 2016;
+    record('PERSOZ-DURATION-04', 'Axe cinétique : point C12 à 2016 h scientifiques',
+      ok, '2016', String(point?.exposureHours));
   }
 
-  // --- DURATION-COMPARATOR-01 : 2024 effectif partout (résultat + textes) ---
+  // --- DURATION-COMPARATOR-01 : 2016 h scientifiques partout (résultat + textes) ---
   {
     const t = buildComparatorTrial('dc-01', 2024);
     const comp = compareSystemsAtStage(t, 'dc-01-st-x', ruleSet);
     const colorStmt = comp.rankings.find((r) => r.familyId === 'COLOR')?.factualStatement ?? '';
     const glossStmt = comp.rankings.find((r) => r.familyId === 'GLOSS')?.factualStatement ?? '';
-    const ok = comp.exposureHours === 2024 &&
-      colorStmt.includes('2024 h') && !colorStmt.includes('2016 h') &&
-      glossStmt.includes('2024 h') && !glossStmt.includes('2016 h');
-    record('DURATION-COMPARATOR-01', 'actual=2024 : résultat + COLOR + GLOSS en 2024 h',
-      ok, '2024 partout, sans 2016', `exp=${String(comp.exposureHours)}`);
+    const ok = comp.exposureHours === 2016 &&
+      colorStmt.includes('2016 h') && !colorStmt.includes('2024 h') &&
+      glossStmt.includes('2016 h') && !glossStmt.includes('2024 h');
+    record('DURATION-COMPARATOR-01', 'actual=2024 : 2016 h scientifiques partout, jamais 2024',
+      ok, '2016 h partout', `exp=${String(comp.exposureHours)}`);
   }
 
-  // --- DURATION-COMPARATOR-02 : actual 0 conservé partout ---
+  // --- DURATION-COMPARATOR-02 : durée machine 0 ignorée (2016 h scientifiques) ---
   {
     const t = buildComparatorTrial('dc-02', 0);
     const comp = compareSystemsAtStage(t, 'dc-02-st-x', ruleSet);
     const colorStmt = comp.rankings.find((r) => r.familyId === 'COLOR')?.factualStatement ?? '';
     const glossStmt = comp.rankings.find((r) => r.familyId === 'GLOSS')?.factualStatement ?? '';
-    const ok = comp.exposureHours === 0 &&
-      colorStmt.includes('à 0 h') && !colorStmt.includes('2016 h') &&
-      glossStmt.includes('à 0 h') && !glossStmt.includes('2016 h');
-    record('DURATION-COMPARATOR-02', 'actual=0 : 0 h partout, aucun fallback 2016',
-      ok, '0 h partout', `exp=${String(comp.exposureHours)}`);
+    const ok = comp.exposureHours === 2016 &&
+      colorStmt.includes('2016 h') && !colorStmt.includes('0 h') &&
+      glossStmt.includes('2016 h') && !glossStmt.includes('0 h');
+    record('DURATION-COMPARATOR-02', 'actual=0 : durée machine ignorée, 2016 h scientifiques',
+      ok, '2016 h partout', `exp=${String(comp.exposureHours)}`);
   }
 
   // --- DURATION-COMPARATOR-03 : fallback prévu 2016 h ---
