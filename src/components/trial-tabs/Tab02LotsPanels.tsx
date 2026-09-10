@@ -9,6 +9,8 @@
 import React, { useState } from 'react';
 import { Trial, BatchDefinition, PanelDefinition, WoodGrainOrientation, ExposureFace } from '../../types/trial';
 import { globalTrialStore, generateUUID } from '../../services/trialStore';
+import { getApplicableGridSpacing } from '../../scientific/adhesionEngine';
+import { getAdhesionGridDisplay } from '../bench/BenchAdhesionForm';
 import {
   Layers,
   Plus,
@@ -28,6 +30,25 @@ import {
   Compass,
   Maximize2
 } from 'lucide-react';
+
+/**
+ * Badge quadrillage ISO 2409 (correction d'affichage) :
+ * réutilise la logique d'affichage existante (getAdhesionGridDisplay) et la logique
+ * métier d'espacement (getApplicableGridSpacing) — aucune règle scientifique dupliquée.
+ * - épaisseur ≤ 250 µm  → « Peigne X mm » (X = espacement métier)
+ * - épaisseur > 250 µm  → « ⚠️ Quadrillage non-applicable »
+ * - épaisseur absente   → null (le badge n'affiche pas d'espacement inventé)
+ */
+export function getISO2409GridBadge(thickness?: number | null): string | null {
+  if (thickness === undefined || thickness === null) {
+    return null;
+  }
+  const display = getAdhesionGridDisplay(thickness);
+  if (!display.isApplicable) {
+    return '⚠️ Quadrillage non-applicable';
+  }
+  return `Peigne ${getApplicableGridSpacing(thickness).gridSpacingMm} mm`;
+}
 
 interface Props {
   trial: Trial;
@@ -411,22 +432,28 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
                             Saisie tardive
                           </span>
                         )}
-                        {batch.dryFilmThicknessMicrons ? (
-                          <span
-                            className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${
-                              batch.dryFilmThicknessMicrons <= 60
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : batch.dryFilmThicknessMicrons <= 120
-                                ? 'bg-blue-100 text-blue-800'
-                                : batch.dryFilmThicknessMicrons <= 250
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-rose-100 text-rose-800'
-                            }`}
-                            title="Espacement requis pour essai quadrillage ISO 2409"
-                          >
-                            Peigne {batch.dryFilmThicknessMicrons <= 120 ? '2 mm' : batch.dryFilmThicknessMicrons <= 250 ? '3 mm' : '>250 µm'}
-                          </span>
-                        ) : (
+                        {batch.dryFilmThicknessMicrons ? (() => {
+                          const badge = getISO2409GridBadge(batch.dryFilmThicknessMicrons);
+                          const isWarning = badge !== null && badge.startsWith('⚠️');
+                          return (
+                            <span
+                              className={`px-1.5 py-0.5 text-[10px] font-bold rounded ${
+                                isWarning
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : batch.dryFilmThicknessMicrons <= 60
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : batch.dryFilmThicknessMicrons <= 120
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                              title={isWarning
+                                ? 'Quadrillage non applicable (NF EN ISO 2409:2020, épaisseur > 250 µm)'
+                                : 'Espacement requis pour essai quadrillage ISO 2409'}
+                            >
+                              {badge}
+                            </span>
+                          );
+                        })() : (
                           <span className="text-[10px] text-amber-700 bg-amber-100/70 px-1.5 py-0.5 rounded font-medium">
                             Requis pour ISO 2409
                           </span>

@@ -12,6 +12,7 @@ import { runGate53MediaCreatorTests } from './src/scientific/tests/gate53_media_
 import { runGate54CalendarMeasurementPlanTests } from './src/scientific/tests/gate54_calendar_measurement_plan_integrity.test';
 import { runCalSeedStagePrefillTests } from './src/scientific/tests/cal_seed_stage_prefill.test';
 import { runAdhesionGridWarningTests } from './src/scientific/tests/adhesion_grid_warning.test';
+import { runAdhesionGridBadgeTests } from './src/scientific/tests/adhesion_grid_badge.test';
 import { runGate56AdhesionWitnessTests } from './src/scientific/tests/gate56_adhesion_witness.test';
 import { runGate57AdhesionTwoMeasurementsTests } from './src/scientific/tests/gate57_adhesion_two_measurements.test';
 import { runGate58PersozAggregationTests } from './src/scientific/tests/gate58_persoz_aggregation.test';
@@ -597,6 +598,19 @@ suite43.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('44. EXÉCUTION DU CONTRAT BADGE QUADRILLAGE ADHÉSION — TAB02 (6 TESTS)');
+console.log('================================================================');
+const suite44 = runAdhesionGridBadgeTests();
+console.log(`Résultats Contrat Badge Quadrillage : ${suite44.summary.passed} / ${suite44.summary.total} réussis.`);
+suite44.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Grid Badge] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -640,7 +654,8 @@ const totalFailed =
   suite40.summary.failed +
   suite41.summary.failed +
   suite42.summary.failed +
-  suite43.summary.failed;
+  suite43.summary.failed +
+  suite44.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -684,7 +699,8 @@ const totalCount =
   suite40.summary.total +
   suite41.summary.total +
   suite42.summary.total +
-  suite43.summary.total;
+  suite43.summary.total +
+  suite44.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
