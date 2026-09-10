@@ -203,8 +203,8 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     const config = createSeriesConfiguration('GLOSS', 2, 2, ruleSet);
     const raw: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: 45 }, { pointIndex: 2, value: 46 }] },
-        { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: 44 }, { pointIndex: 2, value: 45 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 45 }, { pointIndex: 2, value: 46 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 44 }, { pointIndex: 2, value: 45 }] }
       ],
       instrumentMetadata: { geometry: '20' } // Doit être 60° par défaut
     };
@@ -218,8 +218,8 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     const config = createSeriesConfiguration('GLOSS', 2, 2, ruleSet);
     const raw: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: 40 }, { pointIndex: 2, value: 42 }] },
-        { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: 38 }, { pointIndex: 2, value: 39 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 40 }, { pointIndex: 2, value: 42 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 38 }, { pointIndex: 2, value: 39 }] }
       ]
     };
     const res = calculateGloss(raw, config, ruleSet);
@@ -232,8 +232,8 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     const config = createSeriesConfiguration('GLOSS', 2, 1, ruleSet, { justification: 'Allègement plan de mesure' });
     const raw: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: 40 }] },
-        { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: 38 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 40 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 38 }] }
       ]
     };
     const res = calculateGloss(raw, config, ruleSet);
@@ -383,14 +383,14 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     const config = createSeriesConfiguration('GLOSS', 2, 2, ruleSet);
     const rawT0: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: 0 }, { pointIndex: 2, value: 0 }] },
-        { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: 0 }, { pointIndex: 2, value: 0 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 0 }, { pointIndex: 2, value: 0 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 0 }, { pointIndex: 2, value: 0 }] }
       ]
     };
     const rawTt: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: 10 }, { pointIndex: 2, value: 12 }] },
-        { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: 11 }, { pointIndex: 2, value: 11 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 10 }, { pointIndex: 2, value: 12 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 11 }, { pointIndex: 2, value: 11 }] }
       ]
     };
     const res = calculateGloss(rawTt, config, ruleSet, { referenceRaw: rawT0 });
@@ -592,8 +592,8 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     // 4 valeurs avec moyenne 20 et écart-type 3.5 => CV = 17.5% > 10%
     const rawData: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: 16 }, { pointIndex: 2, value: 24 }] },
-        { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: 17 }, { pointIndex: 2, value: 23 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 16 }, { pointIndex: 2, value: 24 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 17 }, { pointIndex: 2, value: 23 }] }
       ]
     };
     const res = calculateGloss(rawData, seriesConfig, customRuleSet);

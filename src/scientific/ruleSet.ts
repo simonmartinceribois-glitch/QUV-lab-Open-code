@@ -108,20 +108,20 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
         origin: 'NORMATIVE_REQUIREMENT',
         standardReference: 'NF EN 927-6',
         clause: '6.3.3',
-        rationale: 'Mesure de brillance spéculaire sous géométrie 60° (2 séries sens du fil + 2 perpendiculaires)',
+        rationale: 'Mesure de brillance spéculaire sous géométrie 60° (2 séries : sens du fil + sens opposé au fil par rotation de 180°)',
         standardConfiguration: {
           seriesCount: 2,
           readingsPerSeries: 2,
           totalReadings: 4,
-          orientations: ['GRAIN_DIRECTION', 'PERPENDICULAR_DIRECTION'],
-          description: '2 mesures sens du fil + 2 mesures perpendiculaire au fil'
+          orientations: ['GRAIN_DIRECTION', 'OPPOSITE_GRAIN_DIRECTION'],
+          description: '2 mesures sens du fil + 2 mesures en sens opposé au fil (rotation 180°)'
         },
         configuredConfiguration: {
           seriesCount: 2,
           readingsPerSeries: 2,
           totalReadings: 4,
-          orientations: ['GRAIN_DIRECTION', 'PERPENDICULAR_DIRECTION'],
-          description: '2 mesures sens du fil + 2 mesures perpendiculaire au fil'
+          orientations: ['GRAIN_DIRECTION', 'OPPOSITE_GRAIN_DIRECTION'],
+          description: '2 mesures sens du fil + 2 mesures en sens opposé au fil (rotation 180°)'
         },
         deviationFromStandard: false,
         configuredBy: 'SYSTEM',
@@ -255,8 +255,8 @@ export function createSeriesConfiguration(
       seriesCount: 2,
       readingsPerSeries: 2,
       totalReadings: 4,
-      orientations: ['GRAIN_DIRECTION', 'PERPENDICULAR_DIRECTION'],
-      description: '2 mesures sens du fil + 2 mesures perpendiculaire'
+      orientations: ['GRAIN_DIRECTION', 'OPPOSITE_GRAIN_DIRECTION'],
+      description: '2 mesures sens du fil + 2 mesures en sens opposé au fil (rotation 180°)'
     },
     ruleSource: 'NORMATIVE_REQUIREMENT' as RuleSource
   };

@@ -374,7 +374,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
         series: [
           {
             seriesIndex: 1,
-            orientation: 'Sens du fil',
+            orientation: 'GRAIN_DIRECTION',
             readings: [
               { pointIndex: 1, value: +(gBase + 0.3 * pIdx).toFixed(1) },
               { pointIndex: 2, value: +(gBase - 0.2 + 0.2 * pIdx).toFixed(1) }
@@ -382,7 +382,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
           },
           {
             seriesIndex: 2,
-            orientation: 'Perpendiculaire',
+            orientation: 'OPPOSITE_GRAIN_DIRECTION',
             readings: [
               { pointIndex: 1, value: +(gBase - 1.2 + 0.3 * pIdx).toFixed(1) },
               { pointIndex: 2, value: +(gBase - 0.8 + 0.1 * pIdx).toFixed(1) }
@@ -456,7 +456,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
         series: [
           {
             seriesIndex: 1,
-            orientation: 'Sens du fil',
+            orientation: 'GRAIN_DIRECTION',
             readings: [
               { pointIndex: 1, value: +(gBase + dG168 + 0.2 * pIdx).toFixed(1) },
               { pointIndex: 2, value: +(gBase + dG168 - 0.1).toFixed(1) }
@@ -464,7 +464,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
           },
           {
             seriesIndex: 2,
-            orientation: 'Perpendiculaire',
+            orientation: 'OPPOSITE_GRAIN_DIRECTION',
             readings: [
               { pointIndex: 1, value: +(gBase + dG168 - 1.0).toFixed(1) },
               { pointIndex: 2, value: +(gBase + dG168 - 0.6).toFixed(1) }
@@ -519,7 +519,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
           series: [
             {
               seriesIndex: 1,
-              orientation: 'Sens du fil',
+              orientation: 'GRAIN_DIRECTION',
               readings: [
                 { pointIndex: 1, value: +(gBase + dG336).toFixed(1) },
                 { pointIndex: 2, value: +(gBase + dG336 - 0.5).toFixed(1) }
@@ -527,7 +527,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
             },
             {
               seriesIndex: 2,
-              orientation: 'Perpendiculaire',
+              orientation: 'OPPOSITE_GRAIN_DIRECTION',
               readings: [
                 { pointIndex: 1, value: +(gBase + dG336 - 1.8).toFixed(1) },
                 { pointIndex: 2, value: +(gBase + dG336 - 1.2).toFixed(1) }
@@ -817,7 +817,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
       series: [
         {
           seriesIndex: 1,
-          orientation: 'Sens du fil',
+          orientation: 'GRAIN_DIRECTION',
           readings: [
             { pointIndex: 1, value: +(44.3 + 0.1 * pIdx).toFixed(1) },
             { pointIndex: 2, value: +(44.1 - 0.1 * pIdx).toFixed(1) }
@@ -825,7 +825,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
         },
         {
           seriesIndex: 2,
-          orientation: 'Perpendiculaire',
+          orientation: 'OPPOSITE_GRAIN_DIRECTION',
           readings: [
             { pointIndex: 1, value: +(43.9 + 0.1 * pIdx).toFixed(1) },
             { pointIndex: 2, value: +(44.1).toFixed(1) }
@@ -887,7 +887,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
         series: [
           {
             seriesIndex: 1,
-            orientation: 'Sens du fil',
+            orientation: 'GRAIN_DIRECTION',
             readings: [
               { pointIndex: 1, value: +(currentGloss + 0.2).toFixed(1) },
               { pointIndex: 2, value: +(currentGloss - 0.2).toFixed(1) }
@@ -895,7 +895,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
           },
           {
             seriesIndex: 2,
-            orientation: 'Perpendiculaire',
+            orientation: 'OPPOSITE_GRAIN_DIRECTION',
             readings: [
               { pointIndex: 1, value: +(currentGloss - 0.1).toFixed(1) },
               { pointIndex: 2, value: +(currentGloss + 0.1).toFixed(1) }
@@ -949,7 +949,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
       series: [
         {
           seriesIndex: 1,
-          orientation: 'Sens du fil',
+          orientation: 'GRAIN_DIRECTION',
           readings: [
             { pointIndex: 1, value: 27.9 },
             { pointIndex: 2, value: 27.9 }
@@ -957,7 +957,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
         },
         {
           seriesIndex: 2,
-          orientation: 'Perpendiculaire',
+          orientation: 'OPPOSITE_GRAIN_DIRECTION',
           readings: [
             { pointIndex: 1, value: 27.9 },
             { pointIndex: 2, value: 27.9 }

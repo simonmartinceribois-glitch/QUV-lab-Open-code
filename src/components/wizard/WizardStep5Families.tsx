@@ -213,7 +213,7 @@ export function WizardStep5Families({
                 glossSeriesCount !== standardGlossSeriesCount ||
                 glossReadingsPerSeries !== standardGlossReadingsPerSeries
               }
-              reference={`${standardGlossSeriesCount} séries × ${standardGlossReadingsPerSeries} relevés (Sens du fil + Perpendiculaire)`}
+              reference={`${standardGlossSeriesCount} séries × ${standardGlossReadingsPerSeries} relevés (Sens du fil + Sens opposé au fil, 180°)`}
               realized={`${glossSeriesCount} séries × ${glossReadingsPerSeries} relevés`}
               justification={glossJustification}
             />

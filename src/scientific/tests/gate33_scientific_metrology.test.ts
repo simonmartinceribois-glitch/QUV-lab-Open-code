@@ -337,14 +337,14 @@ export function runGate33ScientificMetrologyTests(): {
     for (const tc of testCases) {
       const rawT0: GlossRawData = {
         series: [
-          { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: tc.t0 }, { pointIndex: 2, value: tc.t0 }] },
-          { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: tc.t0 }, { pointIndex: 2, value: tc.t0 }] }
+          { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: tc.t0 }, { pointIndex: 2, value: tc.t0 }] },
+          { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: tc.t0 }, { pointIndex: 2, value: tc.t0 }] }
         ]
       };
       const rawC1: GlossRawData = {
         series: [
-          { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: tc.c1 }, { pointIndex: 2, value: tc.c1 }] },
-          { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: tc.c1 }, { pointIndex: 2, value: tc.c1 }] }
+          { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: tc.c1 }, { pointIndex: 2, value: tc.c1 }] },
+          { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: tc.c1 }, { pointIndex: 2, value: tc.c1 }] }
         ]
       };
 
@@ -368,14 +368,14 @@ export function runGate33ScientificMetrologyTests(): {
   {
     const rawT0Zero: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: 0.0 }, { pointIndex: 2, value: 0.0 }] },
-        { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: 0.0 }, { pointIndex: 2, value: 0.0 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 0.0 }, { pointIndex: 2, value: 0.0 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 0.0 }, { pointIndex: 2, value: 0.0 }] }
       ]
     };
     const rawC1: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: 10.0 }, { pointIndex: 2, value: 10.0 }] },
-        { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: 10.0 }, { pointIndex: 2, value: 10.0 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 10.0 }, { pointIndex: 2, value: 10.0 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 10.0 }, { pointIndex: 2, value: 10.0 }] }
       ]
     };
 
@@ -397,13 +397,13 @@ export function runGate33ScientificMetrologyTests(): {
 
   // Multi-séries 2x2 avec calcul indépendant des écarts-types de série
   // S1 (Sens fil) : [62.0, 64.0] -> mean=63.0, stdDev=1.41
-  // S2 (Perpendiculaire) : [58.0, 60.0] -> mean=59.0, stdDev=1.41
+  // S2 (Sens opposé au fil) : [58.0, 60.0] -> mean=59.0, stdDev=1.41
   // Global (4 pts) : [62, 64, 58, 60] -> mean=61.0, stdDev=2.58
   {
     const raw2x2: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: 62.0 }, { pointIndex: 2, value: 64.0 }] },
-        { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: 58.0 }, { pointIndex: 2, value: 60.0 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 62.0 }, { pointIndex: 2, value: 64.0 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 58.0 }, { pointIndex: 2, value: 60.0 }] }
       ]
     };
     const res = calculateGloss(raw2x2, glossSeriesConfig, ruleSet);

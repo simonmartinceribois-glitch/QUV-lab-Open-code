@@ -236,7 +236,7 @@ export function runGate50OperationalQualificationTests(): Gate50Summary {
             },
             {
               seriesIndex: 2,
-              orientation: 'PERPENDICULAR_DIRECTION',
+              orientation: 'OPPOSITE_GRAIN_DIRECTION',
               readings: [
                 { pointIndex: 1, value: isT0 ? 48.0 : 33.0 },
                 { pointIndex: 2, value: isT0 ? 48.0 : 33.0 }

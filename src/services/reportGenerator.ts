@@ -5,6 +5,7 @@
  */
 
 import { Trial } from '../types/trial';
+import { getGlossOrientationLabel } from '../scientific/glossEngine';
 import {
   ScientificRuleSet,
   ScientificReport,
@@ -406,7 +407,7 @@ export function buildScientificReport(
       `  - NF EN 927-3:2019 (Vieillissement naturel) : NE PAS utiliser pour le moteur de conformité QUV ni pour définir les calculs ou seuils QUV. Elle sera traitée ultérieurement dans le module de vieillissement naturel (VN).\n` +
       `• NORMES D'ÉVALUATION ET DE MESURE ASSOCIÉES :\n` +
       `  - Colorimétrie : ISO 7724 / CIE L*a*b* (Illuminant D65, Observateur 10°, ΔE*ab 1976).\n` +
-      `  - Brillance : ISO 2813 (Réflectomètre géométrie 60° sens longitudinal et perpendiculaire au fil).\n` +
+      `  - Brillance : ISO 2813 (Réflectomètre géométrie 60°, deux séries : sens du fil et sens opposé au fil par rotation de 180° de l'instrument, faisceau toujours strictement parallèle au fil du bois).\n` +
       `  - Dégradations de surface : ISO 4628 parties 1 à 6 (Cloquage, Écaillage, Craquelage, Farinage) & ISO 2409.`,
     materialsAndBatches: `Nombre total de lots : ${trial.batches.length}\n` +
       trial.batches
@@ -677,7 +678,7 @@ export function exportRawDataToCsv(trial: Trial): string {
                 if (Array.isArray(s.readings)) {
                   s.readings.forEach((r: any) => {
                     lines.push(
-                      `"${st.id}";"${st.name}";${st.cycleIndex};"${b.id}";"${b.reference}";"${p.id}";"${p.label}";GLOSS;"S${s.seriesIndex}_P${r.pointIndex}_${s.orientation}";${r.value ?? ''};;;;${src};"${op}";"${dt}"`
+                      `"${st.id}";"${st.name}";${st.cycleIndex};"${b.id}";"${b.reference}";"${p.id}";"${p.label}";GLOSS;"S${s.seriesIndex}_P${r.pointIndex}_${getGlossOrientationLabel(s.orientation) || s.orientation}";${r.value ?? ''};;;;${src};"${op}";"${dt}"`
                     );
                   });
                 }

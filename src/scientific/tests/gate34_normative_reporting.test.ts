@@ -309,7 +309,7 @@ export function runGate34NormativeReportingTests(): {
             },
             {
               seriesIndex: 2,
-              orientation: 'PERPENDICULAR_DIRECTION',
+              orientation: 'OPPOSITE_GRAIN_DIRECTION',
               readings: [{ pointIndex: 1, value: baseGloss }, { pointIndex: 2, value: baseGloss }]
             }
           ]
@@ -402,7 +402,7 @@ export function runGate34NormativeReportingTests(): {
             },
             {
               seriesIndex: 2,
-              orientation: 'PERPENDICULAR_DIRECTION',
+              orientation: 'OPPOSITE_GRAIN_DIRECTION',
               readings: [{ pointIndex: 1, value: finalGloss }, { pointIndex: 2, value: finalGloss }]
             }
           ]

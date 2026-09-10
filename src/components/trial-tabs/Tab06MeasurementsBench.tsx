@@ -158,8 +158,8 @@ export function Tab06MeasurementsBench({
   // Brillance : séries de points
   const [glossSeriesData, setGlossSeriesData] = useState<{ orientation: string; values: string[] }[]>(() => {
     return [
-      { orientation: 'Sens du fil', values: Array.from({ length: glossReadingsPerSeries }, () => '') },
-      { orientation: 'Perpendiculaire', values: Array.from({ length: glossReadingsPerSeries }, () => '') }
+      { orientation: 'GRAIN_DIRECTION', values: Array.from({ length: glossReadingsPerSeries }, () => '') },
+      { orientation: 'OPPOSITE_GRAIN_DIRECTION', values: Array.from({ length: glossReadingsPerSeries }, () => '') }
     ];
   });
 
@@ -216,8 +216,8 @@ export function Tab06MeasurementsBench({
         setGlossSeriesData(arr);
       } else {
         setGlossSeriesData([
-          { orientation: 'Sens du fil', values: Array.from({ length: glossReadingsPerSeries }, () => '') },
-          { orientation: 'Perpendiculaire', values: Array.from({ length: glossReadingsPerSeries }, () => '') }
+          { orientation: 'GRAIN_DIRECTION', values: Array.from({ length: glossReadingsPerSeries }, () => '') },
+          { orientation: 'OPPOSITE_GRAIN_DIRECTION', values: Array.from({ length: glossReadingsPerSeries }, () => '') }
         ]);
       }
     } else if (selectedFamilyId === 'PERSOZ') {
@@ -409,8 +409,8 @@ export function Tab06MeasurementsBench({
       ]);
     } else if (selectedFamilyId === 'GLOSS') {
       setGlossSeriesData([
-        { orientation: 'Sens du fil', values: ['44.5', '44.8'] },
-        { orientation: 'Perpendiculaire', values: ['43.2', '43.6'] }
+        { orientation: 'GRAIN_DIRECTION', values: ['44.5', '44.8'] },
+        { orientation: 'OPPOSITE_GRAIN_DIRECTION', values: ['43.2', '43.6'] }
       ]);
     } else if (selectedFamilyId === 'PERSOZ') {
       setPersozValues(['85.2', '84.8', '85.5']);

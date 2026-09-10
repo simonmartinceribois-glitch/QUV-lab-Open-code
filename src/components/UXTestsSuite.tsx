@@ -173,7 +173,7 @@ export const uxTestCases: UXTestCase[] = [
       id: 11,
       title: 'TEST UX 11 — Campagne Brillance & Taux de Rétention',
       category: 'Paillasse',
-      description: 'Vérifie la saisie par séries (Sens du fil + Perpendiculaire) et le calcul du taux de rétention.',
+      description: 'Vérifie la saisie par séries (Sens du fil + Sens opposé au fil, 180°) et le calcul du taux de rétention.',
       expectedResult: 'Concordance géométrie 60° et calcul GTx / GT0 sans division par zéro.',
       targetTab: '06',
       verify: (t) => {
