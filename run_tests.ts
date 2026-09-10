@@ -10,6 +10,7 @@ import { runGate50OperationalQualificationTests } from './src/scientific/tests/g
 import { runGate52AdhesionTests } from './src/scientific/tests/gate52_adhesion.test';
 import { runGate53MediaCreatorTests } from './src/scientific/tests/gate53_media_creator_integrity.test';
 import { runGate54CalendarMeasurementPlanTests } from './src/scientific/tests/gate54_calendar_measurement_plan_integrity.test';
+import { runCalSeedStagePrefillTests } from './src/scientific/tests/cal_seed_stage_prefill.test';
 import { runGate56AdhesionWitnessTests } from './src/scientific/tests/gate56_adhesion_witness.test';
 import { runGate57AdhesionTwoMeasurementsTests } from './src/scientific/tests/gate57_adhesion_two_measurements.test';
 import { runGate58PersozAggregationTests } from './src/scientific/tests/gate58_persoz_aggregation.test';
@@ -569,6 +570,19 @@ suite41.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('42. EXÉCUTION DU CONTRAT CAL-SEED — AUCUNE ACQUISITION FICTIVE À LA CRÉATION (3 TESTS)');
+console.log('================================================================');
+const suite42 = runCalSeedStagePrefillTests();
+console.log(`Résultats Contrat CAL-SEED : ${suite42.summary.passed} / ${suite42.summary.total} réussis.`);
+suite42.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Cal Seed] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -610,7 +624,8 @@ const totalFailed =
   suite38.summary.failed +
   suite39.summary.failed +
   suite40.summary.failed +
-  suite41.summary.failed;
+  suite41.summary.failed +
+  suite42.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -652,7 +667,8 @@ const totalCount =
   suite38.summary.total +
   suite39.summary.total +
   suite40.summary.total +
-  suite41.summary.total;
+  suite41.summary.total +
+  suite42.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

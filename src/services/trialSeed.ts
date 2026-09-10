@@ -195,6 +195,13 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
 
   const stages = generateStandardExposureStages(trialId);
 
+  // Données de démonstration uniquement : le générateur de production
+  // (generateStandardExposureStages) ne fabrique aucune acquisition fictive.
+  // La démo reconstruit ici, APRÈS génération, un scénario de campagne en cours
+  // (T0 validé, C1/168h validé, C2/336h en cours) cohérent avec les acquisitions
+  // seedées ci-dessous (seedDemoAcquisitions). Jamais injecté dans createTrial().
+  applyDemoStageMetadata(stages);
+
   const auditTrail: AuditEvent[] = [
     {
       id: 'audit-1',
@@ -601,6 +608,45 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
         capturedBy: 'Simon Martin (Technicien)',
         caption: 'Éprouvette témoin T conservée en chambre obscure conditionnée (20°C / 65% HR).'
       });
+    }
+  }
+}
+
+/**
+ * Applique les métadonnées de démonstration aux jalons d'UN ESSAI DE DÉMO
+ * après génération standard. Isolé dans le chemin seed : ne jamais utiliser
+ * dans createTrial() qui doit produire uniquement le calendrier/protocole,
+ * sans fabrication d'acquisition (G52-CAL / étape 06).
+ */
+function applyDemoStageMetadata(stages: ExposureStage[]): void {
+  const demoStageMeta: Array<Partial<ExposureStage> & { cycleIndex: number }> = [
+    {
+      cycleIndex: 0,
+      measuredAt: '2026-08-30T08:00:00Z',
+      status: 'VALIDATED',
+      validatedBy: 'SM',
+      validatedAt: '2026-08-30T12:00:00Z',
+      notes: 'Mesures initiales de référence réalisées avant toute exposition UV.'
+    },
+    {
+      cycleIndex: 1,
+      measuredAt: '2026-09-06T14:30:00Z',
+      status: 'VALIDATED',
+      validatedBy: 'SM',
+      validatedAt: '2026-09-06T17:00:00Z',
+      notes: 'Relevé intermédiaire 168h validé sans anomalie.'
+    },
+    {
+      cycleIndex: 2,
+      measuredAt: '2026-09-13T10:15:00Z',
+      status: 'IN_PROGRESS'
+    }
+  ];
+
+  for (const meta of demoStageMeta) {
+    const stage = stages.find((s) => s.cycleIndex === meta.cycleIndex);
+    if (stage) {
+      Object.assign(stage, meta);
     }
   }
 }
