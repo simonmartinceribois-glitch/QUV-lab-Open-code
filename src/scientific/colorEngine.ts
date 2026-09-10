@@ -238,7 +238,6 @@ export function calculateColor(
     deltaE: roundMetric(deltaE, 3),
     deltaC: roundMetric(deltaC, 3),
     deltaH: roundMetric(deltaH, 3),
-    criterionCategory: 'COMPLEMENTARY_CRITERION',
     qualityAssessment,
     protocolStatus: protocolEval.status,
     computation: {

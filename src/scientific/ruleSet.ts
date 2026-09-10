@@ -50,7 +50,10 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
       stdDevMethod: 'SAMPLE', // s = sqrt(sum(x - mean)^2 / (n - 1))
       glossGeometryDefault: '60',
       maxGlossDispersionPercent: 15,
-      maxColorStdDev: 2.0
+      maxColorStdDev: 2.0,
+      // Critère COMPLÉMENTAIRE d'étude INFIPERF / FCBA — jamais une exigence
+      // de conformité NF EN 927-6. Lu par la couche CRITÈRE (S3) et l'analyse.
+      retentionThresholdPercent: 50
     },
 
     measurementConfigurations: {

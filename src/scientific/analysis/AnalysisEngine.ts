@@ -13,6 +13,7 @@ import { detectTrialAnomalies } from './AnalysisAnomalyDetector';
 import { analyzeBatchTrends } from './TrendAnalyzer';
 import { compareSystemsAtStage } from './MultiSystemComparator';
 import { generateTechnicalSynthesis } from './TechnicalSynthesisGenerator';
+import { getGlossRetentionThreshold } from '../criteria/criteriaGloss';
 
 export const ANALYSIS_VERSION = '1.0.0';
 
@@ -91,7 +92,7 @@ export function runQUVAnalysis(
     batchId: selectedBatches[0]?.id,
     referenceStageId: stageT0.id,
     targetStageId: targetStage.id,
-    studyCriteriaGlossRetentionPercent: options?.studyCriteriaGlossRetentionPercent ?? 50
+    studyCriteriaGlossRetentionPercent: options?.studyCriteriaGlossRetentionPercent ?? getGlossRetentionThreshold(ruleSet)
   });
 
   allLimitations.push(...synthesis.limitations);
@@ -150,7 +151,7 @@ export function runQUVAnalysis(
       targetStageId: targetStage.id,
       batchIds: selectedBatches.map((b) => b.id),
       measurementFamilies: activeFamilies,
-      studyCriteriaGlossRetentionPercent: options?.studyCriteriaGlossRetentionPercent ?? 50
+      studyCriteriaGlossRetentionPercent: options?.studyCriteriaGlossRetentionPercent ?? getGlossRetentionThreshold(ruleSet)
     },
     rawSummary: {
       hasColorRaw,

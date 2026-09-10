@@ -212,6 +212,10 @@ export interface ScientificRuleSet {
     glossGeometryDefault: '60' | '20' | '85' | string;
     maxGlossDispersionPercent?: number;
     maxColorStdDev?: number;
+    /** Seuil de rétention de brillance — CRITÈRE COMPLÉMENTAIRE d'étude (origine
+     *  INFIPERF / FCBA). N'est JAMAIS une exigence de conformité NF EN 927-6.
+     *  Source de vérité unique : la couche CRITÈRE (S3) le lit ici, jamais en dur. */
+    retentionThresholdPercent: number;
   };
   sourceReference: string;
   status: 'VERIFIED' | 'TO_BE_CONFIRMED';
@@ -275,7 +279,6 @@ export interface ColorComputedData {
   deltaE: number | null;
   deltaC?: number | null;
   deltaH?: number | null;
-  criterionCategory?: string;
   qualityAssessment: QualityAssessment;
   protocolStatus: ProtocolComplianceStatus;
   referenceTrace?: ReferenceTrace;
@@ -322,8 +325,6 @@ export interface GlossComputedData {
   deltaGloss: number | null;
   deltaGlossStdDev?: number | null;
   retentionRatePercent: number | null;
-  infiperfAlert?: { active: boolean; message: string; source: 'INFIPERF / FCBA'; severity: 'WARNING' };
-  criterionCategory?: string;
   qualityAssessment: QualityAssessment;
   protocolStatus: ProtocolComplianceStatus;
   referenceTrace?: ReferenceTrace;
@@ -356,7 +357,6 @@ export interface PersozComputedData {
   referenceStageId?: UUID | null;
   deltaDampingTime: number | null;
   relativeHardnessVariationPercent: number | null;
-  criterionCategory?: string;
   qualityAssessment: QualityAssessment;
   protocolStatus: ProtocolComplianceStatus;
   referenceTrace?: ReferenceTrace;
@@ -424,9 +424,7 @@ export interface AdhesionComputedData {
   initialPanelMean?: number | null;
   deltaAdhesionClass?: number | null; // Variation d'adhérence vs T0
   elapsedTimeHours: number | null;
-  delayCompliance: 'CONFORME' | 'NON_CONFORME' | 'NON_EVALUE';
   gridSpacingUsedMm: number;
-  criterionCategory?: string;
   qualityAssessment: QualityAssessment;
   protocolStatus: ProtocolComplianceStatus;
   referenceTrace?: ReferenceTrace;

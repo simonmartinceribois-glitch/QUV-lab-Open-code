@@ -87,7 +87,7 @@ function mkPersoz(mean: number | null): PersozComputedData {
 function mkAdh(panelMean: number | null): AdhesionComputedData {
   return {
     adhesionClass: null, individualResults: [], panelMean,
-    classDescription: 'Moyenne panneau', elapsedTimeHours: 216, delayCompliance: 'CONFORME',
+    classDescription: 'Moyenne panneau', elapsedTimeHours: 216,
     gridSpacingUsedMm: 2, ...comp()
   } as AdhesionComputedData;
 }
