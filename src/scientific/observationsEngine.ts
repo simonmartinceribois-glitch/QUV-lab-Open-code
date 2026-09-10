@@ -2,11 +2,14 @@
  * QUV-Lab — Moteur d'Évaluation des Observations Visuelles (ISO 4628 / NF EN 927-6)
  * Évalue les cotations visuelles, détecte les anomalies d'aspect et préserve l'intégrité du RAW.
  * Une cotation absente ou invalide n'est JAMAIS interprétée comme une cotation 0.
+ * v1.3.0 : ajout de perCategoryMaxRating (max des cotations valides par catégorie,
+ * calculé uniquement sur les données valides, jamais fabriqué).
  */
 
 import {
   VisualObservationsRawData,
   VisualObservationsComputedData,
+  VisualObservationCategory,
   MeasurementAlert,
   QualityAssessment,
   QualityStatus,
@@ -15,7 +18,7 @@ import {
   UUID
 } from '../types/scientific';
 
-export const OBSERVATIONS_CALCULATION_VERSION = '1.2.0';
+export const OBSERVATIONS_CALCULATION_VERSION = '1.3.0';
 
 export const OBSERVATION_RATING_MIN = 0;
 export const OBSERVATION_RATING_MAX = 5;
@@ -113,6 +116,7 @@ export function calculateObservations(
         totalEvaluated: 0,
         defectsCount: 0,
         maxRating: null,
+        perCategoryMaxRating: {},
         summary: 'Non évalué',
         qualityAssessment,
         protocolStatus,
@@ -131,6 +135,7 @@ export function calculateObservations(
   let invalidCount = 0;
   let defectsCount = 0;
   let maxRatingNum: number | null = null;
+  const perCategoryMaxRating: Partial<Record<VisualObservationCategory, number>> = {};
   const defectDescriptions: string[] = [];
 
   for (const obs of rawData.observations) {
@@ -139,6 +144,8 @@ export function calculateObservations(
     if (validity === 'VALID' && value !== null) {
       validCount++;
       if (maxRatingNum === null || value > maxRatingNum) maxRatingNum = value;
+      const currentCatMax = perCategoryMaxRating[obs.category];
+      if (currentCatMax === undefined || value > currentCatMax) perCategoryMaxRating[obs.category] = value;
 
       if (value > 0 || obs.status === 'NON_CONFORME' || obs.status === 'OBSERVE') {
         defectsCount++;
@@ -227,6 +234,7 @@ export function calculateObservations(
       totalEvaluated,
       defectsCount,
       maxRating: maxRatingNum,
+      perCategoryMaxRating,
       summary,
       qualityAssessment,
       protocolStatus,

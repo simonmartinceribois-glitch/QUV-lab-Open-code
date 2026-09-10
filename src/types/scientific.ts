@@ -464,6 +464,12 @@ export interface VisualObservationsComputedData {
   defectsCount: number;
   /** Cotation maximale relevée : null lorsque aucune cotation valide n'est enregistrée (jamais 0). */
   maxRating: number | null;
+  /** Cotation maximale par catégorie (0..5), calculée uniquement sur les cotations valides
+   *  (parseObservationRating). Une catégorie non évaluée (absente ou invalide) est absente
+   *  du tableau — jamais 0 ; un zéro réel enregistré reste 0 et compte comme donnée.
+   *  Établi depuis OBSERVATIONS_CALCULATION_VERSION 1.3.0 (optionnel pour la rétro-lisibilité
+   *  de calculs antérieurs persistés), fourni systématiquement par le moteur de calcul. */
+  perCategoryMaxRating?: Partial<Record<VisualObservationCategory, number>>;
   summary: string;
   qualityAssessment: QualityAssessment;
   protocolStatus: ProtocolComplianceStatus;

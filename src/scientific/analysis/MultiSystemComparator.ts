@@ -5,12 +5,11 @@
  */
 
 import { Trial, ExposureStage, BatchDefinition } from '../../types/trial';
-import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
+import { ScientificRuleSet, MeasurementFamilyId, VisualObservationsComputedData, VisualObservationCategory } from '../../types/scientific';
 import { SystemComparisonItem, DescriptiveRanking, ComparisonResult } from '../../types/analysis';
 import { calculateStdDevByMethod, calculateCoefficientOfVariation } from '../statistics';
 import { getActiveExposedPanels } from '../panelUtils';
 import { getEffectiveExposureHours } from './TrendAnalyzer';
-import { parseObservationRating } from '../observationsEngine';
 
 export function compareSystemsAtStage(
   trial: Trial,
@@ -201,29 +200,31 @@ export function compareSystemsAtStage(
     }
 
     // 4. Observations
-    // Cotation maximale par catégorie, calculée UNIQUEMENT sur les cotations
-    // valides (domaine 0..5, source de vérité partagée parseObservationRating).
-    // Une catégorie sans cotation valide restera « non évaluée » (null),
-    // jamais fabriquée à 0. Un vrai 0 enregistré reste 0 et compte comme donnée.
+    // Agrégation depuis le COMPUTED (source unique d'évaluation) : le moteur
+    // établit perCategoryMaxRating (max des cotations valides 0..5 par catégorie).
+    // Une catégorie non évaluée (absente/invalide) est absente du tableau →
+    // « non évaluée » (null), jamais fabriquée à 0. Un vrai 0 enregistré reste 0
+    // et compte comme donnée. Aucun accès au RAW ici : réévaluer les cotations
+    // (parseObservationRating) serait une duplication de la logique du moteur,
+    // en violation de la chaîne RAW → COMPUTED → ANALYSE.
     type ObsCategory = 'BLISTERING' | 'FLAKING' | 'CRACKING' | 'CHALKING';
     const obsRatings: Partial<Record<ObsCategory, number>> = {};
     let hasRecordedData = false;
 
     for (const panel of activePanels) {
       const obsAcq = trial.acquisitions[`${stage.id}__${panel.id}__OBSERVATIONS`];
-      if (obsAcq && obsAcq.raw) {
-        const rawObs = obsAcq.raw as {
-          observations?: Array<{ category: string; rating: string | number | null | undefined }>;
-        };
-        if (rawObs.observations) {
-          for (const obs of rawObs.observations) {
-            const { validity, value } = parseObservationRating(obs.rating);
-            if (validity !== 'VALID' || value === null) continue;
+      if (obsAcq && obsAcq.computed) {
+        const compObs = obsAcq.computed as VisualObservationsComputedData | undefined;
+        const perCat = compObs?.perCategoryMaxRating;
+        if (perCat) {
+          for (const key of Object.keys(perCat) as VisualObservationCategory[]) {
+            const value = perCat[key];
+            if (value === undefined || value === null) continue;
             hasRecordedData = true;
-            const key = obs.category as ObsCategory;
-            if (key !== 'BLISTERING' && key !== 'FLAKING' && key !== 'CRACKING' && key !== 'CHALKING') continue;
-            const current = obsRatings[key];
-            if (current === undefined || value > current) obsRatings[key] = value;
+            if (key === 'BLISTERING' || key === 'FLAKING' || key === 'CRACKING' || key === 'CHALKING') {
+              const current = obsRatings[key];
+              if (current === undefined || value > current) obsRatings[key] = value;
+            }
           }
         }
       }

@@ -6,16 +6,17 @@
  * Validation individuelle (valid/missing/invalid), complétude réellement calculée
  * sur les cotations valides, cotation maximale « non évaluée » (null) quand rien
  * de valide n'est enregistré.
- * P1 : le comparateur multi-systèmes restitue « non évalué » (null) par catégorie
- * sans cotation valide — jamais 0 — et un vrai 0 enregistré reste 0 et compte
- * comme donnée enregistrée (hasRecordedData). null ≠ 0 ≠ 2.
+ * P1 : le comparateur multi-systèmes agrège DEPUIS LE COMPUTED (perCategoryMaxRating,
+ * source d'évaluation unique du moteur) et restitue « non évalué » (null) par catégorie
+ * sans cotation valide — jamais 0 — et un vrai 0 enregistré reste 0 et compte comme
+ * donnée enregistrée (hasRecordedData). null ≠ 0 ≠ 2. Aucun accès RAW en analyse.
  */
 
 import { calculateObservations } from '../observationsEngine';
 import { compareSystemsAtStage } from '../analysis/MultiSystemComparator';
 import { getDefaultScientificRuleSet } from '../ruleSet';
 import type { Trial } from '../../types/trial';
-import type { VisualObservationsRawData } from '../../types/scientific';
+import type { ScientificRuleSet, VisualObservationsRawData } from '../../types/scientific';
 
 export interface ObservationsIntegrityTestResult {
   id: string;
@@ -39,30 +40,36 @@ function buildObsRaw(ratings: RatingInput[]): VisualObservationsRawData {
   } as unknown as VisualObservationsRawData;
 }
 
-function buildComparatorTrial(
+type VerifyObsTrialPanels = Array<{
+  label: string;
+  roleCode: 'E1' | 'E2';
+  observations: Array<{ category: string; rating: RatingInput }>;
+}>;
+
+function buildObsTrial(
   trialId: string,
-  observations: Array<{ category: string; rating: RatingInput }>
+  panels: VerifyObsTrialPanels,
+  ruleSet: ScientificRuleSet
 ): Trial {
   const stageId = `${trialId}-st-c12`;
   const batchId = `${trialId}-batch-1`;
-  const panelId = `${trialId}-p-1-E1`;
-  const batch = {
-    id: batchId,
-    trialId,
-    reference: `LOT ${trialId}`,
-    orderIndex: 1,
-    panels: [{
-      id: panelId, batchId, index: 1, label: '1',
-      role: 'EXPOSED_1' as const, roleCode: 'E1' as const, status: 'ACTIVE' as const
-    }]
-  };
+  const batchPanels = panels.map((p, i) => ({
+    id: `${trialId}-p-${p.roleCode}`, batchId, index: i + 1, label: p.label,
+    role: (p.roleCode === 'E1' ? 'EXPOSED_1' : 'EXPOSED_2') as 'EXPOSED_1' | 'EXPOSED_2',
+    roleCode: p.roleCode, status: 'ACTIVE' as const
+  }));
   const acquisitions: Trial['acquisitions'] = {};
-  acquisitions[`${stageId}__${panelId}__OBSERVATIONS`] = {
-    id: `${trialId}-a-obs`, trialId, stageId, batchId, panelId,
-    familyId: 'OBSERVATIONS',
-    raw: { observations },
-    status: 'COMPLETE', alerts: [], trace: {}, mediaIds: []
-  } as unknown as Trial['acquisitions'][string];
+  for (const p of panels) {
+    const panelId = `${trialId}-p-${p.roleCode}`;
+    const rawObs = { observations: p.observations } as unknown as VisualObservationsRawData;
+    acquisitions[`${stageId}__${panelId}__OBSERVATIONS`] = {
+      id: `${trialId}-a-${p.roleCode}`, trialId, stageId, batchId, panelId,
+      familyId: 'OBSERVATIONS',
+      raw: rawObs,
+      computed: calculateObservations(rawObs, ruleSet).computed,
+      status: 'COMPLETE', alerts: [], trace: {}, mediaIds: []
+    } as unknown as Trial['acquisitions'][string];
+  }
 
   return {
     id: trialId,
@@ -82,9 +89,17 @@ function buildComparatorTrial(
       id: stageId, trialId, cycleIndex: 12, stageType: 'FINAL_POST_EXPOSURE',
       name: 'C12', scheduledExposureHours: 2016, status: 'VALIDATED'
     }],
-    batches: [batch],
+    batches: [{ id: batchId, trialId, reference: `LOT ${trialId}`, orderIndex: 1, panels: batchPanels }],
     acquisitions, auditTrail: [], mediaReferences: []
   } as Trial;
+}
+
+function buildComparatorTrial(
+  trialId: string,
+  observations: Array<{ category: string; rating: RatingInput }>,
+  ruleSet: ScientificRuleSet
+): Trial {
+  return buildObsTrial(trialId, [{ label: '1', roleCode: 'E1', observations }], ruleSet);
 }
 
 export function runObservationsIntegrityTests(): {
@@ -275,7 +290,7 @@ export function runObservationsIntegrityTests(): {
       { category: 'FLAKING', rating: null },
       { category: 'CRACKING', rating: '' },
       { category: 'CHALKING', rating: '   ' }
-    ]);
+    ], ruleSet);
     const comp = compareSystemsAtStage(trial, trial.stages[0].id, ruleSet);
     const obs = comp.items[0].observations;
     record('OBS-COMPARATOR-01',
@@ -295,7 +310,7 @@ export function runObservationsIntegrityTests(): {
     const trial = buildComparatorTrial('oi-cmp-2', [
       { category: 'BLISTERING', rating: 0 },
       { category: 'FLAKING', rating: 0 }
-    ]);
+    ], ruleSet);
     const comp = compareSystemsAtStage(trial, trial.stages[0].id, ruleSet);
     const obs = comp.items[0].observations;
     record('OBS-COMPARATOR-02',
@@ -313,7 +328,7 @@ export function runObservationsIntegrityTests(): {
       { category: 'BLISTERING', rating: undefined },
       { category: 'FLAKING', rating: 0 },
       { category: 'CRACKING', rating: 2 }
-    ]);
+    ], ruleSet);
     const comp = compareSystemsAtStage(trial, trial.stages[0].id, ruleSet);
     const obs = comp.items[0].observations;
     record('OBS-COMPARATOR-03',
@@ -326,6 +341,45 @@ export function runObservationsIntegrityTests(): {
       obs.hasRecordedData === true,
       'blistering=null, flaking=0, cracking=2, chalking=null, hasRecordedData=true',
       `blistering=${String(obs?.blisteringRating)}, flaking=${String(obs?.flakingRating)}, cracking=${String(obs?.crackingRating)}, chalking=${String(obs?.chalkingRating)}, hasRecordedData=${String(obs?.hasRecordedData)}`);
+  }
+
+  {
+    const trial = buildComparatorTrial('oi-cmp-4', [
+      { category: 'OTHER_DEFECT', rating: 2 }
+    ], ruleSet);
+    const comp = compareSystemsAtStage(trial, trial.stages[0].id, ruleSet);
+    const obs = comp.items[0].observations;
+    record('OBS-COMPARATOR-04',
+      'Cotation valide hors des 4 catégories de défauts canoniques → comptée comme donnée, non agrégée (null)',
+      obs !== undefined &&
+      obs.hasRecordedData === true &&
+      obs.blisteringRating === null &&
+      obs.flakingRating === null &&
+      obs.crackingRating === null &&
+      obs.chalkingRating === null &&
+      obs.summary === 'Aucun défaut majeur coté',
+      'hasRecordedData=true, blistering/flaking/cracking/chalking=null, summary=Aucun défaut majeur coté',
+      `hasRecordedData=${String(obs?.hasRecordedData)}, blistering=${String(obs?.blisteringRating)}, flaking=${String(obs?.flakingRating)}, cracking=${String(obs?.crackingRating)}, chalking=${String(obs?.chalkingRating)}, summary=${obs?.summary}`);
+  }
+
+  {
+    const trial = buildObsTrial('oi-cmp-5', [
+      { label: '1', roleCode: 'E1', observations: [{ category: 'BLISTERING', rating: 2 }, { category: 'FLAKING', rating: 0 }] },
+      { label: '2', roleCode: 'E2', observations: [{ category: 'BLISTERING', rating: 3 }] }
+    ], ruleSet);
+    const comp = compareSystemsAtStage(trial, trial.stages[0].id, ruleSet);
+    const obs = comp.items[0].observations;
+    record('OBS-COMPARATOR-05',
+      'Agrégation inter-panneaux DEPUIS COMPUTED : max par catégorie (BLISTERING 3 sur E1/E2), 0 conservé, non évalué null',
+      obs !== undefined &&
+      obs.blisteringRating === 3 &&
+      obs.flakingRating === 0 &&
+      obs.crackingRating === null &&
+      obs.chalkingRating === null &&
+      obs.hasRecordedData === true &&
+      obs.summary === 'Cloquage coté 3',
+      'blistering=3, flaking=0, cracking=null, chalking=null, hasRecordedData=true, summary=Cloquage coté 3',
+      `blistering=${String(obs?.blisteringRating)}, flaking=${String(obs?.flakingRating)}, cracking=${String(obs?.crackingRating)}, chalking=${String(obs?.chalkingRating)}, hasRecordedData=${String(obs?.hasRecordedData)}, summary=${obs?.summary}`);
   }
 
   const passed = results.filter((r) => r.passed).length;
