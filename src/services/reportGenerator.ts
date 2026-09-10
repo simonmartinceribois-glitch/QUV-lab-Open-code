@@ -29,6 +29,7 @@ import {
 } from '../scientific/panelUtils';
 import { aggregateBatchColorExposed, PanelComputedItem } from '../scientific/aggregations';
 import { evaluateCountProtocolCompliance, evaluateSeriesProtocolCompliance, buildProtocolDefinition } from '../scientific/protocolEngine';
+import { isAdaptationJustificationValid } from '../scientific/ruleSet';
 import type { MeasurementFamilyId } from '../types/scientific';
 
 /**
@@ -151,15 +152,18 @@ export function auditTrialBeforeReport(trial: Trial, ruleSet: ScientificRuleSet)
   const engineVersionAvailable = !!ruleSet.version;
   const ruleSetAvailable = !!ruleSet.standardReference;
 
-  // Adaptations réellement tracées : aucune dérogation, ou chacune justifiée.
+  // Adaptations réellement tracées : aucune dérogation, ou chacune munie d'une
+  // justification formellement valide (règle centralisée ≥ 8 caractères après trim).
   const unjustifiedAdaptation = Object.entries(trial.config.familyConfigs).some(
     ([, cfg]) =>
-      ((cfg?.countConfig?.deviationFromStandard || cfg?.seriesConfig?.deviationFromStandard) &&
-        !(cfg?.countConfig?.justification?.trim() || cfg?.seriesConfig?.justification?.trim()))
+      (cfg?.countConfig?.deviationFromStandard === true &&
+        !isAdaptationJustificationValid(cfg.countConfig.justification)) ||
+      (cfg?.seriesConfig?.deviationFromStandard === true &&
+        !isAdaptationJustificationValid(cfg.seriesConfig.justification))
   );
   const adaptationsTraced = !unjustifiedAdaptation;
   if (unjustifiedAdaptation) {
-    warnings.push("Adaptation de protocole non justifiée détectée (justification manquante).");
+    warnings.push("Adaptation de protocole non justifiée détectée (justification absente ou inférieure à 8 caractères).");
   }
   // Alertes recensées : chaque acquisition expose un catalogue d'alertes.
   const alertsCataloged = acquisitionsList.every((a) => Array.isArray((a as { alerts?: unknown }).alerts));
@@ -318,14 +322,68 @@ export function buildScientificReport(
     const defs: { n: number | undefined; std: number | undefined; adapted: boolean; just: string }[] = [];
     if (cfg.countConfig) {
       const d = buildProtocolDefinition(cfg.countConfig, ruleSet);
-      defs.push({ n: d.configuredCount, std: d.standardRecommendedCount, adapted: d.isAdapted, just: d.justification || '' });
+      defs.push({ n: d.configuredCount, std: d.standardRecommendedCount, adapted: d.isAdapted, just: isAdaptationJustificationValid(d.justification) ? d.justification!.trim() : '' });
     }
     if (cfg.seriesConfig) {
       const d = buildProtocolDefinition(cfg.seriesConfig, ruleSet);
-      defs.push({ n: d.configuredCount, std: d.standardRecommendedCount, adapted: d.isAdapted, just: d.justification || '' });
+      defs.push({ n: d.configuredCount, std: d.standardRecommendedCount, adapted: d.isAdapted, just: isAdaptationJustificationValid(d.justification) ? d.justification!.trim() : '' });
     }
     if (defs.length === 0) return 'Active (détail de configuration Non renseigné)';
     return `Active (${defs.map((d) => `${displayReportValue(d.n)} ${unit} (référence : ${displayReportValue(d.std)})${d.adapted ? (d.just ? ' — adaptation justifiée' : ' — ADAPTATION NON JUSTIFIÉE') : ''}`).join(' ; ')})`;
+  };
+
+  // Bloc PROTOCOLE DE MESURE (P5) : restitué depuis trial.config.familyConfigs +
+  // ruleSet, sans aucune valeur codée en dur. Statut STANDARD / ADAPTÉ /
+  // NON RENSEIGNÉ, justification réelle ou NON RENSEIGNÉE (jamais inventée).
+  const protocolMeasureBlock = (fam: MeasurementFamilyId): string => {
+    const labels: Record<string, string> = {
+      COLOR: 'COULEUR L*a*b*',
+      GLOSS: 'BRILLANCE SPÉCULAIRE 60°',
+      PERSOZ: 'DURETÉ PERSOZ',
+      ADHESION: 'ADHÉRENCE PAR QUADRILLAGE (NF EN ISO 2409:2020)',
+      OBSERVATIONS: 'OBSERVATIONS VISUELLES'
+    };
+    const countUnits: Record<string, string> = {
+      COLOR: 'point(s) par éprouvette',
+      PERSOZ: 'répétition(s) par éprouvette',
+      ADHESION: 'mesure(s) par panneau'
+    };
+    const stdRef = ruleSet.measurementConfigurations[fam]?.standardReference || ruleSet.standardReference;
+    const cfg = trial.config.familyConfigs[fam];
+    let reference = 'Non renseigné';
+    let realized = 'Non renseigné';
+    let adapted = false;
+    let justification = '';
+    if (fam === 'GLOSS' && cfg?.seriesConfig) {
+      const std = ruleSet.seriesConfigurations?.['GLOSS']?.standardConfiguration;
+      reference = `${std?.seriesCount ?? cfg.seriesConfig.configuredConfiguration.seriesCount} séries × ${std?.readingsPerSeries ?? cfg.seriesConfig.configuredConfiguration.readingsPerSeries} relevés`;
+      realized = `${cfg.seriesConfig.configuredConfiguration.seriesCount} séries × ${cfg.seriesConfig.configuredConfiguration.readingsPerSeries} relevés`;
+      adapted = cfg.seriesConfig.deviationFromStandard === true;
+      const justSeries = cfg.seriesConfig.justification;
+      justification = isAdaptationJustificationValid(justSeries) ? (justSeries as string).trim() : '';
+    } else if (cfg?.countConfig) {
+      reference = `${cfg.countConfig.standardRecommendedCount} ${countUnits[fam]}`;
+      realized = `${cfg.countConfig.configuredCount} ${countUnits[fam]}`;
+      adapted = cfg.countConfig.deviationFromStandard === true;
+      const justCount = cfg.countConfig.justification;
+      justification = isAdaptationJustificationValid(justCount) ? (justCount as string).trim() : '';
+    }
+    const missing = !cfg || (!cfg.countConfig && !cfg.seriesConfig);
+    const status = missing
+      ? 'PROTOCOLE NON RENSEIGNÉ'
+      : adapted
+        ? 'PROTOCOLE ADAPTÉ'
+        : 'PROTOCOLE STANDARD';
+    const justLine = adapted
+      ? `${justification.trim() ? `\nJustification : ${justification.trim()}` : '\nJustification : NON RENSEIGNÉE'}`
+      : '';
+    return (
+      `PROTOCOLE DE MESURE — ${labels[fam]}\n` +
+      `Référence scientifique : ${stdRef}\n` +
+      `Configuration de référence : ${reference}\n` +
+      `Configuration réalisée : ${realized}\n` +
+      `Statut : ${status}${justLine}\n\n`
+    );
   };
 
   const metadata: ScientificReportMetadata = {
@@ -377,10 +435,10 @@ export function buildScientificReport(
         )
         .join('\n'),
     measurementPlan: `Familles de mesure actives : ${trial.config.activeFamilies.join(', ')}\n• Couleur : ${planDetail('COLOR', 'points par éprouvette')}\n• Brillance : ${planDetail('GLOSS', 'lectures')}\n• Persoz : ${planDetail('PERSOZ', 'mesures')}\n• Adhérence au quadrillage : ${planDetail('ADHESION', 'mesures (NF EN ISO 2409:2020)')}\n• Observations visuelles : ${trial.config.familyConfigs.OBSERVATIONS?.enabled ? 'Active (Évaluation ISO 4628)' : 'Désactivée'}`,
-    colorResults: `Les coordonnées trichromatiques CIE L*a*b* et les variations différentielles ΔL*, Δa*, Δb*, ΔE*ab sont issues exclusivement du moteur scientifique QUV-Lab (version ${ruleSet.version}).\nÉtape initiale T0 : Référence absolue pour chaque éprouvette.\nProgression observée : Variation maximale ΔE* enregistrée : ${formatNullableMeasure(maxDeltaE, 2)} sur les éprouvettes évaluées.\nConsulter l'Annexe B pour le détail des valeurs par éprouvette et par lot.`,
-    glossResults: `Mesures de réflectance spéculaire sous géométrie 60°.\nÉtape initiale T0 : Niveau de brillance initial caractérisé par éprouvette.\nÉvolution temporelle : Rétention résiduelle minimale de ${formatNullableMeasure(minRetention, 1)} % constatée sur la campagne.\nConsulter l'Annexe B pour les calculs de variation absolue ΔGloss et de taux de rétention résiduelle.`,
-    persozResults: `Dureté superficielle par temps d'amortissement du pendule Persoz (secondes).\nNOTE MÉTHODOLOGIQUE : Cette grandeur constitue une recommandation interne du laboratoire (LAB_RECOMMENDATION) et ne constitue pas une exigence normative formelle de la NF EN 927-6.\nÉvolution : Suivi de la cinétique de réticulation / dégradation mécanique superficielle.`,
-    adhesionResults: `Évaluation de la résistance à la séparation par quadrillage selon NF EN ISO 2409:2020.\nNOTE MÉTHODOLOGIQUE : L'essai au quadrillage constitue une méthode d'évaluation qualitative de la résistance du revêtement au détachement selon une grille de 6×6 incisions (classes 0 à 5), et ne doit en aucun cas être assimilé à une force d'adhérence quantitative en MPa.\nProtocole : Éprouvette témoin T à T0 (référence initiale), éprouvettes exposées à C12 (2016 h). Espacement de peigne 2 mm (≤ 120 µm) ou 3 mm (121–250 µm) selon l'épaisseur sèche du revêtement.`,
+    colorResults: protocolMeasureBlock('COLOR') + `Les coordonnées trichromatiques CIE L*a*b* et les variations différentielles ΔL*, Δa*, Δb*, ΔE*ab sont issues exclusivement du moteur scientifique QUV-Lab (version ${ruleSet.version}).\nÉtape initiale T0 : Référence absolue pour chaque éprouvette.\nProgression observée : Variation maximale ΔE* enregistrée : ${formatNullableMeasure(maxDeltaE, 2)} sur les éprouvettes évaluées.\nConsulter l'Annexe B pour le détail des valeurs par éprouvette et par lot.`,
+    glossResults: protocolMeasureBlock('GLOSS') + `Mesures de réflectance spéculaire sous géométrie 60°.\nÉtape initiale T0 : Niveau de brillance initial caractérisé par éprouvette.\nÉvolution temporelle : Rétention résiduelle minimale de ${formatNullableMeasure(minRetention, 1)} % constatée sur la campagne.\nConsulter l'Annexe B pour les calculs de variation absolue ΔGloss et de taux de rétention résiduelle.`,
+    persozResults: protocolMeasureBlock('PERSOZ') + `Dureté superficielle par temps d'amortissement du pendule Persoz (secondes).\nNOTE MÉTHODOLOGIQUE : Cette grandeur constitue une recommandation interne du laboratoire (LAB_RECOMMENDATION) et ne constitue pas une exigence normative formelle de la NF EN 927-6.\nÉvolution : Suivi de la cinétique de réticulation / dégradation mécanique superficielle.`,
+    adhesionResults: protocolMeasureBlock('ADHESION') + `Évaluation de la résistance à la séparation par quadrillage selon NF EN ISO 2409:2020.\nNOTE MÉTHODOLOGIQUE : L'essai au quadrillage constitue une méthode d'évaluation qualitative de la résistance du revêtement au détachement selon une grille de 6×6 incisions (classes 0 à 5), et ne doit en aucun cas être assimilé à une force d'adhérence quantitative en MPa.\nProtocole : Éprouvette témoin T à T0 (référence initiale), éprouvettes exposées à C12 (2016 h). Espacement de peigne 2 mm (≤ 120 µm) ou 3 mm (121–250 µm) selon l'épaisseur sèche du revêtement.`,
     visualObservations: `Cotations des défauts surfaciques selon les normes ISO 4628 (Cloquage, Écaillage, Craquelage, Farinage) et ISO 2409 (Quadrillage).\n` + (observationAcqs.length > 0 ? `${observationAcqs.length} relevé(s) d'observations calculé(s) — détail en Annexe B.` : `Aucune cotation d'observation enregistrée : état Non renseigné.`),
     kineticsAnalysis: `Analyse cinétique de la dégradation : Les données compilées permettent d'observer les courbes d'évolution temporelle depuis T0 (0 h) jusqu'aux étapes en cours d'exposition (168 h à ${displayReportValue(evaluatedStages[evaluatedStages.length - 1]?.scheduledExposureHours)} h)${stage2016 && stage2016.status === 'VALIDATED' ? ' et l’étape finale à 2016 h.' : ' ; l’étape finale à 2016 h restant à réaliser.'}\nDistinction rigoureuse : La dispersion intra-panneau (répétabilité de la mesure) est isolée de la dispersion inter-panneaux (homogénéité du lot).`,
     qualityControl: `Contrôle qualité des acquisitions : Chaque mesure est qualifiée selon 4 niveaux (GOOD, ACCEPTABLE, WARNING, INVALID).\nLes données RAW disponibles sont restituées sans modification ni arrondissement destructif dans le cadre de la génération du rapport. L'intégrité complète du corpus RAW n'est pas déterminée en l'absence d'un audit d'intégrité dédié.\nRelevés avec alerte qualité : dûment signalés avec mention explicite dans les tableaux d'annexes.`,

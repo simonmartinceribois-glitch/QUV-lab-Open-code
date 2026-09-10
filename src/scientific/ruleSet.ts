@@ -133,6 +133,19 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
 }
 
 /**
+ * Règle métier P5 (CORRECTIF) : longueur minimale d'une justification d'adaptation,
+ * après suppression des espaces en début et fin. Une justification plus courte
+ * n'est pas considérée comme « formellement renseignée » : la configuration est
+ * alors qualifiée NON JUSTIFIÉE. Le logiciel ne juge jamais la pertinence
+ * scientifique du motif — uniquement sa présence exploitable.
+ */
+export const MIN_ADAPTATION_JUSTIFICATION_LENGTH = 8;
+
+export function isAdaptationJustificationValid(justification?: string | null): boolean {
+  return Boolean(justification && justification.trim().length >= MIN_ADAPTATION_JUSTIFICATION_LENGTH);
+}
+
+/**
  * Créer ou adapter une configuration de nombre de mesures pour une famille scalaire
  */
 export function createCountConfiguration(
@@ -144,6 +157,22 @@ export function createCountConfiguration(
     operatorId?: string;
   }
 ): MeasurementCountConfiguration {
+  if (
+    typeof configuredCount !== 'number' ||
+    !Number.isFinite(configuredCount) ||
+    !Number.isInteger(configuredCount) ||
+    configuredCount < 1
+  ) {
+    throw new Error(
+      `Configuration ${familyId} invalide : le nombre de mesures doit être un entier fini supérieur ou égal à 1 (reçu : ${String(configuredCount)}).`
+    );
+  }
+  if (familyId === 'ADHESION' && configuredCount !== 1 && configuredCount !== 2) {
+    throw new Error(
+      `Configuration ADHESION invalide : ${String(configuredCount)} mesure(s) demandée(s). Seules 2 mesures/panneau (standard) ou 1 mesure/panneau (adaptation justifiée) sont autorisées.`
+    );
+  }
+
   const ref = ruleSet.measurementConfigurations[familyId] || {
     standardRecommendedCount: 4,
     origin: 'NORMATIVE_REQUIREMENT' as ScientificRuleOrigin,
@@ -196,6 +225,27 @@ export function createSeriesConfiguration(
     operatorId?: string;
   }
 ): MeasurementSeriesConfiguration {
+  if (
+    typeof seriesCount !== 'number' ||
+    !Number.isFinite(seriesCount) ||
+    !Number.isInteger(seriesCount) ||
+    seriesCount < 1
+  ) {
+    throw new Error(
+      `Configuration ${familyId} invalide : le nombre de séries doit être un entier fini supérieur ou égal à 1 (reçu : ${String(seriesCount)}).`
+    );
+  }
+  if (
+    typeof readingsPerSeries !== 'number' ||
+    !Number.isFinite(readingsPerSeries) ||
+    !Number.isInteger(readingsPerSeries) ||
+    readingsPerSeries < 1
+  ) {
+    throw new Error(
+      `Configuration ${familyId} invalide : le nombre de relevés par série doit être un entier fini supérieur ou égal à 1 (reçu : ${String(readingsPerSeries)}).`
+    );
+  }
+
   const ref = ruleSet.seriesConfigurations?.[familyId] || {
     origin: 'NORMATIVE_REQUIREMENT' as ScientificRuleOrigin,
     standardReference: ruleSet.standardReference,

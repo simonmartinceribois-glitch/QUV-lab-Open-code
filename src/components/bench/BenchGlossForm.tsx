@@ -5,6 +5,7 @@
  */
 
 import type { Dispatch, SetStateAction } from 'react';
+import { ProtocolStatusHeader } from './ProtocolStatusHeader';
 
 export interface GlossSeriesInput {
   orientation: string;
@@ -12,13 +13,35 @@ export interface GlossSeriesInput {
 }
 
 interface Props {
+  glossSeriesCount: number;
+  glossReadingsPerSeries: number;
+  standardSeriesCount: number;
+  standardReadingsPerSeries: number;
+  protocolJustification?: string;
   glossSeriesData: GlossSeriesInput[];
   onGlossSeriesChange: Dispatch<SetStateAction<GlossSeriesInput[]>>;
 }
 
-export function BenchGlossForm({ glossSeriesData, onGlossSeriesChange }: Props) {
+export function BenchGlossForm({
+  glossSeriesCount,
+  glossReadingsPerSeries,
+  standardSeriesCount,
+  standardReadingsPerSeries,
+  protocolJustification,
+  glossSeriesData,
+  onGlossSeriesChange
+}: Props) {
   return (
     <div className="space-y-4">
+      <ProtocolStatusHeader
+        isAdapted={
+          glossSeriesCount !== standardSeriesCount ||
+          glossReadingsPerSeries !== standardReadingsPerSeries
+        }
+        reference={`${standardSeriesCount} séries × ${standardReadingsPerSeries} relevés`}
+        realized={`${glossSeriesCount} séries × ${glossReadingsPerSeries} relevés`}
+        justification={protocolJustification}
+      />
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
           Saisie Brillance 60° par Séries & Orientations

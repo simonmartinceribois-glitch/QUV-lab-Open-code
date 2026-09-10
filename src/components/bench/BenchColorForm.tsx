@@ -5,6 +5,7 @@
  */
 
 import type { Dispatch, SetStateAction } from 'react';
+import { ProtocolStatusHeader } from './ProtocolStatusHeader';
 
 export interface ColorReading {
   L: string;
@@ -14,13 +15,27 @@ export interface ColorReading {
 
 interface Props {
   colorCount: number;
+  standardColorCount: number;
+  protocolJustification?: string;
   colorReadings: ColorReading[];
   onColorReadingsChange: Dispatch<SetStateAction<ColorReading[]>>;
 }
 
-export function BenchColorForm({ colorCount, colorReadings, onColorReadingsChange }: Props) {
+export function BenchColorForm({
+  colorCount,
+  standardColorCount,
+  protocolJustification,
+  colorReadings,
+  onColorReadingsChange
+}: Props) {
   return (
     <div className="space-y-4">
+      <ProtocolStatusHeader
+        isAdapted={colorCount !== standardColorCount}
+        reference={`${standardColorCount} points / éprouvette`}
+        realized={`${colorCount} points / éprouvette`}
+        justification={protocolJustification}
+      />
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
           Saisie des {colorCount} coordonnées colorimétriques (CIE L*a*b*)

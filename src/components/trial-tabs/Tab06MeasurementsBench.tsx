@@ -136,6 +136,15 @@ export function Tab06MeasurementsBench({
   const glossSeries = famConfig?.seriesConfig?.configuredConfiguration.seriesCount || 2;
   const glossReadingsPerSeries = famConfig?.seriesConfig?.configuredConfiguration.readingsPerSeries || 2;
 
+  // Références standard issues du référentiel (P5) : jamais codées en dur,
+  // source de vérité unique pour le statut PROTOCOLE STANDARD / ADAPTÉ.
+  const colorStandard = ruleSet.measurementConfigurations.COLOR?.standardRecommendedCount ?? 4;
+  const glossStandard = ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration;
+  const persozStandard = ruleSet.measurementConfigurations.PERSOZ?.standardRecommendedCount ?? 3;
+  const adhesionStandard = ruleSet.measurementConfigurations.ADHESION?.standardRecommendedCount ?? 2;
+  const protocolJustification =
+    famConfig?.countConfig?.justification ?? famConfig?.seriesConfig?.justification ?? undefined;
+
   // Acquisition en cours
   const acqKey = `${currentStage.id}__${currentPanel?.id}__${selectedFamilyId}`;
   const currentRecord = trial.acquisitions[acqKey];
@@ -531,6 +540,8 @@ export function Tab06MeasurementsBench({
             {selectedFamilyId === 'COLOR' && (
               <BenchColorForm
                 colorCount={colorCount}
+                standardColorCount={colorStandard}
+                protocolJustification={protocolJustification}
                 colorReadings={colorReadings}
                 onColorReadingsChange={setColorReadings}
               />
@@ -538,6 +549,11 @@ export function Tab06MeasurementsBench({
 
             {selectedFamilyId === 'GLOSS' && (
               <BenchGlossForm
+                glossSeriesCount={glossSeries}
+                glossReadingsPerSeries={glossReadingsPerSeries}
+                standardSeriesCount={glossStandard?.seriesCount ?? 2}
+                standardReadingsPerSeries={glossStandard?.readingsPerSeries ?? 2}
+                protocolJustification={protocolJustification}
                 glossSeriesData={glossSeriesData}
                 onGlossSeriesChange={setGlossSeriesData}
               />
@@ -545,6 +561,9 @@ export function Tab06MeasurementsBench({
 
             {selectedFamilyId === 'PERSOZ' && (
               <BenchPersozForm
+                persozCount={persozCount}
+                standardPersozReps={persozStandard}
+                protocolJustification={protocolJustification}
                 persozValues={persozValues}
                 onPersozValuesChange={setPersozValues}
               />
@@ -557,6 +576,8 @@ export function Tab06MeasurementsBench({
                 currentStage={currentStage}
                 isInitialStage={isInitialStage}
                 expectedCount={adhExpectedCount}
+                standardAdhesionCount={adhesionStandard}
+                protocolJustification={protocolJustification}
                 entries={adhEntries}
                 onEntriesChange={setAdhEntries}
               />

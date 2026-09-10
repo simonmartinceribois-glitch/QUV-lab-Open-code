@@ -12,6 +12,7 @@ import {
   MeasurementAlert,
   ScientificRuleSet
 } from '../types/scientific';
+import { isAdaptationJustificationValid } from './ruleSet';
 
 export interface ProtocolEvaluationResult {
   status: ProtocolComplianceStatus;
@@ -100,8 +101,9 @@ export function evaluateCountProtocolCompliance(
     };
   }
 
-  // Si adapté, vérifier la justification
-  const hasJustification = Boolean(config.justification && config.justification.trim().length > 0);
+  // Si adapté, vérifier la justification : absence, vide ou < 8 caractères (après
+  // trim) ⇒ adaptation NON JUSTIFIÉE (détection conservée pour historique/import).
+  const hasJustification = isAdaptationJustificationValid(config.justification);
 
   if (hasJustification) {
     alerts.push({
@@ -186,7 +188,7 @@ export function evaluateSeriesProtocolCompliance(
     };
   }
 
-  const hasJustification = Boolean(config.justification && config.justification.trim().length > 0);
+  const hasJustification = isAdaptationJustificationValid(config.justification);
 
   if (hasJustification) {
     alerts.push({

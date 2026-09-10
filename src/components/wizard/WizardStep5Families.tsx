@@ -7,15 +7,20 @@
 import { Info } from 'lucide-react';
 import type { NumberSetter, TextSetter } from './wizardTypes';
 import type { MeasurementFamilyId } from '../../types/scientific';
+import { ProtocolStatusHeader } from '../bench/ProtocolStatusHeader';
+import { isAdaptationJustificationValid } from '../../scientific/ruleSet';
 
 interface Props {
   activeFamilies: MeasurementFamilyId[];
   onToggleFamily: (fam: MeasurementFamilyId) => void;
+  standardColorPoints: number;
   colorPoints: number;
   onColorPointsChange: NumberSetter;
   colorJustification: string;
   onColorJustificationChange: TextSetter;
   isColorAdapted: boolean;
+  standardGlossSeriesCount: number;
+  standardGlossReadingsPerSeries: number;
   glossSeriesCount: number;
   onGlossSeriesCountChange: NumberSetter;
   glossReadingsPerSeries: number;
@@ -23,11 +28,13 @@ interface Props {
   glossJustification: string;
   onGlossJustificationChange: TextSetter;
   isGlossAdapted: boolean;
+  standardPersozReps: number;
   persozReps: number;
   onPersozRepsChange: NumberSetter;
   persozJustification: string;
   onPersozJustificationChange: TextSetter;
   isPersozAdapted: boolean;
+  standardAdhesionCount: number;
   adhCount: number;
   onAdhCountChange: NumberSetter;
   adhJustification: string;
@@ -38,11 +45,14 @@ interface Props {
 export function WizardStep5Families({
   activeFamilies,
   onToggleFamily,
+  standardColorPoints,
   colorPoints,
   onColorPointsChange,
   colorJustification,
   onColorJustificationChange,
   isColorAdapted,
+  standardGlossSeriesCount,
+  standardGlossReadingsPerSeries,
   glossSeriesCount,
   onGlossSeriesCountChange,
   glossReadingsPerSeries,
@@ -50,11 +60,13 @@ export function WizardStep5Families({
   glossJustification,
   onGlossJustificationChange,
   isGlossAdapted,
+  standardPersozReps,
   persozReps,
   onPersozRepsChange,
   persozJustification,
   onPersozJustificationChange,
   isPersozAdapted,
+  standardAdhesionCount,
   adhCount,
   onAdhCountChange,
   adhJustification,
@@ -152,8 +164,13 @@ export function WizardStep5Families({
           <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-900">Points de mesure Couleur L*a*b*</span>
-              <span className="text-xs text-slate-500 font-mono">Standard : 4 points / éprouvette</span>
             </div>
+            <ProtocolStatusHeader
+              isAdapted={colorPoints !== standardColorPoints}
+              reference={`${standardColorPoints} points / éprouvette`}
+              realized={`${colorPoints} points / éprouvette`}
+              justification={colorJustification}
+            />
             <div className="flex items-center gap-3">
               <label className="text-xs text-slate-700">Nombre de points par éprouvette :</label>
               <input
@@ -164,24 +181,22 @@ export function WizardStep5Families({
                 onChange={(e) => onColorPointsChange(Number(e.target.value))}
                 className="w-20 px-2 py-1 text-xs border border-slate-300 rounded text-center font-bold"
               />
-              {isColorAdapted && (
-                <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                  Adaptation du protocole
-                </span>
-              )}
             </div>
             {isColorAdapted && (
               <div>
                 <label className="block text-xs font-bold text-red-700 mb-1">
-                  Justification obligatoire de l'écart métrologique *
+                  Justification obligatoire : 8 caractères minimum *
                 </label>
                 <input
                   type="text"
                   value={colorJustification}
                   onChange={(e) => onColorJustificationChange(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-red-300 rounded-lg bg-red-50/20"
+                  className={`w-full px-3 py-1.5 text-xs border rounded-lg ${isColorAdapted && !isAdaptationJustificationValid(colorJustification) ? 'border-red-500 bg-red-50/30' : 'border-red-300 bg-red-50/20'}`}
                   placeholder="Motif technique de l'adaptation..."
                 />
+                {isColorAdapted && !isAdaptationJustificationValid(colorJustification) && (
+                  <p className="text-[11px] text-red-600 mt-1 font-semibold">Justification obligatoire : 8 caractères minimum.</p>
+                )}
               </div>
             )}
           </div>
@@ -192,8 +207,16 @@ export function WizardStep5Families({
           <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-900">Séries de Brillance Spéculaire 60°</span>
-              <span className="text-xs text-slate-500 font-mono">Standard : 2 séries de 2 relevés (Sens du fil + Perpendiculaire)</span>
             </div>
+            <ProtocolStatusHeader
+              isAdapted={
+                glossSeriesCount !== standardGlossSeriesCount ||
+                glossReadingsPerSeries !== standardGlossReadingsPerSeries
+              }
+              reference={`${standardGlossSeriesCount} séries × ${standardGlossReadingsPerSeries} relevés (Sens du fil + Perpendiculaire)`}
+              realized={`${glossSeriesCount} séries × ${glossReadingsPerSeries} relevés`}
+              justification={glossJustification}
+            />
             <div className="flex items-center gap-4 text-xs">
               <div className="flex items-center gap-2">
                 <span>Séries :</span>
@@ -217,24 +240,22 @@ export function WizardStep5Families({
                   className="w-16 px-2 py-1 border border-slate-300 rounded text-center font-bold"
                 />
               </div>
-              {isGlossAdapted && (
-                <span className="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                  Adaptation du protocole
-                </span>
-              )}
             </div>
             {isGlossAdapted && (
               <div>
                 <label className="block text-xs font-bold text-red-700 mb-1">
-                  Justification obligatoire de l'écart métrologique *
+                  Justification obligatoire : 8 caractères minimum *
                 </label>
                 <input
                   type="text"
                   value={glossJustification}
                   onChange={(e) => onGlossJustificationChange(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-red-300 rounded-lg bg-red-50/20"
+                  className={`w-full px-3 py-1.5 text-xs border rounded-lg ${isGlossAdapted && !isAdaptationJustificationValid(glossJustification) ? 'border-red-500 bg-red-50/30' : 'border-red-300 bg-red-50/20'}`}
                   placeholder="Motif technique de l'adaptation..."
                 />
+                {isGlossAdapted && !isAdaptationJustificationValid(glossJustification) && (
+                  <p className="text-[11px] text-red-600 mt-1 font-semibold">Justification obligatoire : 8 caractères minimum.</p>
+                )}
               </div>
             )}
           </div>
@@ -245,8 +266,13 @@ export function WizardStep5Families({
           <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-900">Répétitions Dureté Persoz</span>
-              <span className="text-xs text-slate-500 font-mono">Standard Labo : 3 répétitions</span>
             </div>
+            <ProtocolStatusHeader
+              isAdapted={persozReps !== standardPersozReps}
+              reference={`${standardPersozReps} répétitions / éprouvette`}
+              realized={`${persozReps} répétitions / éprouvette`}
+              justification={persozJustification}
+            />
             <div className="flex items-center gap-3">
               <label className="text-xs text-slate-700">Nombre de répétitions par éprouvette :</label>
               <input
@@ -257,24 +283,22 @@ export function WizardStep5Families({
                 onChange={(e) => onPersozRepsChange(Number(e.target.value))}
                 className="w-20 px-2 py-1 text-xs border border-slate-300 rounded text-center font-bold"
               />
-              {isPersozAdapted && (
-                <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                  Adaptation Recommandation
-                </span>
-              )}
             </div>
             {isPersozAdapted && (
               <div>
                 <label className="block text-xs font-bold text-red-700 mb-1">
-                  Justification obligatoire de l'écart métrologique *
+                  Justification obligatoire : 8 caractères minimum *
                 </label>
                 <input
                   type="text"
                   value={persozJustification}
                   onChange={(e) => onPersozJustificationChange(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-red-300 rounded-lg bg-red-50/20"
+                  className={`w-full px-3 py-1.5 text-xs border rounded-lg ${isPersozAdapted && !isAdaptationJustificationValid(persozJustification) ? 'border-red-500 bg-red-50/30' : 'border-red-300 bg-red-50/20'}`}
                   placeholder="Motif de l'adaptation..."
                 />
+                {isPersozAdapted && !isAdaptationJustificationValid(persozJustification) && (
+                  <p className="text-[11px] text-red-600 mt-1 font-semibold">Justification obligatoire : 8 caractères minimum.</p>
+                )}
               </div>
             )}
           </div>
@@ -285,8 +309,13 @@ export function WizardStep5Families({
           <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-900">Mesures d'Adhérence par Panneau (ISO 2409)</span>
-              <span className="text-xs text-slate-500 font-mono">Standard : 2 mesures / panneau</span>
             </div>
+            <ProtocolStatusHeader
+              isAdapted={adhCount !== standardAdhesionCount}
+              reference={`${standardAdhesionCount} mesures / panneau`}
+              realized={`${adhCount} mesures / panneau`}
+              justification={adhJustification}
+            />
             <div className="flex items-center gap-3">
               <label className="text-xs text-slate-700">Nombre de mesures par éprouvette :</label>
               <input
@@ -297,24 +326,22 @@ export function WizardStep5Families({
                 onChange={(e) => onAdhCountChange(Math.max(1, Math.min(2, Number(e.target.value) || 1)))}
                 className="w-20 px-2 py-1 text-xs border border-slate-300 rounded text-center font-bold"
               />
-              {isAdhAdapted && (
-                <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                  Adaptation (1 mesure)
-                </span>
-              )}
             </div>
             {isAdhAdapted && (
               <div>
                 <label className="block text-xs font-bold text-red-700 mb-1">
-                  Justification obligatoire de l'écart métrologique *
+                  Justification obligatoire : 8 caractères minimum *
                 </label>
                 <input
                   type="text"
                   value={adhJustification}
                   onChange={(e) => onAdhJustificationChange(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-red-300 rounded-lg bg-red-50/20"
+                  className={`w-full px-3 py-1.5 text-xs border rounded-lg ${isAdhAdapted && !isAdaptationJustificationValid(adhJustification) ? 'border-red-500 bg-red-50/30' : 'border-red-300 bg-red-50/20'}`}
                   placeholder="Motif de l'adaptation à 1 mesure..."
                 />
+                {isAdhAdapted && !isAdaptationJustificationValid(adhJustification) && (
+                  <p className="text-[11px] text-red-600 mt-1 font-semibold">Justification obligatoire : 8 caractères minimum.</p>
+                )}
               </div>
             )}
           </div>
