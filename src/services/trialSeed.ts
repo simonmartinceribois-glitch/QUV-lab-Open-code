@@ -47,12 +47,17 @@ import { generateStandardExposureStages } from './trialStages';
  * Crée un essai de démonstration complet représentatif d'une campagne active
  */
 export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
-  const trialId = 'quv-trial-2026-042';
+  // Identité de démonstration totalement générique (G52-CLEAN) :
+  // aucun numéro de référence issu d'une campagne réelle.
+  const trialId = 'quv-trial-demo-001';
+  const demoReference = 'DEMO-APP-001';
+  // Jalon T0 du scénario de démonstration — passé au générateur de calendrier.
+  const demoStartIso = '2026-01-15T08:00:00Z';
 
   const metadata: TrialMetadata = {
-    reference: 'QUV-2026-042',
-    orderNumber: 'CO-VAN2026-001',
-    reportNumber: 'RA-VAN2026-001',
+    reference: demoReference,
+    orderNumber: 'CO-DEMO-001',
+    reportNumber: 'RA-DEMO-001',
     title: 'Système Lasurage Chêne Haute Durabilité',
     projectOrClient: 'Projet X — Ceribois & Partenaires',
     coatingSystemDescription: 'Système 3 couches lasure acrylique microporeuse en phase aqueuse',
@@ -193,7 +198,7 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
     }
   };
 
-  const stages = generateStandardExposureStages(trialId);
+  const stages = generateStandardExposureStages(trialId, demoStartIso);
 
   // Données de démonstration uniquement : le générateur de production
   // (generateStandardExposureStages) ne fabrique aucune acquisition fictive.
@@ -206,17 +211,17 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
     {
       id: 'audit-1',
       trialId,
-      timestamp: '2026-08-30T08:15:00Z',
+      timestamp: '2026-01-15T08:15:00Z',
       operatorId: 'SM',
       action: 'CREATE_TRIAL',
       entityType: 'TRIAL',
       entityId: trialId,
-      details: { reference: 'QUV-2026-042', title: metadata.title }
+      details: { reference: demoReference, title: metadata.title }
     },
     {
       id: 'audit-2',
       trialId,
-      timestamp: '2026-08-30T08:20:00Z',
+      timestamp: '2026-01-15T08:20:00Z',
       operatorId: 'SM',
       action: 'CONFIGURE_PROTOCOL',
       entityType: 'PROTOCOL',
@@ -226,7 +231,7 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
     {
       id: 'audit-3',
       trialId,
-      timestamp: '2026-08-30T08:35:00Z',
+      timestamp: '2026-01-15T08:35:00Z',
       operatorId: 'SM',
       action: 'CREATE_BATCH',
       entityType: 'BATCH',
@@ -236,7 +241,7 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
     {
       id: 'audit-4',
       trialId,
-      timestamp: '2026-08-30T08:40:00Z',
+      timestamp: '2026-01-15T08:40:00Z',
       operatorId: 'SM',
       action: 'CREATE_BATCH',
       entityType: 'BATCH',
@@ -246,7 +251,7 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
     {
       id: 'audit-5',
       trialId,
-      timestamp: '2026-08-30T08:45:00Z',
+      timestamp: '2026-01-15T08:45:00Z',
       operatorId: 'SM',
       action: 'CREATE_BATCH',
       entityType: 'BATCH',
@@ -256,7 +261,7 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
     {
       id: 'audit-6',
       trialId,
-      timestamp: '2026-08-30T09:00:00Z',
+      timestamp: '2026-01-15T09:00:00Z',
       operatorId: 'SYSTEM',
       action: 'LOCK_TRIAL_CONFIGURATION',
       entityType: 'CONFIG',
@@ -266,7 +271,7 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
     {
       id: 'audit-7',
       trialId,
-      timestamp: '2026-08-30T12:00:00Z',
+      timestamp: '2026-01-15T12:00:00Z',
       operatorId: 'SM',
       action: 'VALIDATE_STAGE',
       entityType: 'STAGE',
@@ -276,7 +281,7 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
     {
       id: 'audit-8',
       trialId,
-      timestamp: '2026-09-06T17:00:00Z',
+      timestamp: '2026-01-22T17:00:00Z',
       operatorId: 'SM',
       action: 'VALIDATE_STAGE',
       entityType: 'STAGE',
@@ -288,8 +293,8 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
   const trial: Trial = {
     id: trialId,
     schemaVersion: '1.2.0',
-    createdAt: '2026-08-30T08:15:00Z',
-    updatedAt: '2026-09-13T10:30:00Z',
+    createdAt: '2026-01-15T08:15:00Z',
+    updatedAt: '2026-01-29T10:30:00Z',
     metadata,
     commonCharacteristics,
     status: 'IN_PROGRESS',
@@ -410,7 +415,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
           { category: 'GENERAL_APPEARANCE', categoryLabel: 'Aspect général', rating: 0, status: 'CONFORME', comment: 'Revêtement uniforme et lisse' }
         ],
         assessedBy: 'SM',
-        assessedAt: '2026-08-30T11:45:00Z'
+        assessedAt: '2026-01-15T11:45:00Z'
       };
       recordAcquisitionDirect(trial, stageT0.id, batch.id, panel.id, 'OBSERVATIONS', obsRawT0, ruleSet);
 
@@ -421,7 +426,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
           adhesionClass: 0,
           gridSpacingMm: spacing,
           coatingThicknessMicrons: batch.dryFilmThicknessMicrons,
-          measurementDateTime: '2026-08-30T14:00:00Z',
+          measurementDateTime: '2026-01-15T14:00:00Z',
           applicationDateTime: batch.applicationDate,
           requiredMinimumDelayHours: 168,
           normReference: 'NF EN ISO 2409:2020',
@@ -551,7 +556,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
       filename: 'PHOTO_LOT_XX1C_1_T0_0h.jpg',
       mimeType: 'image/jpeg',
       sizeBytes: 245000,
-      capturedAt: '2026-09-01T08:30:00Z',
+      capturedAt: '2026-01-15T08:30:00Z',
       capturedBy: 'Simon Martin (Technicien)',
       caption: 'État initial avant exposition : film lasure satiné homogène, aucun défaut de surface.'
     });
@@ -567,7 +572,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
       filename: 'PHOTO_LOT_XX1C_1_C1_168h.jpg',
       mimeType: 'image/jpeg',
       sizeBytes: 252000,
-      capturedAt: '2026-09-08T09:15:00Z',
+      capturedAt: '2026-01-22T09:15:00Z',
       capturedBy: 'Simon Martin (Technicien)',
       caption: 'Après 1 cycle (168 h) : début de matification de la zone supérieure, absence de cloquage.'
     });
@@ -584,7 +589,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
         filename: 'PHOTO_LOT_XX1C_1_C2_336h.jpg',
         mimeType: 'image/jpeg',
         sizeBytes: 260000,
-        capturedAt: '2026-09-15T10:00:00Z',
+        capturedAt: '2026-01-29T10:00:00Z',
         capturedBy: 'Simon Martin (Technicien)',
         caption: 'Après 2 cycles (336 h) : évolution continue de l\'aspect de surface, conservation de l\'intégrité.'
       });
@@ -604,7 +609,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
         filename: 'PHOTO_LOT_XX1C_T_T0.jpg',
         mimeType: 'image/jpeg',
         sizeBytes: 238000,
-        capturedAt: '2026-09-01T08:20:00Z',
+        capturedAt: '2026-01-19T08:20:00Z',
         capturedBy: 'Simon Martin (Technicien)',
         caption: 'Éprouvette témoin T conservée en chambre obscure conditionnée (20°C / 65% HR).'
       });
@@ -622,23 +627,23 @@ function applyDemoStageMetadata(stages: ExposureStage[]): void {
   const demoStageMeta: Array<Partial<ExposureStage> & { cycleIndex: number }> = [
     {
       cycleIndex: 0,
-      measuredAt: '2026-08-30T08:00:00Z',
+      measuredAt: '2026-01-15T08:00:00Z',
       status: 'VALIDATED',
       validatedBy: 'SM',
-      validatedAt: '2026-08-30T12:00:00Z',
+      validatedAt: '2026-01-15T12:00:00Z',
       notes: 'Mesures initiales de référence réalisées avant toute exposition UV.'
     },
     {
       cycleIndex: 1,
-      measuredAt: '2026-09-06T14:30:00Z',
+      measuredAt: '2026-01-22T14:30:00Z',
       status: 'VALIDATED',
       validatedBy: 'SM',
-      validatedAt: '2026-09-06T17:00:00Z',
+      validatedAt: '2026-01-22T17:00:00Z',
       notes: 'Relevé intermédiaire 168h validé sans anomalie.'
     },
     {
       cycleIndex: 2,
-      measuredAt: '2026-09-13T10:15:00Z',
+      measuredAt: '2026-01-29T10:15:00Z',
       status: 'IN_PROGRESS'
     }
   ];

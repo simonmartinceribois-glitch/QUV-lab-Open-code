@@ -13,6 +13,7 @@ import { runGate54CalendarMeasurementPlanTests } from './src/scientific/tests/ga
 import { runCalSeedStagePrefillTests } from './src/scientific/tests/cal_seed_stage_prefill.test';
 import { runAdhesionGridWarningTests } from './src/scientific/tests/adhesion_grid_warning.test';
 import { runAdhesionGridBadgeTests } from './src/scientific/tests/adhesion_grid_badge.test';
+import { runG52DateExposureStartTests } from './src/scientific/tests/g52_date_exposure_start.test';
 import { runGate56AdhesionWitnessTests } from './src/scientific/tests/gate56_adhesion_witness.test';
 import { runGate57AdhesionTwoMeasurementsTests } from './src/scientific/tests/gate57_adhesion_two_measurements.test';
 import { runGate58PersozAggregationTests } from './src/scientific/tests/gate58_persoz_aggregation.test';
@@ -611,6 +612,19 @@ suite44.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('45. EXÉCUTION DU CONTRAT G52-DATE — DATE T0 PARAMÉTRABLE (6 TESTS)');
+console.log('================================================================');
+const suite45 = runG52DateExposureStartTests();
+console.log(`Résultats Contrat Date T0 : ${suite45.summary.passed} / ${suite45.summary.total} réussis.`);
+suite45.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [G52 Date] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -655,7 +669,8 @@ const totalFailed =
   suite41.summary.failed +
   suite42.summary.failed +
   suite43.summary.failed +
-  suite44.summary.failed;
+  suite44.summary.failed +
+  suite45.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -700,7 +715,8 @@ const totalCount =
   suite41.summary.total +
   suite42.summary.total +
   suite43.summary.total +
-  suite44.summary.total;
+  suite44.summary.total +
+  suite45.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

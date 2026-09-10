@@ -77,11 +77,12 @@ export class TrialStoreService {
     if (!trial || !Array.isArray(trial.stages)) return trial;
 
     // Ensure orderNumber and reportNumber are present
+    // Valeurs neutres : aucune référence de campagne ne doit être injectée (G52-CLEAN).
     if (!trial.metadata.orderNumber) {
-      trial.metadata.orderNumber = 'CO-VAN2026-001';
+      trial.metadata.orderNumber = '';
     }
     if (!trial.metadata.reportNumber) {
-      trial.metadata.reportNumber = 'RA-VAN2026-001';
+      trial.metadata.reportNumber = '';
     }
 
     // Ensure project-level dimensions
@@ -291,6 +292,7 @@ export class TrialStoreService {
     activeFamilies: MeasurementFamilyId[];
     familyConfigs?: Partial<TrialProtocolConfig['familyConfigs']>;
     selectedMeasurementCycles?: number[];
+    startDate?: string;
   }): Trial {
     const createdBy = params.metadata?.createdBy?.trim();
     if (!createdBy) {
@@ -299,6 +301,15 @@ export class TrialStoreService {
 
     const trialId = generateUUID();
     const now = new Date().toISOString();
+
+    // Date de début (T0) — source unique du calendrier (G52-DATE).
+    // Date seule "yyyy-mm-dd" → 08:00 locale de laboratoire ; date horodatée → telle quelle ;
+    // absente/invalide → instant courant (défaut dynamique, sans contexte de campagne câblé).
+    const rawStartDate = params.startDate?.trim();
+    const trialStartDateIso =
+      rawStartDate && !isNaN(Date.parse(rawStartDate))
+        ? new Date(rawStartDate.length === 10 ? `${rawStartDate}T08:00:00` : rawStartDate).toISOString()
+        : now;
 
     const createdBatches: BatchDefinition[] = params.batches.map((b, bIdx) => {
       const batchId = generateUUID();
@@ -400,7 +411,7 @@ export class TrialStoreService {
       }
     };
 
-    const stages = generateStandardExposureStages(trialId, params.selectedMeasurementCycles);
+    const stages = generateStandardExposureStages(trialId, trialStartDateIso, params.selectedMeasurementCycles);
 
     const auditTrail: AuditEvent[] = [
       {
@@ -426,6 +437,7 @@ export class TrialStoreService {
       schemaVersion: '1.2.0',
       createdAt: now,
       updatedAt: now,
+      startDate: trialStartDateIso,
       metadata: {
         ...params.metadata,
         createdBy
