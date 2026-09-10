@@ -19,6 +19,29 @@ export interface AdhesionBenchEntry {
   obs: string;
 }
 
+/**
+ * État d'affichage du quadrillage ISO 2409 selon l'épaisseur sèche réelle du film.
+ * Correction d'interface (G52) : au-delà de 250 µm, le quadrillage n'est pas applicable ;
+ * il s'agit d'un avertissement d'affichage, jamais d'une invalidation de la mesure RAW
+ * (l'épaisseur 300 µm reste 300 µm). La logique scientifique de l'espacement
+ * (getApplicableGridSpacing) n'est pas modifiée.
+ */
+export interface AdhesionGridDisplay {
+  isApplicable: boolean;
+  warningMessage: string | null;
+  gridSpacingMm: number | null;
+}
+
+export function getAdhesionGridDisplay(thickness?: number): AdhesionGridDisplay {
+  if (thickness === undefined) {
+    return { isApplicable: false, warningMessage: null, gridSpacingMm: null };
+  }
+  if (thickness > 250) {
+    return { isApplicable: false, warningMessage: '⚠️ Quadrillage non-applicable', gridSpacingMm: null };
+  }
+  return { isApplicable: true, warningMessage: null, gridSpacingMm: getApplicableGridSpacing(thickness).gridSpacingMm };
+}
+
 interface Props {
   currentBatch: BatchDefinition | undefined;
   currentPanel: PanelDefinition | undefined;
@@ -40,6 +63,7 @@ export function BenchAdhesionForm({
 }: Props) {
   const thickness = currentBatch?.dryFilmThicknessMicrons ?? undefined;
   const spacingResult = getApplicableGridSpacing(thickness);
+  const gridDisplay = getAdhesionGridDisplay(thickness);
   const delayResult = calculateDelayCompliance(currentBatch?.applicationDate, new Date().toISOString(), 168);
   const isWitness = currentPanel?.role === 'WITNESS' || currentPanel?.index === 1;
 
@@ -74,14 +98,18 @@ export function BenchAdhesionForm({
           </div>
           <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
             <div className="text-slate-500 text-[11px]">Épaisseur sèche (ISO 2808) :</div>
-            <div className={`font-bold mt-0.5 ${thickness !== undefined && thickness <= 250 ? 'text-indigo-900' : 'text-rose-600'}`}>
+            <div className={`font-bold mt-0.5 ${gridDisplay.isApplicable ? 'text-indigo-900' : 'text-rose-600'}`}>
               {thickness !== undefined ? `${thickness} µm` : '⚠️ Non renseignée'}
             </div>
           </div>
           <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
             <div className="text-slate-500 text-[11px]">Espacement requis du peigne :</div>
-            <div className={`font-bold mt-0.5 ${thickness !== undefined && thickness <= 250 ? 'text-emerald-700' : 'text-rose-600'}`}>
-              {thickness !== undefined && thickness <= 250 ? `${spacingResult.gridSpacingMm} mm (6×6 incisions)` : '🔴 Bloqué'}
+            <div className={`font-bold mt-0.5 ${gridDisplay.isApplicable ? 'text-emerald-700' : 'text-rose-600'}`}>
+              {gridDisplay.isApplicable
+                ? `${spacingResult.gridSpacingMm} mm (6×6 incisions)`
+                : thickness === undefined
+                  ? '🔴 Bloqué'
+                  : gridDisplay.warningMessage}
             </div>
           </div>
           <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
@@ -142,23 +170,23 @@ export function BenchAdhesionForm({
         </div>
       )}
 
-      {thickness !== undefined && thickness > 250 && (
+      {thickness !== undefined && !gridDisplay.isApplicable && (
         <div className="p-4 bg-rose-50 border border-rose-300 rounded-xl text-xs text-rose-900 space-y-2">
           <div className="font-bold flex items-center gap-2 text-sm text-rose-800">
             <AlertTriangle className="w-5 h-5 text-rose-600" />
-            🔴 Méthode non appropriée (Épaisseur {thickness} µm &gt; 250 µm)
+            {gridDisplay.warningMessage} ({thickness} µm)
           </div>
           <p>
-            La NF EN ISO 2409:2020 spécifie formellement que l'essai de quadrillage ne s'applique pas aux revêtements dont l'épaisseur totale est supérieure à 250 µm.
+            La NF EN ISO 2409:2020 spécifie que l'essai de quadrillage ne s'applique pas aux revêtements dont l'épaisseur totale est strictement supérieure à 250 µm. Pour ces épaisseurs, la méthode d'incision en croix X (ISO 16276-2) est prévue.
           </p>
           <p className="font-bold">
-            La saisie est bloquée conformément au domaine d'application de la norme.
+            Avertissement d'affichage : cela ne signifie pas que l'épaisseur mesurée est invalide. La donnée brute ({thickness} µm) reste bien la valeur réelle saisie par le technicien et n'est pas remplacée.
           </p>
         </div>
       )}
 
       {/* 3. Sélecteurs interactifs des Classes de Quadrillage ISO 2409 — un bloc par mesure */}
-      {thickness !== undefined && thickness <= 250 && (
+      {gridDisplay.isApplicable && (
         <div className="space-y-4">
           {entries.map((entry, idx) => (
             <div key={idx} className="space-y-3 p-3 rounded-xl border border-indigo-100 bg-indigo-50/30">
