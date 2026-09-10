@@ -29,6 +29,7 @@ import {
 } from '../scientific/panelUtils';
 import { aggregateBatchColorExposed, PanelComputedItem } from '../scientific/aggregations';
 import { evaluateCountProtocolCompliance, evaluateSeriesProtocolCompliance, buildProtocolDefinition } from '../scientific/protocolEngine';
+import { isAdaptationJustificationValid } from '../scientific/ruleSet';
 import type { MeasurementFamilyId } from '../types/scientific';
 
 /**
@@ -318,11 +319,11 @@ export function buildScientificReport(
     const defs: { n: number | undefined; std: number | undefined; adapted: boolean; just: string }[] = [];
     if (cfg.countConfig) {
       const d = buildProtocolDefinition(cfg.countConfig, ruleSet);
-      defs.push({ n: d.configuredCount, std: d.standardRecommendedCount, adapted: d.isAdapted, just: d.justification || '' });
+      defs.push({ n: d.configuredCount, std: d.standardRecommendedCount, adapted: d.isAdapted, just: isAdaptationJustificationValid(d.justification) ? d.justification!.trim() : '' });
     }
     if (cfg.seriesConfig) {
       const d = buildProtocolDefinition(cfg.seriesConfig, ruleSet);
-      defs.push({ n: d.configuredCount, std: d.standardRecommendedCount, adapted: d.isAdapted, just: d.justification || '' });
+      defs.push({ n: d.configuredCount, std: d.standardRecommendedCount, adapted: d.isAdapted, just: isAdaptationJustificationValid(d.justification) ? d.justification!.trim() : '' });
     }
     if (defs.length === 0) return 'Active (détail de configuration Non renseigné)';
     return `Active (${defs.map((d) => `${displayReportValue(d.n)} ${unit} (référence : ${displayReportValue(d.std)})${d.adapted ? (d.just ? ' — adaptation justifiée' : ' — ADAPTATION NON JUSTIFIÉE') : ''}`).join(' ; ')})`;
@@ -355,12 +356,14 @@ export function buildScientificReport(
       reference = `${std?.seriesCount ?? cfg.seriesConfig.configuredConfiguration.seriesCount} séries × ${std?.readingsPerSeries ?? cfg.seriesConfig.configuredConfiguration.readingsPerSeries} relevés`;
       realized = `${cfg.seriesConfig.configuredConfiguration.seriesCount} séries × ${cfg.seriesConfig.configuredConfiguration.readingsPerSeries} relevés`;
       adapted = cfg.seriesConfig.deviationFromStandard === true;
-      justification = cfg.seriesConfig.justification || '';
+      const justSeries = cfg.seriesConfig.justification;
+      justification = isAdaptationJustificationValid(justSeries) ? (justSeries as string).trim() : '';
     } else if (cfg?.countConfig) {
       reference = `${cfg.countConfig.standardRecommendedCount} ${countUnits[fam]}`;
       realized = `${cfg.countConfig.configuredCount} ${countUnits[fam]}`;
       adapted = cfg.countConfig.deviationFromStandard === true;
-      justification = cfg.countConfig.justification || '';
+      const justCount = cfg.countConfig.justification;
+      justification = isAdaptationJustificationValid(justCount) ? (justCount as string).trim() : '';
     }
     const missing = !cfg || (!cfg.countConfig && !cfg.seriesConfig);
     const status = missing

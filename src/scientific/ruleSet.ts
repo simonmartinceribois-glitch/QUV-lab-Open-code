@@ -133,6 +133,19 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
 }
 
 /**
+ * Règle métier P5 (CORRECTIF) : longueur minimale d'une justification d'adaptation,
+ * après suppression des espaces en début et fin. Une justification plus courte
+ * n'est pas considérée comme « formellement renseignée » : la configuration est
+ * alors qualifiée NON JUSTIFIÉE. Le logiciel ne juge jamais la pertinence
+ * scientifique du motif — uniquement sa présence exploitable.
+ */
+export const MIN_ADAPTATION_JUSTIFICATION_LENGTH = 8;
+
+export function isAdaptationJustificationValid(justification?: string | null): boolean {
+  return Boolean(justification && justification.trim().length >= MIN_ADAPTATION_JUSTIFICATION_LENGTH);
+}
+
+/**
  * Créer ou adapter une configuration de nombre de mesures pour une famille scalaire
  */
 export function createCountConfiguration(

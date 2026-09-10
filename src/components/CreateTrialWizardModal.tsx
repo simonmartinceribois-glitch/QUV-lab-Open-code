@@ -21,7 +21,7 @@ import {
   ScientificRuleSet
 } from '../types/scientific';
 import { globalTrialStore } from '../services/trialStore';
-import { createCountConfiguration, createSeriesConfiguration } from '../scientific/ruleSet';
+import { createCountConfiguration, createSeriesConfiguration, isAdaptationJustificationValid } from '../scientific/ruleSet';
 import { WizardStep1Identification } from './wizard/WizardStep1Identification';
 import { WizardStep2Characteristics } from './wizard/WizardStep2Characteristics';
 import { WizardStep3Batches } from './wizard/WizardStep3Batches';
@@ -242,17 +242,17 @@ export function CreateTrialWizardModal({
   const stdAdhesion = ruleSet.measurementConfigurations.ADHESION?.standardRecommendedCount ?? 2;
 
   const isColorAdapted = colorPoints !== stdColor;
-  const isColorAdaptationInvalid = isColorAdapted && colorJustification.trim().length === 0;
+  const isColorAdaptationInvalid = isColorAdapted && !isAdaptationJustificationValid(colorJustification);
 
   const isGlossAdapted = glossSeriesCount !== stdGlossSeries || glossReadingsPerSeries !== stdGlossReadings;
-  const isGlossAdaptationInvalid = isGlossAdapted && glossJustification.trim().length === 0;
+  const isGlossAdaptationInvalid = isGlossAdapted && !isAdaptationJustificationValid(glossJustification);
 
   const isPersozAdapted = persozReps !== stdPersoz;
-  const isPersozAdaptationInvalid = isPersozAdapted && persozJustification.trim().length === 0;
+  const isPersozAdaptationInvalid = isPersozAdapted && !isAdaptationJustificationValid(persozJustification);
 
   const isAdhAdapted = adhCount !== stdAdhesion;
   const isAdhAdaptationInvalid =
-    (isAdhAdapted && adhJustification.trim().length === 0) || (adhCount !== 1 && adhCount !== 2);
+    (isAdhAdapted && !isAdaptationJustificationValid(adhJustification)) || (adhCount !== 1 && adhCount !== 2);
 
   // Gardes de saisie (P5) : les configurations de mesure sont des entiers finis ≥ 1.
   // 0, valeurs décimales et NaN sont ramenés à l'entier valide le plus proche.
@@ -324,6 +324,15 @@ export function CreateTrialWizardModal({
     };
 
     try {
+    if (
+      (isColorAdapted && !isAdaptationJustificationValid(colorJustification)) ||
+      (isGlossAdapted && !isAdaptationJustificationValid(glossJustification)) ||
+      (isPersozAdapted && !isAdaptationJustificationValid(persozJustification)) ||
+      (isAdhAdapted && !isAdaptationJustificationValid(adhJustification))
+    ) {
+      window.alert('Justification obligatoire : 8 caractères minimum pour toute adaptation.');
+      return;
+    }
     const colorConfig = isColorAdapted
       ? createCountConfiguration('COLOR', colorPoints, ruleSet, { justification: colorJustification, operatorId: trimmedCreatedBy })
       : createCountConfiguration('COLOR', stdColor, ruleSet);

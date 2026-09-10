@@ -34,7 +34,7 @@ import {
   ScientificReportStatus,
   ScientificReportReviewComment
 } from '../types/scientific';
-import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../scientific/ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration, isAdaptationJustificationValid } from '../scientific/ruleSet';
 import { recalculateAcquisition } from '../scientific/recalculator';
 import { getQualityStatus } from '../scientific/validity';
 import { createConfigChangeEvent } from '../scientific/auditEngine';
@@ -542,8 +542,8 @@ export class TrialStoreService {
         );
       }
       const isStandard = newCountOrSeries === (this.ruleSet.measurementConfigurations[familyId]?.standardRecommendedCount ?? 4);
-      if (!isStandard && (!justification || justification.trim().length === 0)) {
-        throw new Error('Une justification obligatoire est requise pour toute adaptation du nombre de mesures.');
+      if (!isStandard && !isAdaptationJustificationValid(justification)) {
+        throw new Error('Une justification obligatoire (8 caractères minimum) est requise pour toute adaptation du nombre de mesures.');
       }
       const updatedConfig = createCountConfiguration(familyId, newCountOrSeries, this.ruleSet, {
         justification,
@@ -564,8 +564,8 @@ export class TrialStoreService {
         std &&
         newCountOrSeries.seriesCount === std.seriesCount &&
         newCountOrSeries.readingsPerSeries === std.readingsPerSeries;
-      if (!isStandard && (!justification || justification.trim().length === 0)) {
-        throw new Error('Une justification obligatoire est requise pour toute adaptation de structure de séries.');
+      if (!isStandard && !isAdaptationJustificationValid(justification)) {
+        throw new Error('Une justification obligatoire (8 caractères minimum) est requise pour toute adaptation de structure de séries.');
       }
       const updatedConfig = createSeriesConfiguration(
         familyId,

@@ -8,6 +8,7 @@ import { Info } from 'lucide-react';
 import type { NumberSetter, TextSetter } from './wizardTypes';
 import type { MeasurementFamilyId } from '../../types/scientific';
 import { ProtocolStatusHeader } from '../bench/ProtocolStatusHeader';
+import { isAdaptationJustificationValid } from '../../scientific/ruleSet';
 
 interface Props {
   activeFamilies: MeasurementFamilyId[];
@@ -184,15 +185,18 @@ export function WizardStep5Families({
             {isColorAdapted && (
               <div>
                 <label className="block text-xs font-bold text-red-700 mb-1">
-                  Justification obligatoire de l'écart métrologique *
+                  Justification obligatoire : 8 caractères minimum *
                 </label>
                 <input
                   type="text"
                   value={colorJustification}
                   onChange={(e) => onColorJustificationChange(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-red-300 rounded-lg bg-red-50/20"
+                  className={`w-full px-3 py-1.5 text-xs border rounded-lg ${isColorAdapted && !isAdaptationJustificationValid(colorJustification) ? 'border-red-500 bg-red-50/30' : 'border-red-300 bg-red-50/20'}`}
                   placeholder="Motif technique de l'adaptation..."
                 />
+                {isColorAdapted && !isAdaptationJustificationValid(colorJustification) && (
+                  <p className="text-[11px] text-red-600 mt-1 font-semibold">Justification obligatoire : 8 caractères minimum.</p>
+                )}
               </div>
             )}
           </div>
@@ -240,15 +244,18 @@ export function WizardStep5Families({
             {isGlossAdapted && (
               <div>
                 <label className="block text-xs font-bold text-red-700 mb-1">
-                  Justification obligatoire de l'écart métrologique *
+                  Justification obligatoire : 8 caractères minimum *
                 </label>
                 <input
                   type="text"
                   value={glossJustification}
                   onChange={(e) => onGlossJustificationChange(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-red-300 rounded-lg bg-red-50/20"
+                  className={`w-full px-3 py-1.5 text-xs border rounded-lg ${isGlossAdapted && !isAdaptationJustificationValid(glossJustification) ? 'border-red-500 bg-red-50/30' : 'border-red-300 bg-red-50/20'}`}
                   placeholder="Motif technique de l'adaptation..."
                 />
+                {isGlossAdapted && !isAdaptationJustificationValid(glossJustification) && (
+                  <p className="text-[11px] text-red-600 mt-1 font-semibold">Justification obligatoire : 8 caractères minimum.</p>
+                )}
               </div>
             )}
           </div>
@@ -280,15 +287,18 @@ export function WizardStep5Families({
             {isPersozAdapted && (
               <div>
                 <label className="block text-xs font-bold text-red-700 mb-1">
-                  Justification obligatoire de l'écart métrologique *
+                  Justification obligatoire : 8 caractères minimum *
                 </label>
                 <input
                   type="text"
                   value={persozJustification}
                   onChange={(e) => onPersozJustificationChange(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-red-300 rounded-lg bg-red-50/20"
+                  className={`w-full px-3 py-1.5 text-xs border rounded-lg ${isPersozAdapted && !isAdaptationJustificationValid(persozJustification) ? 'border-red-500 bg-red-50/30' : 'border-red-300 bg-red-50/20'}`}
                   placeholder="Motif de l'adaptation..."
                 />
+                {isPersozAdapted && !isAdaptationJustificationValid(persozJustification) && (
+                  <p className="text-[11px] text-red-600 mt-1 font-semibold">Justification obligatoire : 8 caractères minimum.</p>
+                )}
               </div>
             )}
           </div>
@@ -320,15 +330,18 @@ export function WizardStep5Families({
             {isAdhAdapted && (
               <div>
                 <label className="block text-xs font-bold text-red-700 mb-1">
-                  Justification obligatoire de l'écart métrologique *
+                  Justification obligatoire : 8 caractères minimum *
                 </label>
                 <input
                   type="text"
                   value={adhJustification}
                   onChange={(e) => onAdhJustificationChange(e.target.value)}
-                  className="w-full px-3 py-1.5 text-xs border border-red-300 rounded-lg bg-red-50/20"
+                  className={`w-full px-3 py-1.5 text-xs border rounded-lg ${isAdhAdapted && !isAdaptationJustificationValid(adhJustification) ? 'border-red-500 bg-red-50/30' : 'border-red-300 bg-red-50/20'}`}
                   placeholder="Motif de l'adaptation à 1 mesure..."
                 />
+                {isAdhAdapted && !isAdaptationJustificationValid(adhJustification) && (
+                  <p className="text-[11px] text-red-600 mt-1 font-semibold">Justification obligatoire : 8 caractères minimum.</p>
+                )}
               </div>
             )}
           </div>

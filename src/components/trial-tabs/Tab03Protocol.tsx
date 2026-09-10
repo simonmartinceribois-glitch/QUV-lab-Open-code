@@ -297,15 +297,18 @@ export function Tab03Protocol({ trial, ruleSet, onTrialUpdated }: Props) {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Justification Métrologique Obligatoire *
+                Justification Métrologique Obligatoire * — 8 caractères minimum
               </label>
               <textarea
                 rows={3}
                 value={justification}
                 onChange={(e) => setJustification(e.target.value)}
-                placeholder="Indiquez la raison technique ou expérimentale imposant cet écart..."
-                className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="Indiquez la raison technique ou expérimentale imposant cet écart (8 caractères minimum)..."
+                className={`w-full text-xs px-3 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-blue-500 ${justification.trim().length > 0 && justification.trim().length < 8 ? 'border-rose-400 bg-rose-50/30' : 'border-slate-300'}`}
               />
+              {justification.trim().length > 0 && justification.trim().length < 8 && (
+                <p className="text-[11px] text-rose-600 font-semibold mt-1">Justification obligatoire : 8 caractères minimum.</p>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">

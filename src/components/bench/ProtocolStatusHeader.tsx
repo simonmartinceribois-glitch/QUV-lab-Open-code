@@ -5,6 +5,7 @@
  */
 
 import { ShieldCheck, AlertTriangle } from 'lucide-react';
+import { isAdaptationJustificationValid } from '../../scientific/ruleSet';
 
 interface ProtocolStatusHeaderProps {
   isAdapted: boolean;
@@ -19,7 +20,7 @@ export function ProtocolStatusHeader({
   realized,
   justification
 }: ProtocolStatusHeaderProps) {
-  const hasJustification = Boolean(justification && justification.trim().length > 0);
+  const hasJustification = isAdaptationJustificationValid(justification);
   return (
     <div
       className={`rounded-lg border px-3 py-2 text-xs ${

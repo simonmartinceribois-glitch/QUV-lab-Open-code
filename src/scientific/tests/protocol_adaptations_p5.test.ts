@@ -8,11 +8,19 @@
  *    L'adaptation n'est jamais une invalidation (1 mesure justifiée → ADAPTED_JUSTIFIED).
  * 3. §20 — Rapport P5-G : bloc PROTOCOLE DE MESURE préfixé aux sections famille,
  *    références issues du ruleSet, justification réelle ou NON RENSEIGNÉE (jamais inventée).
+ * 4. §21 — Justification minimale (8 caractères après trim, prédicat centralisé) :
+ *    acceptation/refus, évaluation par famille, rapport NON RENSEIGNÉE, garde de service
+ *    adaptProtocolConfig, ADHESION 1|2 conservé et rejets numériques inchangés.
  */
 
-import { generateStandardExposureStages } from '../../services/trialStore';
+import { generateStandardExposureStages, globalTrialStore } from '../../services/trialStore';
 import { buildScientificReport } from '../../services/reportGenerator';
-import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../ruleSet';
+import {
+  getDefaultScientificRuleSet,
+  createCountConfiguration,
+  createSeriesConfiguration,
+  isAdaptationJustificationValid
+} from '../ruleSet';
 import { evaluateCountProtocolCompliance, evaluateSeriesProtocolCompliance } from '../protocolEngine';
 import type { Trial, TrialProtocolConfig } from '../../types/trial';
 import type { MeasurementCountConfiguration } from '../../types/scientific';
@@ -282,6 +290,138 @@ export function runProtocolAdaptationsTests(): {
     {
       const ok = rUnjust.protocolStatus === 'ADAPTED_UNJUSTIFIED';
       record('P0-R-12', 'Statut global rapport adapté sans motif = ADAPTED_UNJUSTIFIED', ok, `ADAPTED_UNJUSTIFIED (reçu ${rUnjust.protocolStatus})`, String(ok));
+    }
+  }
+
+  // ===== §21 — JUSTIFICATION MINIMALE 8 CARACTÈRES (prédicat centralisé) =====
+  {
+    const boolRecord = (id: string, name: string, got: boolean, expected: boolean) =>
+      record(id, name, got === expected, String(expected), String(got));
+
+    // Prédicat : aucune règle sémantique, uniquement présence + trim ≥ 8.
+    boolRecord('P0-J-01', 'Prédicat « 12345678 » → valide', isAdaptationJustificationValid('12345678'), true);
+    boolRecord('P0-J-02', 'Prédicat « Éprouvette étroite » → valide', isAdaptationJustificationValid('Éprouvette étroite'), true);
+    boolRecord('P0-J-03', 'Prédicat «        12345678        » (trim) → valide', isAdaptationJustificationValid('       12345678       '), true);
+    boolRecord('P0-J-04', 'Prédicat « » (vide) → invalide', isAdaptationJustificationValid(''), false);
+    boolRecord('P0-J-05', 'Prédicat « test » (4) → invalide', isAdaptationJustificationValid('test'), false);
+    boolRecord('P0-J-06', 'Prédicat « 1234567 » (7) → invalide', isAdaptationJustificationValid('1234567'), false);
+    boolRecord('P0-J-07', 'Prédicat «        1234567        » (7 après trim) → invalide', isAdaptationJustificationValid('       1234567       '), false);
+    boolRecord('P0-J-08', 'Prédicat undefined (historique/import) → invalide', isAdaptationJustificationValid(undefined), false);
+
+    const comp = (fc?: ReturnType<typeof createCountConfiguration>, sc?: ReturnType<typeof createSeriesConfiguration>) =>
+      sc ? evaluateSeriesProtocolCompliance(sc, ruleSet).status : evaluateCountProtocolCompliance(fc as MeasurementCountConfiguration, ruleSet).status;
+
+    const expectStatus = (id: string, name: string, status: string, expected: string) =>
+      record(id, name, status === expected, expected, status);
+
+    expectStatus('P0-J-11', 'COLOR 3 + 8 chars → ADAPTED_JUSTIFIED',
+      comp(createCountConfiguration('COLOR', 3, ruleSet, { justification: '12345678' })), 'ADAPTED_JUSTIFIED');
+    expectStatus('P0-J-12', 'COLOR 3 + « Éprouvette étroite » → ADAPTED_JUSTIFIED',
+      comp(createCountConfiguration('COLOR', 3, ruleSet, { justification: 'Éprouvette étroite' })), 'ADAPTED_JUSTIFIED');
+    expectStatus('P0-J-13', 'COLOR 3 + 7 chars → ADAPTED_UNJUSTIFIED',
+      comp(createCountConfiguration('COLOR', 3, ruleSet, { justification: '1234567' })), 'ADAPTED_UNJUSTIFIED');
+    expectStatus('P0-J-14', 'COLOR 3 + 7 chars (pad, trim) → ADAPTED_UNJUSTIFIED',
+      comp(createCountConfiguration('COLOR', 3, ruleSet, { justification: '       1234567       ' })), 'ADAPTED_UNJUSTIFIED');
+    expectStatus('P0-J-15', 'COLOR 3 + « test » → ADAPTED_UNJUSTIFIED',
+      comp(createCountConfiguration('COLOR', 3, ruleSet, { justification: 'test' })), 'ADAPTED_UNJUSTIFIED');
+    expectStatus('P0-J-16', 'COLOR 3 + vide → ADAPTED_UNJUSTIFIED',
+      comp(createCountConfiguration('COLOR', 3, ruleSet, { justification: '' })), 'ADAPTED_UNJUSTIFIED');
+    expectStatus('P0-J-17', 'GLOSS 1×2 + 8 chars → ADAPTED_JUSTIFIED',
+      comp(undefined, createSeriesConfiguration('GLOSS', 1, 2, ruleSet, { justification: '12345678' })), 'ADAPTED_JUSTIFIED');
+    expectStatus('P0-J-18', 'GLOSS 1×2 + 7 chars → ADAPTED_UNJUSTIFIED',
+      comp(undefined, createSeriesConfiguration('GLOSS', 1, 2, ruleSet, { justification: '1234567' })), 'ADAPTED_UNJUSTIFIED');
+    expectStatus('P0-J-19', 'PERSOZ 2 + 8 chars → ADAPTED_JUSTIFIED',
+      comp(createCountConfiguration('PERSOZ', 2, ruleSet, { justification: '12345678' })), 'ADAPTED_JUSTIFIED');
+    expectStatus('P0-J-21', 'PERSOZ 2 + 7 chars → ADAPTED_UNJUSTIFIED',
+      comp(createCountConfiguration('PERSOZ', 2, ruleSet, { justification: '1234567' })), 'ADAPTED_UNJUSTIFIED');
+    expectStatus('P0-J-22', 'ADHESION 1 + 8 chars → ADAPTED_JUSTIFIED',
+      comp(createCountConfiguration('ADHESION', 1, ruleSet, { justification: '12345678' })), 'ADAPTED_JUSTIFIED');
+    expectStatus('P0-J-23', 'ADHESION 1 + 7 chars → ADAPTED_UNJUSTIFIED',
+      comp(createCountConfiguration('ADHESION', 1, ruleSet, { justification: '1234567' })), 'ADAPTED_UNJUSTIFIED');
+    expectStatus('P0-J-24', 'ADHESION 1 + « Éprouvette étroite » → ADAPTED_JUSTIFIED',
+      comp(createCountConfiguration('ADHESION', 1, ruleSet, { justification: 'Éprouvette étroite' })), 'ADAPTED_JUSTIFIED');
+    expectStatus('P0-J-25', 'ADHESION 2 (+ justification courte) → STANDARD (std prioritaire)',
+      comp(createCountConfiguration('ADHESION', 2, ruleSet, { justification: 'test' })), 'STANDARD');
+    record('P0-J-26', 'ADHESION 3 → toujours rejeté (1|2 préservé)',
+      Boolean(throws(() => createCountConfiguration('ADHESION', 3, ruleSet, { justification: '12345678' }))),
+      'rejeté', 'la validation numérique est conservée');
+    record('P0-J-27', 'COLOR 0 → toujours rejeté (validation numérique inchangée)',
+      Boolean(throws(() => createCountConfiguration('COLOR', 0, ruleSet, { justification: '12345678' }))),
+      'rejeté', 'la validation numérique est conservée');
+
+    // Rapport P5-G : insuffisante → NON RENSEIGNÉE ; suffisante (trim) → motif réel.
+    {
+      const shortJust: Partial<TrialProtocolConfig['familyConfigs']> = {
+        COLOR: { familyId: 'COLOR', enabled: true, countConfig: createCountConfiguration('COLOR', 3, ruleSet, { justification: '1234567', operatorId: 'TEST_OP' }) },
+        GLOSS: { familyId: 'GLOSS', enabled: true, seriesConfig: createSeriesConfiguration('GLOSS', 2, 2, ruleSet) },
+        PERSOZ: { familyId: 'PERSOZ', enabled: true, countConfig: createCountConfiguration('PERSOZ', 3, ruleSet) },
+        ADHESION: { familyId: 'ADHESION', enabled: true, countConfig: createCountConfiguration('ADHESION', 2, ruleSet) }
+      };
+      const rShort = buildScientificReport(buildProtocolTrial(21, shortJust), ruleSet, { operatorId: 'TEST_OP' });
+      const okShort = rShort.sections.colorResults.includes('Statut : PROTOCOLE ADAPTÉ') &&
+        rShort.sections.colorResults.includes('Justification : NON RENSEIGNÉE');
+      record('P0-J-30', 'Rapport adapté JUSTIFICATION < 8 chars → NON RENSEIGNÉE (jamais inventée)',
+        okShort, 'NON RENSEIGNÉE', okShort ? 'OK' : 'BLOQUÉ');
+      record('P0-J-31', 'Statut global rapport = ADAPTED_UNJUSTIFIED', rShort.protocolStatus === 'ADAPTED_UNJUSTIFIED',
+        'ADAPTED_UNJUSTIFIED', `reçu ${rShort.protocolStatus}`);
+    }
+    {
+      const trimJust: Partial<TrialProtocolConfig['familyConfigs']> = {
+        COLOR: { familyId: 'COLOR', enabled: true, countConfig: createCountConfiguration('COLOR', 3, ruleSet, { justification: '       12345678       ', operatorId: 'TEST_OP' }) },
+        GLOSS: { familyId: 'GLOSS', enabled: true, seriesConfig: createSeriesConfiguration('GLOSS', 2, 2, ruleSet) },
+        PERSOZ: { familyId: 'PERSOZ', enabled: true, countConfig: createCountConfiguration('PERSOZ', 3, ruleSet) },
+        ADHESION: { familyId: 'ADHESION', enabled: true, countConfig: createCountConfiguration('ADHESION', 2, ruleSet) }
+      };
+      const rTrim = buildScientificReport(buildProtocolTrial(22, trimJust), ruleSet, { operatorId: 'TEST_OP' });
+      const okTrim = rTrim.sections.colorResults.includes('Justification : 12345678');
+      record('P0-J-32', 'Rapport adapté JUSTIFICATION ≥ 8 (pad) → motif réel restitué (trim)',
+        okTrim, 'Justification : 12345678', okTrim ? 'OK' : 'BLOQUÉ');
+      record('P0-J-33', 'Statut global rapport = ADAPTED_JUSTIFIED', rTrim.protocolStatus === 'ADAPTED_JUSTIFIED',
+        'ADAPTED_JUSTIFIED', `reçu ${rTrim.protocolStatus}`);
+    }
+
+    // Garde de service adaptProtocolConfig (nouvelle configuration via le chemin normal)
+    {
+      const pact = (seq: number): Trial => {
+        const base = buildProtocolTrial(seq, {
+          PERSOZ: { familyId: 'PERSOZ', enabled: true, countConfig: createCountConfiguration('PERSOZ', 3, ruleSet) },
+          ADHESION: { familyId: 'ADHESION', enabled: true, countConfig: createCountConfiguration('ADHESION', 2, ruleSet) }
+        });
+        const t = { ...base, id: `MOCK_TEST_P5_JUST_${seq}` };
+        globalTrialStore.saveTrial(t);
+        return t;
+      };
+
+      const t1 = pact(31);
+      const msg31 = throws(() => globalTrialStore.adaptProtocolConfig(t1.id, 'PERSOZ', 2, 'court', 'TEST_OP'));
+      record('P0-J-40', 'Service adaptProtocolConfig PERSOZ 2 + « court » → rejeté (8 min)',
+        Boolean(msg31) && (msg31 as string).includes('8 caractères minimum'), `rejet avec « 8 caractères minimum » (${msg31})`, String(msg31));
+
+      const t2 = pact(32);
+      const rt2 = globalTrialStore.adaptProtocolConfig(t2.id, 'PERSOZ', 2, '       12345678       ', 'TEST_OP');
+      const ok32 = rt2.config.familyConfigs.PERSOZ?.countConfig?.configuredCount === 2 &&
+        rt2.config.familyConfigs.PERSOZ?.countConfig?.deviationFromStandard === true &&
+        rt2.config.familyConfigs.PERSOZ?.countConfig?.justification === '12345678';
+      record('P0-J-41', 'Service adaptProtocolConfig PERSOZ 2 + « 12345678 » (pad) → accepté (trim normalisé)',
+        ok32, 'deviation true, 2 répétitions, justification persistée (trim)', ok32 ? 'OK' : 'BLOQUÉ');
+      record('P0-J-42', 'Service : ADHESION 3 (même justifiée) → rejeté « Seules 2 mesures/panneau »',
+        throws(() => globalTrialStore.adaptProtocolConfig(t2.id, 'ADHESION', 3, '12345678', 'TEST_OP')) !== null,
+        'rejeté', 'ADHESION reste 1|2');
+      {
+        const t3 = pact(33);
+        const rt3 = globalTrialStore.adaptProtocolConfig(t3.id, 'ADHESION', 1, '12345678', 'TEST_OP');
+        const ok33 = rt3.config.familyConfigs.ADHESION?.countConfig?.configuredCount === 1 &&
+          rt3.config.familyConfigs.ADHESION?.countConfig?.deviationFromStandard === true;
+        record('P0-J-43', 'Service : ADHESION 1 + 8 chars → accepté (adaptation préservée)',
+          ok33, 'deviation true, 1 mesure', ok33 ? 'OK' : 'BLOQUÉ');
+      }
+      {
+        const t4 = pact(34);
+        const rt4 = globalTrialStore.adaptProtocolConfig(t4.id, 'COLOR', 4, 'test', 'TEST_OP');
+        const ok34 = rt4.config.familyConfigs.COLOR?.countConfig?.deviationFromStandard === false;
+        record('P0-J-44', 'Service : COLOR 4 standard + justification courte → accepté STANDARD',
+          ok34, 'deviation false (standard sans justification requise)', ok34 ? 'OK' : 'BLOQUÉ');
+      }
     }
   }
 
