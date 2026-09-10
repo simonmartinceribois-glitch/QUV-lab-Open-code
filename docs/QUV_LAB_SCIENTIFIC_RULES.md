@@ -103,24 +103,6 @@ Elle ne doit pas être présentée comme équivalente à la référence normativ
 
 Un critère complémentaire ne doit jamais être élevé au rang d'exigence normative NF EN 927-6.
 
-### NF EN 927-3 — Absolument hors périmètre
-
-NF EN 927-3 est ABSOLUMENT HORS PÉRIMÈTRE de QUV-Lab.
-
-Elle ne doit être utilisée pour :
-
-* aucun calcul QUV ;
-* aucun critère QUV ;
-* aucune analyse QUV ;
-* aucune conclusion QUV ;
-* aucune règle d'acquisition QUV ;
-* aucun test métier QUV ;
-* aucune restitution QUV.
-
-Elle ne doit pas être invoquée comme référence scientifique opérationnelle.
-
-Une mention historique expliquant son exclusion est acceptable.
-
 ## 5. Durées scientifiques QUV
 
 ```text
@@ -301,6 +283,57 @@ Après la première acquisition scientifique, une modification silencieuse du no
 Toute évolution ultérieure doit préserver l'historique et la traçabilité.
 
 Aucune procédure technique de modification n'est définie dans le présent S0.
+
+### 8.1 Protocole standard et protocole adapté
+
+Chaîne de référence scientifique :
+
+```text
+RÉFÉRENCE SCIENTIFIQUE / NORMATIVE
+        ↓
+PROTOCOLE RÉEL DE L'ESSAI
+        ↓
+NOMBRE CONFIGURÉ
+        ↓
+STATUT D'ADAPTATION
+        ↓
+JUSTIFICATION
+        ↓
+RAW
+        ↓
+COMPUTED
+```
+
+Le nombre de mesures configuré pour une famille est comparé à la référence scientifique de cette famille.
+
+`PROTOCOLE STANDARD` : le nombre de mesures configuré correspond à la référence scientifique de la famille.
+
+`PROTOCOLE ADAPTÉ` : le nombre de mesures configuré s'écarte de la référence scientifique de la famille.
+
+Toute adaptation doit être :
+
+* explicitement identifiée ;
+* persistée avec l'essai ;
+* justifiée ;
+* traçable ;
+* visible dans la restitution concernée.
+
+### 8.2 Justification d'adaptation (règle P5)
+
+Une justification d'adaptation est formellement valide à partir de 8 caractères, après suppression des espaces en début et fin de chaîne :
+
+```text
+""                  → invalide
+"1"                 → invalide
+"1234567"            → invalide
+"       1234567"    → invalide
+"12345678"           → valide
+" 12345678 "         → valide
+```
+
+Le S0 ne juge pas la pertinence scientifique de la justification.
+
+Le logiciel vérifie uniquement le minimum formel de longueur.
 
 ## 9. Neutralité de COMPUTED
 
@@ -579,8 +612,24 @@ angle 60°
 
 Règles de mesure :
 
-* mesures réalisées dans les deux directions opposées ;
-* au minimum deux mesures dans chacune des directions.
+Deux séries sont distinguées.
+
+Série 1 :
+
+* au minimum deux mesures ;
+* dans des zones distinctes ;
+* faisceau strictement parallèle au fil du bois ;
+* orientation sémantique : `GRAIN_DIRECTION`.
+
+Série 2 :
+
+* au minimum deux mesures supplémentaires ;
+* dans des zones adjacentes ;
+* instrument retourné de 180° par rapport à la première série ;
+* faisceau toujours strictement parallèle au fil du bois ;
+* orientation sémantique : `OPPOSITE_GRAIN_DIRECTION`.
+
+La seconde série constitue une mesure dans la direction opposée à 180° par rapport à la première série, tout en restant strictement parallèle au fil du bois.
 
 Nombre de mesures (paramètre du protocole de l'essai, section 8) :
 
@@ -858,6 +907,16 @@ Cette règle est cohérente avec la section 8 :
 
 ```text
 Paramétrable ≠ libre de toute contrainte normative.
+```
+
+**Protocole standard / protocole adapté :**
+
+```text
+2 essais/panneau             → protocole standard
+1 essai/panneau              → protocole adapté possible, à condition d'une
+                               justification formellement valide (≥ 8 caractères
+                               après trim, section 8.2)
+3 essais/panneau ou plus     → non autorisé
 ```
 
 **RAW :**
