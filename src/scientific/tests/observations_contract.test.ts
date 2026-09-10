@@ -10,6 +10,8 @@
  * zéro réel conservé ; valeur positive conservée ; RAW intact ; traçabilité
  * (calculationVersion) présente. Aucune donnée absente n'est transformée en
  * résultat positif.
+ * OBS-CONTRACT-PC : perCategoryMaxRating = max des cotations valides par catégorie,
+ * exclusivement (jamais 0 fabriqué, jamais de catégorie étrangère, domaine 0..5).
  */
 
 import {
@@ -231,6 +233,77 @@ export function runObservationsContractTests(): {
     const ok = bad.length === 0;
     record('OBS-CONTRACT-SUMMARY', 'Résumés : Non évalué / Aspect intact / Défauts : (jamais conforme)',
       ok, 'résumés neutres exacts', bad.length === 0 ? 'OK' : bad.join(' '));
+  }
+
+  // --- OBS-CONTRACT-PC-01 : perCategoryMaxRating = max par catégorie, exclusivement sur valides ---
+  {
+    const raw = {
+      observations: [
+        mk('BLISTERING', 1, 'OBSERVE', 'Cloquage'),
+        mk('BLISTERING', 3, 'OBSERVE', 'Cloquage'),
+        mk('FLAKING', 2, 'OBSERVE', 'Écaillage'),
+        mk('CRACKING', 'abc', 'AUCUN', 'Craquelage')
+      ]
+    };
+    const { computed } = calculateObservations(raw, ruleSet);
+    const map = computed.perCategoryMaxRating ?? {};
+    const ok =
+      map['BLISTERING'] === 3 &&
+      map['FLAKING'] === 2 &&
+      map['CRACKING'] === undefined &&
+      computed.maxRating === 3;
+    record('OBS-CONTRACT-PC-01', 'perCategoryMaxRating : max par catégorie sur valides, catégorie invalide absente',
+      ok, '{BLISTERING:3, FLAKING:2} (CRACKING absent), maxRating=3',
+      `map=${JSON.stringify(map)}, maxRating=${String(computed.maxRating)}`);
+  }
+
+  // --- OBS-CONTRACT-PC-02 : aucune catégorie fabriquée à 0 (manquante/invalide/vide) ---
+  {
+    const cases: Array<{ id: string; observations: VisualObservationItem[] }> = [
+      { id: 'manquantes', observations: [mk('BLISTERING', undefined, 'AUCUN', 'Cloquage'), mk('CHALKING', '', 'AUCUN', 'Farinage')] },
+      { id: 'invalides', observations: [mk('FLAKING', 7, 'AUCUN', 'Écaillage')] },
+      { id: 'vides', observations: [] }
+    ];
+    const bad: string[] = [];
+    for (const c of cases) {
+      const { computed } = calculateObservations({ observations: c.observations }, ruleSet);
+      const map = computed.perCategoryMaxRating ?? {};
+      if (Object.keys(map).length !== 0) bad.push(`${c.id}:keys=[${Object.keys(map).join(',')}]`);
+    }
+    const ok = bad.length === 0;
+    record('OBS-CONTRACT-PC-02', 'Catégories manquantes/invalides/vides → tableau vide (aucun 0 fabriqué)',
+      ok, '{} sur 3 jeux', bad.length === 0 ? 'OK' : bad.join(' '));
+  }
+
+  // --- OBS-CONTRACT-PC-03 : un vrai 0 enregistré reste 0 et compte comme donnée ---
+  {
+    const { computed } = calculateObservations({
+      observations: [mk('BLISTERING', 0, 'AUCUN', 'Cloquage'), mk('FLAKING', '0', 'AUCUN', 'Écaillage')]
+    }, ruleSet);
+    const map = computed.perCategoryMaxRating ?? {};
+    const ok = map['BLISTERING'] === 0 && map['FLAKING'] === 0;
+    record('OBS-CONTRACT-PC-03', 'Zéro réel par catégorie : 0 conservé (clé présente), jamais converti en null',
+      ok, '{BLISTERING:0, FLAKING:0}', `map=${JSON.stringify(map)}`);
+  }
+
+  // --- OBS-CONTRACT-PC-04 : domaine strict 0..5 et clés limitées aux catégories connues ---
+  {
+    const ALLOWED_KEYS = new Set([
+      'BLISTERING', 'FLAKING', 'CRACKING', 'CHALKING',
+      'GENERAL_APPEARANCE', 'CROSS_CUT_ADHESION', 'OTHER_DEFECT'
+    ]);
+    const bad: string[] = [];
+    for (const ds of datasets) {
+      const { computed } = calculateObservations({ observations: ds.observations }, ruleSet);
+      const map = computed.perCategoryMaxRating ?? {};
+      for (const [k, v] of Object.entries(map)) {
+        if (!ALLOWED_KEYS.has(k)) bad.push(`${ds.id}:key=${k}`);
+        if (!Number.isFinite(v) || (v as number) < 0 || (v as number) > 5) bad.push(`${ds.id}:${k}=${String(v)}`);
+      }
+    }
+    const ok = bad.length === 0;
+    record('OBS-CONTRACT-PC-04', 'perCategoryMaxRating : clés ⊆ catégories connues, valeurs ∈ [0..5] (6 jeux)',
+      ok, 'domaine strict', bad.length === 0 ? 'OK' : bad.join(' '));
   }
 
   const passed = results.filter((r) => r.passed).length;

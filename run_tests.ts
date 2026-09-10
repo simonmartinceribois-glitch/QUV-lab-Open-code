@@ -518,7 +518,7 @@ suite37.results.forEach((r) => {
 });
 
 console.log('\n================================================================');
-console.log('38. EXÉCUTION DE L\'INTÉGRITÉ DES OBSERVATIONS VISUELLES (15 TESTS)');
+console.log('38. EXÉCUTION DE L\'INTÉGRITÉ DES OBSERVATIONS VISUELLES (17 TESTS)');
 console.log('================================================================');
 const suite38 = runObservationsIntegrityTests();
 console.log(`Résultats Intégrité Observations : ${suite38.summary.passed} / ${suite38.summary.total} réussis.`);
@@ -557,7 +557,7 @@ suite40.results.forEach((r) => {
 });
 
 console.log('\n================================================================');
-console.log('41. EXÉCUTION DU CONTRAT COMPUTED OBSERVATIONS (8 TESTS)');
+console.log('41. EXÉCUTION DU CONTRAT COMPUTED OBSERVATIONS (12 TESTS)');
 console.log('================================================================');
 const suite41 = runObservationsContractTests();
 console.log(`Résultats Contrat Observations : ${suite41.summary.passed} / ${suite41.summary.total} réussis.`);
