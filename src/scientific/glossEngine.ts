@@ -221,7 +221,7 @@ export function calculateGloss(
     }
   }
 
-  // 7. Détection du Mode et Alerte Spécifique INFIPERF (Rétention < 50%)
+  // 7. Détection du Mode de Mesure (NORMATIVE_4 / SIMPLIFIED_2 / NORMATIVE_6)
   let detectedMode: 'NORMATIVE_4' | 'SIMPLIFIED_2' | 'NORMATIVE_6' = 'NORMATIVE_4';
   if (raw.mode) {
     detectedMode = raw.mode;
@@ -231,25 +231,6 @@ export function calculateGloss(
     detectedMode = 'NORMATIVE_6';
   } else {
     detectedMode = 'NORMATIVE_4';
-  }
-
-  let infiperfAlert: { active: boolean; message: string; source: 'INFIPERF / FCBA'; severity: 'WARNING' } | undefined = undefined;
-  if (retentionRatePercent !== null && retentionRatePercent < 50) {
-    infiperfAlert = {
-      active: true,
-      message: 'Alerte — rétention de brillant < 50 % (Critère d\'étude INFIPERF / FCBA)',
-      source: 'INFIPERF / FCBA',
-      severity: 'WARNING'
-    };
-    alerts.push({
-      id: `alert-gloss-infiperf-50`,
-      severity: 'WARNING',
-      code: 'STATISTICAL_WARNING',
-      message: `Alerte : Taux de rétention de brillant de ${roundMetric(retentionRatePercent, 1)} % (< seuil indicatif d'alerte de 50 % selon référence INFIPERF / FCBA). Critère complémentaire, distinct de la conformité NF EN 927-6.`,
-      familyId: 'GLOSS',
-      panelId: options?.panelId,
-      stageId: options?.stageId
-    });
   }
 
   const computed: GlossComputedData = {
@@ -265,8 +246,6 @@ export function calculateGloss(
     deltaGloss: roundMetric(deltaGloss, 2),
     deltaGlossStdDev: null,
     retentionRatePercent: roundMetric(retentionRatePercent, 1),
-    infiperfAlert,
-    criterionCategory: 'NORMATIVE_REQUIREMENT',
     qualityAssessment,
     protocolStatus: protocolEval.status,
     computation: {

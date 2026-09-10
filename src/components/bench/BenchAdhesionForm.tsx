@@ -9,9 +9,9 @@ import type { Dispatch, SetStateAction } from 'react';
 import { AlertTriangle, Info, Sliders } from 'lucide-react';
 import {
   ISO2409_CLASSES,
-  getApplicableGridSpacing,
-  calculateDelayCompliance
+  getApplicableGridSpacing
 } from '../../scientific/adhesionEngine';
+import { evaluateAdhesionDelayCriterion } from '../../scientific/criteria/criteriaAdhesion';
 import type { BatchDefinition, ExposureStage, PanelDefinition } from '../../types/trial';
 
 export interface AdhesionBenchEntry {
@@ -64,7 +64,13 @@ export function BenchAdhesionForm({
   const thickness = currentBatch?.dryFilmThicknessMicrons ?? undefined;
   const spacingResult = getApplicableGridSpacing(thickness);
   const gridDisplay = getAdhesionGridDisplay(thickness);
-  const delayResult = calculateDelayCompliance(currentBatch?.applicationDate, new Date().toISOString(), 168);
+  // Source de vérité unique du délai : la couche CRITÈRE (S3), identique au
+  // rapport. Aucun calcul concurrent dans l'UI ; le seuil (168 h) provient du
+  // moteur scientifique (ADHESION_DEFAULT_REQUIRED_DELAY_HOURS).
+  const delayResult = evaluateAdhesionDelayCriterion({
+    applicationDateTime: currentBatch?.applicationDate,
+    measurementDateTime: new Date().toISOString()
+  });
   const isWitness = currentPanel?.role === 'WITNESS' || currentPanel?.index === 1;
 
   const setEntryClass = (idx: number, cls: number | null) => {
@@ -128,7 +134,7 @@ export function BenchAdhesionForm({
             <span className="text-slate-500 font-medium">Délai écoulé : </span>
             {delayResult.elapsedTimeHours !== null ? (
               <span className={`font-bold ${delayResult.status === 'CONFORME' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                {Math.floor(delayResult.elapsedTimeHours / 24)} j {Math.round(delayResult.elapsedTimeHours % 24)} h ({delayResult.status === 'CONFORME' ? '✅ Conforme ≥ 168 h' : '⚠️ < 168 h'})
+                {Math.floor(delayResult.elapsedTimeHours / 24)} j {Math.round(delayResult.elapsedTimeHours % 24)} h ({delayResult.status === 'CONFORME' ? `✅ Conforme ≥ ${delayResult.requiredMinimumDelayHours} h` : `⚠️ < ${delayResult.requiredMinimumDelayHours} h`})
               </span>
             ) : (
               <span className="text-slate-400 italic">Date d'application manquante</span>

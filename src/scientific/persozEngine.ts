@@ -133,7 +133,6 @@ export function calculatePersoz(
     referenceStageId: options?.referenceStageId ?? null,
     deltaDampingTime: roundMetric(deltaDampingTime, 1),
     relativeHardnessVariationPercent: roundMetric(relativeHardnessVariationPercent, 1),
-    criterionCategory: 'COMPLEMENTARY_CRITERION',
     qualityAssessment,
     protocolStatus: protocolEval.status,
     computation: {

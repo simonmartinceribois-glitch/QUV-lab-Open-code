@@ -16,9 +16,11 @@ import {
   GlossComputedData,
   PersozComputedData,
   AdhesionComputedData,
+  AdhesionRawData,
   VisualObservationsComputedData
 } from '../types/scientific';
 import { generateUUID } from './trialIds';
+import { evaluateAdhesionDelayCriterion } from '../scientific/criteria/criteriaAdhesion';
 import {
   getActiveE1E2E3Panels,
   isPersozEligiblePanel,
@@ -516,7 +518,18 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
               stdStr = compAdh.gridSpacingUsedMm ? `Peigne ${compAdh.gridSpacingUsedMm} mm` : '—';
               // Δ = variation moyenne de classement, indicateur complémentaire non normatif.
               deltaStr = compAdh.deltaAdhesionClass !== null && compAdh.deltaAdhesionClass !== undefined ? `${indiv.length > 1 ? 'Δmoy.(compl.)=' : 'ΔClasse='}${compAdh.deltaAdhesionClass >= 0 ? '+' : ''}${compAdh.deltaAdhesionClass}` : 'RÉF (T0)';
-              retStr = compAdh.delayCompliance || '—';
+              // Verdict de délai via la couche CRITÈRE (S3), calculé à la volée depuis
+              // les dates RAW — source de vérité unique, jamais de valeur persistée
+              // de COMPUTED (delayCompliance a été retiré du COMPUTED).
+              const rawAdh = acq.raw as AdhesionRawData | undefined;
+              const delayEval = rawAdh
+                ? evaluateAdhesionDelayCriterion({
+                    applicationDateTime: rawAdh.applicationDateTime,
+                    measurementDateTime: rawAdh.measurementDateTime,
+                    requiredMinimumDelayHours: rawAdh.requiredMinimumDelayHours
+                  })
+                : null;
+              retStr = delayEval ? delayEval.verdict : '—';
             } else if (fam === 'OBSERVATIONS') {
               const compObs = acq.computed as VisualObservationsComputedData;
               valStr = displayReportValue(compObs.summary);

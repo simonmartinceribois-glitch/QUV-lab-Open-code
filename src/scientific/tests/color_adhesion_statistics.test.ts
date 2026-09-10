@@ -57,7 +57,6 @@ function mkAdhPanel(panelMean: number | null): AdhesionComputedData {
     panelMean,
     classDescription: 'Moyenne panneau',
     elapsedTimeHours: 216,
-    delayCompliance: 'CONFORME',
     gridSpacingUsedMm: 2,
     qualityAssessment: {
       expectedCount: 2, actualCount: 2, validCount: 2, suspectCount: 0,

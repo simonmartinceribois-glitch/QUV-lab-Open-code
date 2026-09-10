@@ -18,6 +18,9 @@ import {
 
 export const ADHESION_CALCULATION_VERSION = '1.2.0';
 export const ADHESION_NORM_REFERENCE = 'NF EN ISO 2409:2020';
+/** Délai minimal d'application avant essai (protocole) : 168 h = 7 jours.
+ *  Source unique — lu par calculateDelayCompliance (COMPUTED) et la couche CRITÈRE (S3). */
+export const ADHESION_DEFAULT_REQUIRED_DELAY_HOURS = 168;
 
 /**
  * Définition officielle des 6 classes d'adhérence selon la NF EN ISO 2409:2020
@@ -141,7 +144,7 @@ export function getApplicableGridSpacing(
 export function calculateDelayCompliance(
   applicationDateStr?: string,
   measurementDateStr?: string,
-  requiredMinimumHours: number = 168
+  requiredMinimumHours: number = ADHESION_DEFAULT_REQUIRED_DELAY_HOURS
 ): {
   elapsedTimeHours: number | null;
   formattedElapsedTime: string;
@@ -382,7 +385,7 @@ export function calculateAdhesion(
   const delayCheck = calculateDelayCompliance(
     raw.applicationDateTime,
     raw.measurementDateTime,
-    raw.requiredMinimumDelayHours || 168
+    raw.requiredMinimumDelayHours || ADHESION_DEFAULT_REQUIRED_DELAY_HOURS
   );
 
   if (delayCheck.status === 'INVALID_DATE') {
@@ -507,14 +510,7 @@ export function calculateAdhesion(
     initialPanelMean,
     deltaAdhesionClass,
     elapsedTimeHours: delayCheck.elapsedTimeHours,
-    delayCompliance:
-      delayCheck.status === 'CONFORME'
-        ? 'CONFORME'
-        : delayCheck.status === 'INSUFFICIENT_DELAY'
-        ? 'NON_CONFORME'
-        : 'NON_EVALUE',
     gridSpacingUsedMm: raw.gridSpacingMm || 2,
-    criterionCategory: adhesionClass !== null ? `Classe ${adhesionClass} (ISO 2409)` : undefined,
     qualityAssessment,
     protocolStatus,
     computation: {

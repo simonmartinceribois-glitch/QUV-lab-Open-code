@@ -104,6 +104,7 @@ export function compareSystemsAtStage(
           meanGloss?: number | null;
           deltaGloss?: number | null;
           retentionRatePercent?: number | null;
+          initialMeanGloss?: number | null;
         };
         if (comp.meanGloss !== null && comp.meanGloss !== undefined) {
           glossCurrentSum += comp.meanGloss;
@@ -113,9 +114,15 @@ export function compareSystemsAtStage(
         if (comp.deltaGloss !== null && comp.deltaGloss !== undefined) {
           glossDeltaSum += comp.deltaGloss;
           glossDeltaCount++;
-          // Valeur de référence T0 dérivée : meanGloss = référence + deltaGloss
+          // Référence T0 : utilisée telle quelle quand COMPUTED la fournit
+          // (glossEngine émet initialMeanGloss), repli strictement équivalent
+          // meanGloss − deltaGloss pour les calculs historiques persistés.
           if (comp.meanGloss !== null && comp.meanGloss !== undefined) {
-            glossInitialSum += comp.meanGloss - comp.deltaGloss;
+            const initial =
+              comp.initialMeanGloss !== null && comp.initialMeanGloss !== undefined
+                ? comp.initialMeanGloss
+                : comp.meanGloss - comp.deltaGloss;
+            glossInitialSum += initial;
             glossInitialCount++;
           }
         }

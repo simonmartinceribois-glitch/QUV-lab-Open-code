@@ -42,6 +42,7 @@ import { runObservationsIntegrityTests } from './src/scientific/tests/observatio
 import { runSynthesisObsTests } from './src/scientific/tests/technical_synthesis_observations.test';
 import { runObservationsAnalysisIntegrityTests } from './src/scientific/tests/observations_analysis_integrity.test';
 import { runObservationsContractTests } from './src/scientific/tests/observations_contract.test';
+import { runCriteriaSeparationTests } from './src/scientific/tests/criteria_separation.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -625,6 +626,19 @@ suite45.results.forEach((r) => {
   }
 });
 
+console.log('\n================================================================');
+console.log('46. EXÉCUTION DE LA SÉPARATION COMPUTED/CRITÈRE — P4 (5 TESTS)');
+console.log('================================================================');
+const suite46 = runCriteriaSeparationTests();
+console.log(`Résultats Séparation COMPUTED/CRITÈRE : ${suite46.summary.passed} / ${suite46.summary.total} réussis.`);
+suite46.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Criteria P4] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -670,7 +684,8 @@ const totalFailed =
   suite42.summary.failed +
   suite43.summary.failed +
   suite44.summary.failed +
-  suite45.summary.failed;
+  suite45.summary.failed +
+  suite46.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -716,7 +731,8 @@ const totalCount =
   suite42.summary.total +
   suite43.summary.total +
   suite44.summary.total +
-  suite45.summary.total;
+  suite45.summary.total +
+  suite46.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

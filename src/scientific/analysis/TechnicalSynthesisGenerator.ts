@@ -8,6 +8,7 @@ import { Trial, BatchDefinition, ExposureStage } from '../../types/trial';
 import { ScientificRuleSet, VisualObservationsComputedData } from '../../types/scientific';
 import { extractTemporalKinetics } from './TrendAnalyzer';
 import { getActiveExposedPanels } from '../panelUtils';
+import { getGlossRetentionThreshold } from '../criteria/criteriaGloss';
 
 export interface TechnicalSynthesisOptions {
   batchId?: string;
@@ -125,7 +126,7 @@ export function generateTechnicalSynthesis(
       );
     } else {
       const retention = finalKinetics.meanGlossRetentionPercent ?? +( (gf / g0) * 100 ).toFixed(1);
-      const studyCriteria = options?.studyCriteriaGlossRetentionPercent ?? 50;
+      const studyCriteria = options?.studyCriteriaGlossRetentionPercent ?? getGlossRetentionThreshold(ruleSet);
 
       if (studyCriteria && studyCriteria > 0) {
         const criteriaText = retention >= studyCriteria
