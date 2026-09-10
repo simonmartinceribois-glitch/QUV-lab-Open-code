@@ -11,10 +11,12 @@
  * 4. §21 — Justification minimale (8 caractères après trim, prédicat centralisé) :
  *    acceptation/refus, évaluation par famille, rapport NON RENSEIGNÉE, garde de service
  *    adaptProtocolConfig, ADHESION 1|2 conservé et rejets numériques inchangés.
+ * 5. §22 — Audit pré-rapport auditTrialBeforeReport : une adaptation n'est tracée
+ *    que si la justification respecte la règle centralisée (≥ 8 après trim).
  */
 
 import { generateStandardExposureStages, globalTrialStore } from '../../services/trialStore';
-import { buildScientificReport } from '../../services/reportGenerator';
+import { buildScientificReport, auditTrialBeforeReport } from '../../services/reportGenerator';
 import {
   getDefaultScientificRuleSet,
   createCountConfiguration,
@@ -422,6 +424,36 @@ export function runProtocolAdaptationsTests(): {
         record('P0-J-44', 'Service : COLOR 4 standard + justification courte → accepté STANDARD',
           ok34, 'deviation false (standard sans justification requise)', ok34 ? 'OK' : 'BLOQUÉ');
       }
+    }
+  }
+
+  // ===== §22 — AUDIT PRÉ-RAPPORT : justification formelle centralisée (≥ 8) =====
+  {
+    const audited = (seq: number, justification?: string): boolean => {
+      const fam: Partial<TrialProtocolConfig['familyConfigs']> = justification
+        ? { COLOR: { familyId: 'COLOR', enabled: true, countConfig: createCountConfiguration('COLOR', 2, ruleSet, { justification, operatorId: 'TEST_OP' }) } }
+        : { COLOR: { familyId: 'COLOR', enabled: true, countConfig: createCountConfiguration('COLOR', 2, ruleSet) } };
+      return auditTrialBeforeReport(buildProtocolTrial(seq, fam), ruleSet).checklist.adaptationsTraced;
+    };
+
+    const createCondition = (id: string, name: string, justification: string | undefined, expectedTraced: boolean): void => {
+      const got = audited(51 + (id.charCodeAt(0) % 7) * 2, justification);
+      record(id, name, got === expectedTraced, `adaptationsTraced = ${expectedTraced}`, `adaptationsTraced = ${got}`);
+    };
+
+    let j = 0;
+    for (const [just, expected] of [
+      ['', false],
+      ['1', false],
+      ['1234567', false],
+      ['       1234567       ', false],
+      ['12345678', true],
+      ['       12345678       ', true],
+      ['1234567890', true]
+    ] as [string, boolean][]) {
+      j += 1;
+      const label = just === undefined ? 'undefined' : `« ${just} »`;
+      createCondition(`P0-AUD-${String(j).padStart(2, '0')}`, `Audit : justification ${label} → ${expected ? 'tracée' : 'non tracée'}`, just, expected);
     }
   }
 

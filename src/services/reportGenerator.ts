@@ -152,15 +152,18 @@ export function auditTrialBeforeReport(trial: Trial, ruleSet: ScientificRuleSet)
   const engineVersionAvailable = !!ruleSet.version;
   const ruleSetAvailable = !!ruleSet.standardReference;
 
-  // Adaptations réellement tracées : aucune dérogation, ou chacune justifiée.
+  // Adaptations réellement tracées : aucune dérogation, ou chacune munie d'une
+  // justification formellement valide (règle centralisée ≥ 8 caractères après trim).
   const unjustifiedAdaptation = Object.entries(trial.config.familyConfigs).some(
     ([, cfg]) =>
-      ((cfg?.countConfig?.deviationFromStandard || cfg?.seriesConfig?.deviationFromStandard) &&
-        !(cfg?.countConfig?.justification?.trim() || cfg?.seriesConfig?.justification?.trim()))
+      (cfg?.countConfig?.deviationFromStandard === true &&
+        !isAdaptationJustificationValid(cfg.countConfig.justification)) ||
+      (cfg?.seriesConfig?.deviationFromStandard === true &&
+        !isAdaptationJustificationValid(cfg.seriesConfig.justification))
   );
   const adaptationsTraced = !unjustifiedAdaptation;
   if (unjustifiedAdaptation) {
-    warnings.push("Adaptation de protocole non justifiée détectée (justification manquante).");
+    warnings.push("Adaptation de protocole non justifiée détectée (justification absente ou inférieure à 8 caractères).");
   }
   // Alertes recensées : chaque acquisition expose un catalogue d'alertes.
   const alertsCataloged = acquisitionsList.every((a) => Array.isArray((a as { alerts?: unknown }).alerts));
