@@ -103,24 +103,6 @@ Elle ne doit pas être présentée comme équivalente à la référence normativ
 
 Un critère complémentaire ne doit jamais être élevé au rang d'exigence normative NF EN 927-6.
 
-### NF EN 927-3 — Absolument hors périmètre
-
-NF EN 927-3 est ABSOLUMENT HORS PÉRIMÈTRE de QUV-Lab.
-
-Elle ne doit être utilisée pour :
-
-* aucun calcul QUV ;
-* aucun critère QUV ;
-* aucune analyse QUV ;
-* aucune conclusion QUV ;
-* aucune règle d'acquisition QUV ;
-* aucun test métier QUV ;
-* aucune restitution QUV.
-
-Elle ne doit pas être invoquée comme référence scientifique opérationnelle.
-
-Une mention historique expliquant son exclusion est acceptable.
-
 ## 5. Durées scientifiques QUV
 
 ```text
@@ -275,11 +257,33 @@ brillance : nombre de mesures selon la structure méthodologique retenue,
 PERSOZ    : nombre de mesures individuelles / répétitions par échantillon
 ```
 
-Paramétrable ≠ libre de toute contrainte normative :
+Référence normative / protocole standard / protocole adapté :
 
-Le paramétrage ne doit jamais permettre de contourner une exigence minimale imposée par NF EN 927-6 ou par une méthode d'essai applicable.
+```text
+RÉFÉRENCE NORMATIVE / SCIENTIFIQUE
+        ≠
+PROTOCOLE STANDARD QUV-Lab
+        ≠
+PROTOCOLE ADAPTÉ QUV-Lab
+```
 
-Si une méthode normative impose un minimum, ce minimum reste applicable et le paramètre du protocole doit le respecter.
+Le nombre de mesures peut être configuré dans le protocole de l'essai.
+
+Le protocole standard QUV-Lab correspond à la configuration de référence retenue par QUV-Lab pour la famille concernée.
+
+Une configuration différente du protocole standard constitue un protocole adapté.
+
+Une adaptation doit être :
+
+* explicitement identifiée ;
+* persistée avec l'essai ;
+* justifiée ;
+* traçable ;
+* visible dans la restitution concernée.
+
+Une adaptation ne doit jamais être présentée comme l'application du protocole standard ni comme une preuve automatique de conformité au référentiel normatif.
+
+Lorsqu'un résultat doit être évalué au regard d'une exigence normative, la conformité normative est évaluée séparément, sur la base des conditions réellement appliquées et des données réellement disponibles.
 
 Verrouillage du paramètre :
 
@@ -301,6 +305,87 @@ Après la première acquisition scientifique, une modification silencieuse du no
 Toute évolution ultérieure doit préserver l'historique et la traçabilité.
 
 Aucune procédure technique de modification n'est définie dans le présent S0.
+
+### 8.1 Protocole standard et protocole adapté
+
+Chaîne de référence scientifique :
+
+```text
+RÉFÉRENCE SCIENTIFIQUE / NORMATIVE
+        ↓
+PROTOCOLE RÉEL DE L'ESSAI
+        ↓
+NOMBRE CONFIGURÉ
+        ↓
+STATUT D'ADAPTATION
+        ↓
+JUSTIFICATION
+        ↓
+RAW
+        ↓
+COMPUTED
+```
+
+Le nombre de mesures configuré pour une famille est comparé à la référence scientifique de cette famille.
+
+`PROTOCOLE STANDARD` : le nombre de mesures configuré correspond à la référence scientifique de la famille.
+
+`PROTOCOLE ADAPTÉ` : le nombre de mesures configuré s'écarte de la référence scientifique de la famille.
+
+Toute adaptation doit être :
+
+* explicitement identifiée ;
+* persistée avec l'essai ;
+* justifiée ;
+* traçable ;
+* visible dans la restitution concernée.
+
+### 8.2 Justification d'adaptation (règle P5)
+
+Une justification d'adaptation est formellement valide à partir de 8 caractères, après suppression des espaces en début et fin de chaîne :
+
+```text
+""                  → invalide
+"1"                 → invalide
+"1234567"            → invalide
+"       1234567"    → invalide
+"12345678"           → valide
+" 12345678 "         → valide
+```
+
+Le S0 ne juge pas la pertinence scientifique de la justification.
+
+Le logiciel vérifie uniquement le minimum formel de longueur.
+
+### 8.3 Conformité normative et protocole adapté
+
+> Un protocole adapté ne vaut pas, à lui seul, conformité au référentiel normatif.
+
+Une mesure réalisée selon un protocole adapté reste une mesure RAW réelle.
+
+Ses calculs COMPUTED restent valides selon les règles de calcul applicables.
+
+Son exploitation scientifique reste possible lorsque les données sont exploitables.
+
+Cependant :
+
+* l'existence d'une adaptation doit rester explicitement visible ;
+* une conclusion de conformité normative ne doit jamais être déduite uniquement de l'existence d'un protocole adapté ;
+* si les conditions nécessaires à une évaluation normative ne sont pas réunies, le document doit le signaler et ne doit pas produire artificiellement une conformité.
+
+La séparation suivante est strictement respectée :
+
+```text
+RAW
+≠
+COMPUTED
+≠
+CRITÈRE
+≠
+ANALYSE
+≠
+CONCLUSION
+```
 
 ## 9. Neutralité de COMPUTED
 
@@ -579,8 +664,24 @@ angle 60°
 
 Règles de mesure :
 
-* mesures réalisées dans les deux directions opposées ;
-* au minimum deux mesures dans chacune des directions.
+Deux séries sont distinguées.
+
+Série 1 :
+
+* au minimum deux mesures ;
+* dans des zones distinctes ;
+* faisceau strictement parallèle au fil du bois ;
+* orientation sémantique : `GRAIN_DIRECTION`.
+
+Série 2 :
+
+* au minimum deux mesures supplémentaires ;
+* dans des zones adjacentes ;
+* instrument retourné de 180° par rapport à la première série ;
+* faisceau toujours strictement parallèle au fil du bois ;
+* orientation sémantique : `OPPOSITE_GRAIN_DIRECTION`.
+
+La seconde série constitue une mesure dans la direction opposée à 180° par rapport à la première série, tout en restant strictement parallèle au fil du bois.
 
 Nombre de mesures (paramètre du protocole de l'essai, section 8) :
 
@@ -852,13 +953,34 @@ E3 : M1 + M2
   avec les exigences normatives/méthodologiques applicables.
 ```
 
-Lorsque la norme fixe le nombre de mesures, le paramètre du protocole doit respecter cette valeur.
-
-Cette règle est cohérente avec la section 8 :
+Cette structure est cohérente avec la section 8 :
 
 ```text
-Paramétrable ≠ libre de toute contrainte normative.
+RÉFÉRENCE NORMATIVE
+        ≠
+PROTOCOLE STANDARD QUV-Lab
+        ≠
+PROTOCOLE ADAPTÉ QUV-Lab
 ```
+
+**Protocole standard / protocole adapté QUV-Lab :**
+
+```text
+PROPOSITION STANDARD QUV-Lab
+→ 2 essais/panneau
+
+PROTOCOLE ADAPTÉ QUV-Lab
+→ 1 essai/panneau
+→ justification obligatoire ≥ 8 caractères (section 8.2)
+
+3 essais/panneau ou plus → non autorisé
+```
+
+Le protocole adapté à 1 essai par panneau constitue une configuration expérimentale QUV-Lab adaptée.
+
+Il ne doit pas être présenté comme l'application de l'exigence normative de deux essais par panneau.
+
+Il ne permet pas, à lui seul, de conclure à la conformité normative.
 
 **RAW :**
 
@@ -872,7 +994,7 @@ Paramétrable ≠ libre de toute contrainte normative.
 Moyenne par panneau exposé :
 
 ```text
-somme des mesures RAW valides du panneau / nombre de mesures valides correspondant au protocole
+somme des mesures RAW valides du panneau / nombre de mesures valides du protocole effectivement configuré
 ```
 
 Protocole actuel à 2 mesures par panneau :
