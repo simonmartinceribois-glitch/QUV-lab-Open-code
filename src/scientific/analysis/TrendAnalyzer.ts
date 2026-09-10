@@ -10,10 +10,14 @@ import { TrendFinding, FactualFinding, InterpretationFinding, TrendDirection } f
 import { getActiveExposedPanels, getActiveStages } from '../panelUtils';
 
 /**
- * Durée d'exposition effective d'un jalon (P1 — priorité au réel).
- * Règle : actualExposureHours si présente (y compris 0 réel), sinon
- * scheduledExposureHours. Vérification explicite de présence : jamais
- * `actual || scheduled` (un 0 réel ne doit pas retomber en théorique).
+ * Durée scientifique d'un jalon QUV — déterminée exclusivement par son cycle :
+ * scientificExposureHours = cycleIndex × 168 h (T0 = 0 h, valeur scientifique
+ * valide, jamais convertie en null). scheduledExposureHours EST la durée
+ * scientifique du jalon (== cycleIndex × 168 par construction du calendrier).
+ *
+ * actualExposureHours, s'il est présent, est une donnée de traçabilité machine
+ * DISTINCTE qui ne remplace JAMAIS la durée scientifique du jalon. Aucun mélange
+ * durée machine / durée scientifique (règle scientifique verrouillée).
  */
 export function hasActualExposureHours(stage: { actualExposureHours?: number | null }): boolean {
   return stage.actualExposureHours !== null && stage.actualExposureHours !== undefined;
@@ -23,7 +27,6 @@ export function getEffectiveExposureHours(stage: {
   actualExposureHours?: number | null;
   scheduledExposureHours: number;
 }): number {
-  if (hasActualExposureHours(stage)) return stage.actualExposureHours as number;
   return stage.scheduledExposureHours;
 }
 
@@ -505,7 +508,7 @@ export function analyzeBatchTrends(
         level: 3,
         familyId: 'OBSERVATIONS',
         title: `Observations visuelles enregistrées (${batch.reference})`,
-        description: `Examen visuel à ${getEffectiveExposureHours(actualFinalStage)} h${hasActualExposureHours(actualFinalStage) ? ' (durée réelle)' : ' (durée prévue)'} : ${obsDesc}.${partial}`,
+        description: `Examen visuel à ${getEffectiveExposureHours(actualFinalStage)} h : ${obsDesc}.${partial}`,
         confidence: 'CERTAIN'
       });
     } else {

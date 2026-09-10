@@ -400,19 +400,52 @@ export function ResultsPanelAnalysisView({
 
                       {selectedFamily === 'OBSERVATIONS' && (() => {
                         const compObs = acq?.computed as VisualObservationsComputedData | undefined;
+                        const obsStatus = getQualityStatus(acq?.computed);
                         return (
                         <>
-                          <td className="p-2.5 text-slate-800">{compObs?.summary || 'Aspect normal'}</td>
-                          <td className="p-2.5 font-mono text-slate-600">ISO 4628 : Conforme</td>
+                          <td className="p-2.5 text-slate-800">{compObs?.summary ?? 'Non évalué'}</td>
+                          <td className="p-2.5 font-mono text-slate-600">
+                            {compObs
+                              ? (compObs.defectsCount > 0
+                                  ? `${compObs.defectsCount} défaut(s) relevé(s)`
+                                  : 'Aucun défaut coté')
+                              : 'Non évalué'}
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              obsStatus === 'GOOD'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : obsStatus === 'WARNING'
+                                ? 'bg-amber-100 text-amber-800'
+                                : obsStatus === 'INVALID'
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              {obsStatus ?? 'EN_ATTENTE'}
+                            </span>
+                          </td>
                         </>
                         );
                       })()}
 
-                      <td className="p-2.5 text-center">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                          {getQualityStatus(acq?.computed) || 'GOOD'}
-                        </span>
-                      </td>
+                      {selectedFamily !== 'OBSERVATIONS' && (() => {
+                        const qualityStatus = getQualityStatus(acq?.computed);
+                        return (
+                        <td className="p-2.5 text-center">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            qualityStatus === 'GOOD'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : qualityStatus === 'WARNING'
+                              ? 'bg-amber-100 text-amber-800'
+                              : qualityStatus === 'INVALID'
+                              ? 'bg-rose-100 text-rose-800'
+                              : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            {qualityStatus ?? 'EN_ATTENTE'}
+                          </span>
+                        </td>
+                        );
+                      })()}
                       <td className="p-2.5 text-center font-mono text-[10px] text-slate-500">
                         v{compMeta?.computation?.calculationVersion || ruleSet.version}
                       </td>

@@ -181,6 +181,16 @@ export function calculateObservations(
   if (invalidCount > 0) warnings.push(`${invalidCount} cotation(s) invalide(s)`);
   if (defectsCount > 0) warnings.push(`${defectsCount} anomalie(s) visuelle(s) relevée(s)`);
 
+  // --------------------------------------------------------------------------
+  // Statut de qualité des données (SÉVÉRITÉ OBSERVÉE, jamais un jugement normatif).
+  //
+  // Le seuil « maxRatingNum >= 3 » exprime une sévérité d'altération observée
+  // (cotation visuelle selon l'échelle descriptive 0..5, ISO 4628) utilisée
+  // uniquement dans l'évaluation de la qualité/restauration du résultat.
+  // Il NE CONSTITUE PAS un critère de conformité : il ne déclenche aucun
+  // verdict « NF EN 927-6 conforme/non conforme », ni aucun critère INFIPERF.
+  // La conformité normative relève d'un niveau supérieur (CRITÈRE → ANALYSE →
+  // CONCLUSION) et ne doit jamais être dérivée de ce seuil.
   const qualityStatus: QualityStatus =
     invalidCount > 0
       ? 'INVALID'

@@ -22,6 +22,13 @@ import {
   Code
 } from 'lucide-react';
 
+function qualityBadgeClass(status: string | null | undefined): string {
+  if (status === 'GOOD') return 'bg-emerald-100 text-emerald-800';
+  if (status === 'WARNING') return 'bg-amber-100 text-amber-800';
+  if (status === 'INVALID') return 'bg-rose-100 text-rose-800';
+  return 'bg-slate-100 text-slate-500';
+}
+
 interface Props {
   trial: Trial;
   ruleSet: ScientificRuleSet;
@@ -269,8 +276,8 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
                               : 'RÉF'}
                           </td>
                           <td className="p-2.5 text-center">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                              {targetComp?.qualityAssessment?.status || 'GOOD'}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${qualityBadgeClass(targetComp?.qualityAssessment?.status)}`}>
+                              {targetComp?.qualityAssessment?.status ?? 'EN_ATTENTE'}
                             </span>
                           </td>
                           <td className="p-2.5 text-center">
@@ -366,8 +373,8 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
                               : '100.0 % (RÉF)'}
                           </td>
                           <td className="p-2.5 text-center">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                              {targetComp?.qualityAssessment?.status || 'GOOD'}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${qualityBadgeClass(targetComp?.qualityAssessment?.status)}`}>
+                              {targetComp?.qualityAssessment?.status ?? 'EN_ATTENTE'}
                             </span>
                           </td>
                           <td className="p-2.5 text-center">
@@ -459,8 +466,8 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
                               : 'RÉF'}
                           </td>
                           <td className="p-2.5 text-center">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                              {targetComp?.qualityAssessment?.status || 'GOOD'}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${qualityBadgeClass(targetComp?.qualityAssessment?.status)}`}>
+                              {targetComp?.qualityAssessment?.status ?? 'EN_ATTENTE'}
                             </span>
                           </td>
                           <td className="p-2.5 text-center">

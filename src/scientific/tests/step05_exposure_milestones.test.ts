@@ -10,6 +10,7 @@
 import { generateStandardExposureStages } from '../../services/trialStore';
 import { buildScientificReport } from '../../services/reportGenerator';
 import { getDefaultScientificRuleSet } from '../ruleSet';
+import { getEffectiveExposureHours } from '../analysis/TrendAnalyzer';
 import type { Trial } from '../../types/trial';
 
 export interface Step05MilestoneTestResult {
@@ -161,6 +162,27 @@ export function runStep05MilestoneTests(): {
       t0.status !== 'INACTIVE' && c12.status !== 'INACTIVE';
     record('STEP05-HOURS-10', 'INACTIVE : cycle physique intact, T0/C12 jamais exclus',
       ok, 'INACTIVE+168/336, T0/C12 actifs', String(ok));
+  }
+
+  // --- STEP05-HOURS-11 : règle verrouillée via la durée scientifique exposée ---
+  {
+    const t0 = byCycle(stages, 0);
+    const c1 = byCycle(stages, 1);
+    const c12 = byCycle(stages, 12);
+    const ok = getEffectiveExposureHours(t0) === 0 &&
+      getEffectiveExposureHours(c1) === 168 &&
+      getEffectiveExposureHours(c12) === 2016;
+    record('STEP05-HOURS-11', 'Durée scientifique : T0=0 h (0 valide, jamais null), C1=168 h, C12=2016 h',
+      ok, '0 / 168 / 2016', `${String(getEffectiveExposureHours(t0))} / ${String(getEffectiveExposureHours(c1))} / ${String(getEffectiveExposureHours(c12))}`);
+  }
+
+  // --- STEP05-HOURS-12 : durée machine ne substitue jamais la durée scientifique ---
+  {
+    const c1 = byCycle(stages, 1);
+    c1.actualExposureHours = 2024;
+    const ok = getEffectiveExposureHours(c1) === 168;
+    record('STEP05-HOURS-12', 'Durée machine 2024 tracée à part : durée scientifique C1 = 168 h',
+      ok, '168', String(getEffectiveExposureHours(c1)));
   }
 
   const passed = results.filter((r) => r.passed).length;
