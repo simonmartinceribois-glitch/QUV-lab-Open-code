@@ -236,7 +236,7 @@ suite15.results.forEach((r) => {
 });
 
 console.log('\n================================================================');
-console.log('16. EXÉCUTION DU VERROU PERSOZ/TÉMOIN (18 TESTS)');
+console.log('16. EXÉCUTION DU VERROU PERSOZ/TÉMOIN (20 TESTS)');
 console.log('================================================================');
 const suite16 = runPersozWitnessLockTests();
 console.log(`Résultats Verrou PERSOZ/T : ${suite16.summary.passed} / ${suite16.summary.total} réussis.`);
@@ -548,7 +548,7 @@ suite39.results.forEach((r) => {
 });
 
 console.log('\n================================================================');
-console.log('40. EXÉCUTION DE L\'ALIGNEMENT OBSERVATIONS COMPUTED/RAW (16 TESTS)');
+console.log('40. EXÉCUTION DE L\'ALIGNEMENT OBSERVATIONS COMPUTED/RAW (18 TESTS)');
 console.log('================================================================');
 const suite40 = runObservationsAnalysisIntegrityTests();
 console.log(`Résultats Alignement Observations : ${suite40.summary.passed} / ${suite40.summary.total} réussis.`);
@@ -561,7 +561,7 @@ suite40.results.forEach((r) => {
 });
 
 console.log('\n================================================================');
-console.log('41. EXÉCUTION DU CONTRAT COMPUTED OBSERVATIONS (12 TESTS)');
+console.log('41. EXÉCUTION DU CONTRAT COMPUTED OBSERVATIONS (13 TESTS)');
 console.log('================================================================');
 const suite41 = runObservationsContractTests();
 console.log(`Résultats Contrat Observations : ${suite41.summary.passed} / ${suite41.summary.total} réussis.`);

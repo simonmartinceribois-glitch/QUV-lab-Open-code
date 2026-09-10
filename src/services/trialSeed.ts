@@ -38,9 +38,9 @@ import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConf
 import { recalculateAcquisition } from '../scientific/recalculator';
 import { createConfigChangeEvent } from '../scientific/auditEngine';
 import { buildScientificReport } from './reportGenerator';
-import { isFamilyScheduledForStage } from '../scientific/panelUtils';
+import { isFamilyScheduledForStage, isPersozEligiblePanel } from '../scientific/panelUtils';
 import { generateUUID } from './trialIds';
-import { validateAcquisitionTarget } from './trialIntegrity';
+import { IntegrityViolationError, validateAcquisitionTarget } from './trialIntegrity';
 import { generateStandardExposureStages } from './trialStages';
 
 /**
@@ -403,7 +403,10 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
         unit: 'SECONDS',
         instrumentMetadata: { instrumentId: 'PERSOZ-PENDULUM-02', temperatureCelsius: 21.5, relativeHumidityPercent: 50.2 }
       };
-      recordAcquisitionDirect(trial, stageT0.id, batch.id, panel.id, 'PERSOZ', persozRawT0, ruleSet);
+      // Persoz T0 — E1/E2/E3 uniquement, jamais sur le témoin T (S0 §14)
+      if (isPersozEligiblePanel(panel)) {
+        recordAcquisitionDirect(trial, stageT0.id, batch.id, panel.id, 'PERSOZ', persozRawT0, ruleSet);
+      }
 
       // Observations T0
       const obsRawT0: VisualObservationsRawData = {
@@ -480,7 +483,10 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
         ],
         unit: 'SECONDS'
       };
-      recordAcquisitionDirect(trial, stage168.id, batch.id, panel.id, 'PERSOZ', persozRaw168, ruleSet);
+      // Persoz 168 h — E1/E2/E3 uniquement, jamais sur le témoin T (S0 §14)
+      if (isPersozEligiblePanel(panel)) {
+        recordAcquisitionDirect(trial, stage168.id, batch.id, panel.id, 'PERSOZ', persozRaw168, ruleSet);
+      }
 
       const obsRaw168: VisualObservationsRawData = {
         observations: [
@@ -838,7 +844,10 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
       ],
       unit: 'SECONDS'
     };
-    recordAcquisitionDirect(trial, stage0.id, batch.id, panel.id, 'PERSOZ', persozRaw0, ruleSet);
+    // Persoz T0 — E1/E2/E3 uniquement, jamais sur un panneau non identifié (S0 §14)
+    if (isPersozEligiblePanel(panel)) {
+      recordAcquisitionDirect(trial, stage0.id, batch.id, panel.id, 'PERSOZ', persozRaw0, ruleSet);
+    }
 
     const obsRaw0: VisualObservationsRawData = {
       observations: [
@@ -905,7 +914,10 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
         ],
         unit: 'SECONDS'
       };
-      recordAcquisitionDirect(trial, stage.id, batch.id, panel.id, 'PERSOZ', persozRaw, ruleSet);
+      // Persoz — E1/E2/E3 uniquement, jamais sur un panneau non identifié (S0 §14)
+      if (isPersozEligiblePanel(panel)) {
+        recordAcquisitionDirect(trial, stage.id, batch.id, panel.id, 'PERSOZ', persozRaw, ruleSet);
+      }
 
       const obsRaw: VisualObservationsRawData = {
         observations: [
@@ -964,7 +976,10 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
       ],
       unit: 'SECONDS'
     };
-    recordAcquisitionDirect(trial, stage2016.id, batch.id, panel.id, 'PERSOZ', persozRaw2016, ruleSet);
+    // Persoz 2016 h — E1/E2/E3 uniquement, jamais sur le témoin T (S0 §14)
+    if (isPersozEligiblePanel(panel)) {
+      recordAcquisitionDirect(trial, stage2016.id, batch.id, panel.id, 'PERSOZ', persozRaw2016, ruleSet);
+    }
 
     const obsRaw2016: VisualObservationsRawData = {
       observations: [
@@ -1101,6 +1116,20 @@ function recordAcquisitionDirect(
 ): PanelAcquisitionRecord {
   // Garde-fou d'intégrité relationnelle (Gate 3.1 - Risque 1)
   validateAcquisitionTarget(trial, stageId, batchId, panelId);
+
+  // Verrou métier PERSOZ (règle stricte E1/E2/E3 — miroir de trialStoreService) :
+  // la dureté Persoz se mesure UNIQUEMENT sur éprouvettes exposées E1, E2, E3
+  // identifiées. T et tout panneau non identifiable sont refusés.
+  // Rejet AVANT toute écriture (ni trial.acquisitions, ni aucune fabrication).
+  if (familyId === 'PERSOZ') {
+    const targetPanel = trial.batches?.find((b) => b.id === batchId)?.panels?.find((p) => p.id === panelId);
+    if (!targetPanel || !isPersozEligiblePanel(targetPanel)) {
+      throw new IntegrityViolationError(
+        `PERSOZ interdit sur cette éprouvette : la dureté Persoz se mesure uniquement sur éprouvettes exposées E1, E2, E3 (témoin T et panneaux non identifiés refusés).`,
+        { trialId: trial.id, stageId, batchId, panelId, familyId: 'PERSOZ' }
+      );
+    }
+  }
 
   const key = `${stageId}__${panelId}__${familyId}`;
   const record: PanelAcquisitionRecord = {

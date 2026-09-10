@@ -15,10 +15,10 @@
 
 import { extractTemporalKinetics } from '../analysis/TrendAnalyzer';
 import { detectTrialAnomalies } from '../analysis/AnalysisAnomalyDetector';
-import { parseObservationRating } from '../observationsEngine';
+import { calculateObservations, parseObservationRating } from '../observationsEngine';
 import { getDefaultScientificRuleSet } from '../ruleSet';
 import type { Trial } from '../../types/trial';
-import type { VisualObservationsComputedData } from '../../types/scientific';
+import type { VisualObservationsComputedData, VisualObservationItem } from '../../types/scientific';
 
 export interface ObservationsAnalysisIntegrityTestResult {
   id: string;
@@ -238,6 +238,57 @@ export function runObservationsAnalysisIntegrityTests(): {
     const parsed = cases.map(parseObservationRating);
     const passed = parsed.every((p) => p.validity === 'INVALID' && p.value === null);
     record('AN-OBS-05', 'parseObservationRating(-1/6) hors domaine → INVALID, jamais 0', passed, 'INVALID / null (2x)', parsed.map((p) => `${p.validity}/${p.value}`).join(', '));
+  }
+
+  // --- AN-OBS-09 : dataset complet de l'audit P3 (parseObservationRating) ---
+  {
+    const valid: Array<string | number> = [0, '0', 5];
+    const missing: Array<string | number | null | undefined> = [null, undefined, '', '   '];
+    const invalid: Array<string | number> = ['abc', NaN, Infinity, -Infinity, -1, 6];
+    const pValid = valid.map(parseObservationRating);
+    const pMissing = missing.map(parseObservationRating);
+    const pInvalid = invalid.map(parseObservationRating);
+    const okValid = pValid.every((p) => p.validity === 'VALID' && p.value !== null) &&
+      pValid[0].value === 0 && pValid[1].value === 0 && pValid[2].value === 5;
+    const okMissing = pMissing.every((p) => p.validity === 'MISSING' && p.value === null);
+    const okInvalid = pInvalid.every((p) => p.validity === 'INVALID' && p.value === null);
+    // Aucune valeur absente/invalide ne doit être transformée en 0 (S0 §8, §18).
+    const passed = okValid && okMissing && okInvalid && pValid.length === 3 && pMissing.length === 4 && pInvalid.length === 6;
+    record('AN-OBS-09', 'Dataset audit P3 (13 valeurs) : VALID=3 (0,"0",5), MISSING=4 (null,undefined,"","   "), INVALID=6 (abc,NaN,∞,-∞,-1,6), aucune fabrication de 0',
+      passed, '3 VALID / 4 MISSING / 6 INVALID, value null partout ailleurs',
+      `V=${pValid.map((p) => `${p.validity}/${p.value}`).join(',')} ; M=${pMissing.map((p) => `${p.validity}/${p.value}`).join(',')} ; I=${pInvalid.map((p) => `${p.validity}/${p.value}`).join(',')}`);
+  }
+
+  // --- AN-OBS-10 : agrégat calculateObservations sur le dataset complet P3 ---
+  {
+    const rawObs = [
+      { category: 'BLISTERING', categoryLabel: 'Cloquage', rating: 0, status: 'AUCUN' },
+      { category: 'FLAKING', categoryLabel: 'Écaillage', rating: '0', status: 'AUCUN' },
+      { category: 'CRACKING', categoryLabel: 'Craquelage', rating: 5, status: 'OBSERVE' },
+      { category: 'CHALKING', categoryLabel: 'Farinage', rating: null, status: 'AUCUN' },
+      { category: 'GENERAL_APPEARANCE', categoryLabel: 'Aspect général', rating: undefined, status: 'AUCUN' },
+      { category: 'OTHER_DEFECT', categoryLabel: 'Défaut autre', rating: '', status: 'AUCUN' },
+      { category: 'CROSS_CUT_ADHESION', categoryLabel: 'Adhérence quadrillage', rating: '   ', status: 'AUCUN' },
+      { category: 'BLISTERING', categoryLabel: 'Cloquage', rating: 'abc', status: 'AUCUN' },
+      { category: 'FLAKING', categoryLabel: 'Écaillage', rating: NaN, status: 'AUCUN' },
+      { category: 'CRACKING', categoryLabel: 'Craquelage', rating: Infinity, status: 'AUCUN' },
+      { category: 'CHALKING', categoryLabel: 'Farinage', rating: -Infinity, status: 'AUCUN' },
+      { category: 'GENERAL_APPEARANCE', categoryLabel: 'Aspect général', rating: -1, status: 'AUCUN' },
+      { category: 'OTHER_DEFECT', categoryLabel: 'Défaut autre', rating: 6, status: 'AUCUN' }
+    ] as unknown as VisualObservationItem[];
+    const { computed } = calculateObservations({ observations: rawObs }, ruleSet);
+    const qa = computed.qualityAssessment;
+    const passed =
+      qa.validCount === 3 &&
+      qa.missingCount === 4 &&
+      qa.invalidCount === 6 &&
+      computed.maxRating === 5 &&
+      computed.defectsCount === 1 &&
+      computed.totalEvaluated === 13;
+    record('AN-OBS-10', 'Dataset audit P3 (agrégat) : valid=3, missing=4, invalid=6, maxRating=5, defects=1 (0 réel conservé, aucun 0 fabriqué)',
+      passed,
+      'valid=3, missing=4, invalid=6, maxRating=5, defects=1',
+      `valid=${qa.validCount}, missing=${qa.missingCount}, invalid=${qa.invalidCount}, maxRating=${String(computed.maxRating)}, defects=${computed.defectsCount}, total=${computed.totalEvaluated}`);
   }
 
   {
