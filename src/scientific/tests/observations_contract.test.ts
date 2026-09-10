@@ -306,6 +306,28 @@ export function runObservationsContractTests(): {
       ok, 'domaine strict', bad.length === 0 ? 'OK' : bad.join(' '));
   }
 
+  // --- OBS-CONTRACT-MIXED : invariant INV-OBS-09 exact (null + invalid + 0 + 2) ---
+  {
+    const { computed } = calculateObservations({
+      observations: [
+        mk('BLISTERING', null, 'AUCUN', 'Cloquage'),
+        mk('FLAKING', 'abc', 'AUCUN', 'Écaillage'),
+        mk('CRACKING', 0, 'OBSERVE', 'Craquelage'),
+        mk('OTHER_DEFECT', 2, 'OBSERVE', 'Défaut autre')
+      ]
+    }, ruleSet);
+    const qa = computed.qualityAssessment;
+    const passed =
+      computed.maxRating === 2 &&
+      qa.validCount === 2 &&
+      qa.missingCount === 1 &&
+      qa.invalidCount === 1;
+    record('OBS-CONTRACT-MIXED', 'INV-OBS-09 : null + invalid + 0 + 2 → maxRating=2, validCount=2 (miss=1, invalid=1)',
+      passed,
+      'maxRating=2, validCount=2, missing=1, invalid=1',
+      `maxRating=${String(computed.maxRating)}, valid=${qa.validCount}, missing=${qa.missingCount}, invalid=${qa.invalidCount}`);
+  }
+
   const passed = results.filter((r) => r.passed).length;
   return { results, summary: { total: results.length, passed, failed: results.length - passed } };
 }

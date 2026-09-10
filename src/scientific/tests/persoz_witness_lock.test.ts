@@ -5,11 +5,29 @@
  * (E1, E2, E3), à tous les jalons (T0..C12). Toute tentative PERSOZ + T,
  * même en contournant l'UI (appel direct au store), est rejetée par
  * recordAcquisition() via IntegrityViolationError AVANT toute écriture.
+ *
+ * Stratégie restauration/import (rétrocompatibilité — S0 §19, §21) : un état
+ * historique ou un JSON importé contenant PERSOZ+T n'est JAMAIS réécrit
+ * (le RAW est conservé tel quel, aucune donnée n'est fabriquée ni supprimée),
+ * mais le pipeline scientifique le neutralise : recalculator refuse tout
+ * COMPUTED (statut EMPTY, computed null) et le verrou de population exclut
+ * l'acquisition de tout export COMPUTED. Le verrou d'écriture (recordAcquisition
+ * et son miroir seed recordAcquisitionDirect) empêche toute nouvelle écriture
+ * PERSOZ+T.
  */
 
-import { generateStandardExposureStages, globalTrialStore, IntegrityViolationError } from '../../services/trialStore';
-import type { Trial } from '../../types/trial';
+import {
+  generateStandardExposureStages,
+  globalTrialStore,
+  IntegrityViolationError,
+  createValidationTrial
+} from '../../services/trialStore';
+import type { Trial, PanelAcquisitionRecord } from '../../types/trial';
 import type { PersozRawData } from '../../types/scientific';
+import { getDefaultScientificRuleSet } from '../ruleSet';
+import { isPersozEligiblePanel } from '../panelUtils';
+import { recalculateAcquisition } from '../recalculator';
+import { isComputedExportAdmissible } from '../../services/reportGenerator';
 
 export interface PersozWitnessLockTestResult {
   id: string;
@@ -353,6 +371,82 @@ export function runPersozWitnessLockTests(): {
       r.threw && r.isIntegrity && r.code === 'INTEGRITY_VIOLATION',
       'Rejet (non identifiable E1/E2/E3)',
       `threw=${String(r.threw)}, integrity=${String(r.isIntegrity)}, code=${r.code}`
+    );
+  }
+
+  // --- PZ-T-18 : les seeds (démo + validation) ne contiennent aucun PERSOZ+T ---
+  {
+    const demo = globalTrialStore.resetToDemo();
+    const validation = createValidationTrial(getDefaultScientificRuleSet());
+    const violations: string[] = [];
+    let persozCount = 0;
+    [demo, validation].forEach((t) => {
+      for (const [key, rec] of Object.entries(t.acquisitions || {})) {
+        if (rec.familyId !== 'PERSOZ') continue;
+        persozCount++;
+        const panel = t.batches?.find((b) => b.id === rec.batchId)?.panels?.find((p) => p.id === rec.panelId);
+        if (!panel || !isPersozEligiblePanel(panel)) violations.push(`${t.id}:${key}`);
+      }
+    });
+    const ok = violations.length === 0 && persozCount > 0;
+    record(
+      'PZ-T-18',
+      'Seeds démo/validation : aucun PERSOZ+T/WITNESS (verrou recordAcquisitionDirect) + E1/E2/E3 conservés',
+      ok,
+      '0 violation, PERSOZ présents sur exposés uniquement',
+      `violations=${violations.join(' ').slice(0, 200) || 'aucune'}, persozCount=${persozCount}`
+    );
+  }
+
+  // --- PZ-T-19 : restauration/import (JSON/localStorage) d'un état contenant PERSOZ+T ---
+  {
+    const trial = buildLockTrial();
+    const stage = trial.stages.find((s) => s.cycleIndex === 12)!;
+    const batchId = trial.batches[0].id;
+    const panelT = trial.batches[0].panels.find((p) => p.id === `${trial.id}-p-T`)!;
+    const key = `${stage.id}__${panelT.id}__PERSOZ`;
+    // Simulation d'un état legacy/trafiqué restauré : acquisition PERSOZ injectée
+    // directement dans l'essai (import JSON / localStorage), hors verrou store.
+    const illegalRecord: PanelAcquisitionRecord = {
+      id: `acq-restored-persoz-t-${trialSeq}`,
+      trialId: trial.id,
+      stageId: stage.id,
+      batchId,
+      panelId: panelT.id,
+      familyId: 'PERSOZ',
+      raw: persozRaw(),
+      computed: null,
+      status: 'COMPLETE',
+      alerts: [],
+      trace: {
+        createdBy: 'LEGACY_IMPORT',
+        createdAt: '2026-09-01T00:00:00Z',
+        lastModifiedBy: 'LEGACY_IMPORT',
+        lastModifiedAt: '2026-09-01T00:00:00Z',
+        source: 'FILE_IMPORT'
+      },
+      mediaIds: []
+    };
+    trial.acquisitions[key] = illegalRecord;
+    globalTrialStore.saveTrial(trial);
+    const restored = globalTrialStore.getTrial(trial.id)!;
+    const restoredRecord = restored.acquisitions[key];
+    // Stratégie (S0 §8/§14/§18, rétrocompat) : RAW illégal restauré CONSERVÉ tel
+    // quel — jamais réécrit — mais aucune transformation : COMPUTED refusé (EMPTY).
+    const recalc = recalculateAcquisition(restoredRecord, restored, getDefaultScientificRuleSet());
+    const rawPreserved = JSON.stringify(restoredRecord.raw) === JSON.stringify(persozRaw());
+    const exportRefused = !isComputedExportAdmissible('PERSOZ', panelT, { cycleIndex: 12 });
+    const ok =
+      recalc.updatedRecord.status === 'EMPTY' &&
+      recalc.updatedRecord.computed === null &&
+      rawPreserved &&
+      exportRefused;
+    record(
+      'PZ-T-19',
+      "Restauration/import d'un état contenant PERSOZ+T → RAW conservé (rétrocompat), COMPUTED refusé (EMPTY), export COMPUTED exclu",
+      ok,
+      'status=EMPTY, computed=null, RAW intact, export refusé',
+      `status=${recalc.updatedRecord.status}, computed=${String(recalc.updatedRecord.computed === null)}, raw=${String(rawPreserved)}, export=${String(exportRefused)}`
     );
   }
 
