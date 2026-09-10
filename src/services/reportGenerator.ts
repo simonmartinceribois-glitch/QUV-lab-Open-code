@@ -90,7 +90,6 @@ export interface PreReportAuditResult {
     final2016hAvailableOrFlagged: boolean;
     computationsAvailable: boolean;
     engineVersionAvailable: boolean;
-    ruleSetAvailable: boolean;
     adaptationsTraced: boolean;
     alertsCataloged: boolean;
   };
@@ -150,7 +149,6 @@ export function auditTrialBeforeReport(trial: Trial, ruleSet: ScientificRuleSet)
   const computationsAvailable = hasComputations;
 
   const engineVersionAvailable = !!ruleSet.version;
-  const ruleSetAvailable = !!ruleSet.standardReference;
 
   // Adaptations réellement tracées : aucune dérogation, ou chacune munie d'une
   // justification formellement valide (règle centralisée ≥ 8 caractères après trim).
@@ -192,7 +190,6 @@ export function auditTrialBeforeReport(trial: Trial, ruleSet: ScientificRuleSet)
       final2016hAvailableOrFlagged,
       computationsAvailable,
       engineVersionAvailable,
-      ruleSetAvailable,
       adaptationsTraced,
       alertsCataloged
     }
