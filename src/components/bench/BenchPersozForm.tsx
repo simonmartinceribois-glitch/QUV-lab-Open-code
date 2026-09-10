@@ -5,15 +5,31 @@
  */
 
 import type { Dispatch, SetStateAction } from 'react';
+import { ProtocolStatusHeader } from './ProtocolStatusHeader';
 
 interface Props {
+  persozCount: number;
+  standardPersozReps: number;
+  protocolJustification?: string;
   persozValues: string[];
   onPersozValuesChange: Dispatch<SetStateAction<string[]>>;
 }
 
-export function BenchPersozForm({ persozValues, onPersozValuesChange }: Props) {
+export function BenchPersozForm({
+  persozCount,
+  standardPersozReps,
+  protocolJustification,
+  persozValues,
+  onPersozValuesChange
+}: Props) {
   return (
     <div className="space-y-4">
+      <ProtocolStatusHeader
+        isAdapted={persozCount !== standardPersozReps}
+        reference={`${standardPersozReps} répétitions / éprouvette`}
+        realized={`${persozCount} répétitions / éprouvette`}
+        justification={protocolJustification}
+      />
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold text-purple-950 uppercase tracking-wider">
           Saisie du Temps d'Amortissement Persoz (Secondes)

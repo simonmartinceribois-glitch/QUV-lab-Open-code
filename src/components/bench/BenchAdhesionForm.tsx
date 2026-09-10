@@ -12,6 +12,7 @@ import {
   getApplicableGridSpacing
 } from '../../scientific/adhesionEngine';
 import { evaluateAdhesionDelayCriterion } from '../../scientific/criteria/criteriaAdhesion';
+import { ProtocolStatusHeader } from './ProtocolStatusHeader';
 import type { BatchDefinition, ExposureStage, PanelDefinition } from '../../types/trial';
 
 export interface AdhesionBenchEntry {
@@ -48,6 +49,8 @@ interface Props {
   currentStage: ExposureStage;
   isInitialStage: boolean;
   expectedCount: number;
+  standardAdhesionCount: number;
+  protocolJustification?: string;
   entries: AdhesionBenchEntry[];
   onEntriesChange: Dispatch<SetStateAction<AdhesionBenchEntry[]>>;
 }
@@ -58,6 +61,8 @@ export function BenchAdhesionForm({
   currentStage,
   isInitialStage,
   expectedCount,
+  standardAdhesionCount,
+  protocolJustification,
   entries,
   onEntriesChange
 }: Props) {
@@ -83,6 +88,12 @@ export function BenchAdhesionForm({
 
   return (
     <div className="space-y-4">
+      <ProtocolStatusHeader
+        isAdapted={expectedCount !== standardAdhesionCount}
+        reference={`${standardAdhesionCount} mesures / panneau`}
+        realized={`${expectedCount} mesures / panneau`}
+        justification={protocolJustification}
+      />
       {/* 1. Cadre de préparation et traçabilité ISO 2409 (Section 7) */}
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs space-y-3">
         <div className="flex items-center justify-between pb-2 border-b border-slate-200">

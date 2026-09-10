@@ -28,7 +28,7 @@ import { WizardStep3Batches } from './wizard/WizardStep3Batches';
 import { WizardStep5Families } from './wizard/WizardStep5Families';
 import { WizardStep6Calendar } from './wizard/WizardStep6Calendar';
 import { WizardStep7Review } from './wizard/WizardStep7Review';
-import type { LotFormItem } from './wizard/wizardTypes';
+import type { LotFormItem, NumberSetter } from './wizard/wizardTypes';
 import {
   X,
   ChevronRight,
@@ -233,19 +233,44 @@ export function CreateTrialWizardModal({
     setBatches(batches.filter((b) => b.id !== id));
   };
 
-  // Validations adaptations
-  const isColorAdapted = colorPoints !== 4;
+  // Validations adaptations (P5) : références issues du référentiel scientifique,
+  // jamais codées en dur dans le composant.
+  const stdColor = ruleSet.measurementConfigurations.COLOR?.standardRecommendedCount ?? 4;
+  const stdGlossSeries = ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration?.seriesCount ?? 2;
+  const stdGlossReadings = ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration?.readingsPerSeries ?? 2;
+  const stdPersoz = ruleSet.measurementConfigurations.PERSOZ?.standardRecommendedCount ?? 3;
+  const stdAdhesion = ruleSet.measurementConfigurations.ADHESION?.standardRecommendedCount ?? 2;
+
+  const isColorAdapted = colorPoints !== stdColor;
   const isColorAdaptationInvalid = isColorAdapted && colorJustification.trim().length === 0;
 
-  const isGlossAdapted = glossSeriesCount !== 2 || glossReadingsPerSeries !== 2;
+  const isGlossAdapted = glossSeriesCount !== stdGlossSeries || glossReadingsPerSeries !== stdGlossReadings;
   const isGlossAdaptationInvalid = isGlossAdapted && glossJustification.trim().length === 0;
 
-  const isPersozAdapted = persozReps !== 3;
+  const isPersozAdapted = persozReps !== stdPersoz;
   const isPersozAdaptationInvalid = isPersozAdapted && persozJustification.trim().length === 0;
 
-  const isAdhAdapted = adhCount !== 2;
+  const isAdhAdapted = adhCount !== stdAdhesion;
   const isAdhAdaptationInvalid =
     (isAdhAdapted && adhJustification.trim().length === 0) || (adhCount !== 1 && adhCount !== 2);
+
+  // Gardes de saisie (P5) : les configurations de mesure sont des entiers finis ≥ 1.
+  // 0, valeurs décimales et NaN sont ramenés à l'entier valide le plus proche.
+  const clampIntState = (
+    raw: number | ((prev: number) => number),
+    prev: number,
+    fallback: number
+  ): number => {
+    const candidate = typeof raw === 'function' ? raw(prev) : raw;
+    const n = Number(candidate);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.max(1, Math.floor(n));
+  };
+  const handleColorPointsChange: NumberSetter = (v) => setColorPoints(clampIntState(v, colorPoints, stdColor));
+  const handleGlossSeriesCountChange: NumberSetter = (v) => setGlossSeriesCount(clampIntState(v, glossSeriesCount, stdGlossSeries));
+  const handleGlossReadingsPerSeriesChange: NumberSetter = (v) => setGlossReadingsPerSeries(clampIntState(v, glossReadingsPerSeries, stdGlossReadings));
+  const handlePersozRepsChange: NumberSetter = (v) => setPersozReps(clampIntState(v, persozReps, stdPersoz));
+  const handleAdhCountChange: NumberSetter = (v) => setAdhCount(clampIntState(v, adhCount, stdAdhesion));
 
   const isStep1Valid = Boolean(reference.trim() && createdBy.trim());
   const isStep3Valid = batches.length > 0 && batches.every((b) => b.reference.trim().length > 0);
@@ -298,24 +323,25 @@ export function CreateTrialWizardModal({
       generalProtocolNotes: commonProtocolNotes
     };
 
+    try {
     const colorConfig = isColorAdapted
       ? createCountConfiguration('COLOR', colorPoints, ruleSet, { justification: colorJustification, operatorId: trimmedCreatedBy })
-      : createCountConfiguration('COLOR', 4, ruleSet);
+      : createCountConfiguration('COLOR', stdColor, ruleSet);
 
     const glossConfig = isGlossAdapted
       ? createSeriesConfiguration('GLOSS', glossSeriesCount, glossReadingsPerSeries, ruleSet, {
           justification: glossJustification,
           operatorId: trimmedCreatedBy
         })
-      : createSeriesConfiguration('GLOSS', 2, 2, ruleSet);
+      : createSeriesConfiguration('GLOSS', stdGlossSeries, stdGlossReadings, ruleSet);
 
     const persozConfig = isPersozAdapted
       ? createCountConfiguration('PERSOZ', persozReps, ruleSet, { justification: persozJustification, operatorId: trimmedCreatedBy })
-      : createCountConfiguration('PERSOZ', 3, ruleSet);
+      : createCountConfiguration('PERSOZ', stdPersoz, ruleSet);
 
     const adhConfig = isAdhAdapted
       ? createCountConfiguration('ADHESION', adhCount, ruleSet, { justification: adhJustification, operatorId: trimmedCreatedBy })
-      : createCountConfiguration('ADHESION', 2, ruleSet);
+      : createCountConfiguration('ADHESION', stdAdhesion, ruleSet);
 
     const createdTrial = globalTrialStore.createTrial({
       metadata,
@@ -348,6 +374,10 @@ export function CreateTrialWizardModal({
 
     if (onCreated) onCreated(createdTrial.id);
     onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      window.alert(`Création de l'essai refusée : ${message}`);
+    }
   };
 
   // Étape 04 Panneaux masquée (demande utilisateur) : le flux saute de 03 à 05.
@@ -474,24 +504,29 @@ export function CreateTrialWizardModal({
               activeFamilies={activeFamilies}
               onToggleFamily={toggleFamily}
               colorPoints={colorPoints}
-              onColorPointsChange={setColorPoints}
+              onColorPointsChange={handleColorPointsChange}
+              standardColorPoints={stdColor}
               colorJustification={colorJustification}
               onColorJustificationChange={setColorJustification}
               isColorAdapted={isColorAdapted}
               glossSeriesCount={glossSeriesCount}
-              onGlossSeriesCountChange={setGlossSeriesCount}
+              onGlossSeriesCountChange={handleGlossSeriesCountChange}
+              standardGlossSeriesCount={stdGlossSeries}
               glossReadingsPerSeries={glossReadingsPerSeries}
-              onGlossReadingsPerSeriesChange={setGlossReadingsPerSeries}
+              onGlossReadingsPerSeriesChange={handleGlossReadingsPerSeriesChange}
+              standardGlossReadingsPerSeries={stdGlossReadings}
               glossJustification={glossJustification}
               onGlossJustificationChange={setGlossJustification}
               isGlossAdapted={isGlossAdapted}
               persozReps={persozReps}
-              onPersozRepsChange={setPersozReps}
+              onPersozRepsChange={handlePersozRepsChange}
+              standardPersozReps={stdPersoz}
               persozJustification={persozJustification}
               onPersozJustificationChange={setPersozJustification}
               isPersozAdapted={isPersozAdapted}
               adhCount={adhCount}
-              onAdhCountChange={setAdhCount}
+              onAdhCountChange={handleAdhCountChange}
+              standardAdhesionCount={stdAdhesion}
               adhJustification={adhJustification}
               onAdhJustificationChange={setAdhJustification}
               isAdhAdapted={isAdhAdapted}
