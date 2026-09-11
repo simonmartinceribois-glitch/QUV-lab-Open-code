@@ -44,6 +44,7 @@ import { runObservationsAnalysisIntegrityTests } from './src/scientific/tests/ob
 import { runObservationsContractTests } from './src/scientific/tests/observations_contract.test';
 import { runCriteriaSeparationTests } from './src/scientific/tests/criteria_separation.test';
 import { runProtocolAdaptationsTests } from './src/scientific/tests/protocol_adaptations_p5.test';
+import { runGlossOrientationTests } from './src/scientific/tests/gloss_orientation.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -653,6 +654,19 @@ suite47.results.forEach((r) => {
   }
 });
 
+console.log('================================================================');
+console.log('48. EXÉCUTION DE LA NON-RÉGRESSION ORIENTATION GLOSS (6 TESTS)');
+console.log('================================================================');
+const suite48 = runGlossOrientationTests();
+console.log(`Résultats Orientation Gloss : ${suite48.summary.passed} / ${suite48.summary.total} réussis.`);
+suite48.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Gloss Orientation] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -700,7 +714,8 @@ const totalFailed =
   suite44.summary.failed +
   suite45.summary.failed +
   suite46.summary.failed +
-  suite47.summary.failed;
+  suite47.summary.failed +
+  suite48.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -748,7 +763,8 @@ const totalCount =
   suite44.summary.total +
   suite45.summary.total +
   suite46.summary.total +
-  suite47.summary.total;
+  suite47.summary.total +
+  suite48.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
