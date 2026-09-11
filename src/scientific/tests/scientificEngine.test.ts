@@ -1154,6 +1154,73 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     );
   }
 
+  // --- TEST 45 : maxColorStdDev absent du RuleSet → aucun WARNING de dispersion ---
+  {
+    const noColorStdRuleSet = {
+      ...ruleSet,
+      statisticalRules: {
+        ...ruleSet.statisticalRules,
+        maxColorStdDev: undefined
+      }
+    };
+    const colorConfig = createCountConfiguration('COLOR', 4, noColorStdRuleSet);
+    // Dispersion volontairement élevée (stdDevL ≈ 5,77 > 2.0) : si le repli 2.0
+    // subsistait, un STATISTICAL_WARNING serait émis. Il doit rester silencieux.
+    const rawData: ColorRawData = {
+      readings: [
+        { pointIndex: 1, L: 45.0, a: 0.0, b: 0.0 },
+        { pointIndex: 2, L: 55.0, a: 0.0, b: 0.0 },
+        { pointIndex: 3, L: 45.0, a: 0.0, b: 0.0 },
+        { pointIndex: 4, L: 55.0, a: 0.0, b: 0.0 }
+      ]
+    };
+    const res = calculateColor(rawData, colorConfig, noColorStdRuleSet);
+    const hasColorStdDevWarning = res.alerts.some(
+      (a) => a.code === 'STATISTICAL_WARNING' && a.message.includes('Dispersion L* élevée')
+    );
+    const passed =
+      hasColorStdDevWarning === false && res.computed.stdDevL !== null && res.computed.stdDevL > 2.0;
+
+    record(
+      45,
+      'maxColorStdDev absent du RuleSet → stdDevL calculé mais AUCUN WARNING de dispersion (pas de repli 2.0)',
+      'Règles Métrologiques',
+      passed,
+      'stdDevL > 2.0 calculé, aucun STATISTICAL_WARNING',
+      `stdDevL=${String(res.computed.stdDevL)}, warning=${hasColorStdDevWarning}`
+    );
+  }
+
+  // --- TEST 46 : Géométrie de brillance absente (RuleSet + RAW) → calcul INVALID ---
+  {
+    const noGeomRuleSet = {
+      ...ruleSet,
+      statisticalRules: {
+        ...ruleSet.statisticalRules,
+        glossGeometryDefault: undefined
+      }
+    };
+    const seriesConfig = ruleSet.seriesConfigurations!.GLOSS;
+    const rawNoGeom: GlossRawData = {
+      series: [
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 40 }, { pointIndex: 2, value: 41 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 39 }, { pointIndex: 2, value: 40 }] }
+      ]
+    };
+    const res = calculateGloss(rawNoGeom, seriesConfig, noGeomRuleSet);
+    const invalidStatus = res.computed.qualityAssessment.status === 'INVALID';
+    const blockAlert = res.alerts.some((a) => a.id === 'alert-gloss-geom-undef');
+
+    record(
+      46,
+      'Géométrie absente (RuleSet + métadonnées RAW) → alerte bloquante + statut INVALID',
+      'Contrôle Instrument',
+      invalidStatus && blockAlert,
+      'qualityAssessment.status === INVALID et alerte BLOCKING alert-gloss-geom-undef',
+      `status=${res.computed.qualityAssessment.status}, alert=${blockAlert}`
+    );
+  }
+
   const passedCount = results.filter((r) => r.passed).length;
   const failedCount = results.length - passedCount;
 

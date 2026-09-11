@@ -23,7 +23,7 @@ export interface AnalysisEngineOptions {
   batchIds?: string[];
   panelIds?: string[];
   measurementFamilies?: MeasurementFamilyId[];
-  studyCriteriaGlossRetentionPercent?: number; // ex: 50%
+  studyCriteriaGlossRetentionPercent?: number | null; // null si non configuré au RuleSet
   operatorId?: string;
 }
 

@@ -127,9 +127,11 @@ export function calculateColor(
   const stdDevA = calculateStdDevByMethod(validA, stdMethod);
   const stdDevB = calculateStdDevByMethod(validB, stdMethod);
 
-  // Contrôle statistique d'hétérogénéité
-  const maxAllowedStdDev = ruleSet.statisticalRules.maxColorStdDev ?? 2.0;
-  if (stdDevL !== null && stdDevL > maxAllowedStdDev) {
+  // Contrôle statistique d'hétérogénéité — appliqué uniquement si le RuleSet
+  // configure explicitement maxColorStdDev. Sans configuration, aucun filtre ni
+  // WARNING de dispersion n'est généré.
+  const maxAllowedStdDev = ruleSet.statisticalRules.maxColorStdDev;
+  if (maxAllowedStdDev !== undefined && maxAllowedStdDev !== null && stdDevL !== null && stdDevL > maxAllowedStdDev) {
     alerts.push({
       id: `alert-col-std-l`,
       severity: 'WARNING',
@@ -157,8 +159,6 @@ export function calculateColor(
   let deltaA: number | null = null;
   let deltaB: number | null = null;
   let deltaE: number | null = null;
-  let deltaC: number | null = null;
-  let deltaH: number | null = null;
 
   let refMeanL: number | null = null;
   let refMeanA: number | null = null;
@@ -193,17 +193,6 @@ export function calculateColor(
 
       // CIE 1976 ΔE*ab
       deltaE = Math.sqrt(Math.pow(deltaL, 2) + Math.pow(deltaA, 2) + Math.pow(deltaB, 2));
-
-      // ΔC* (différence de saturation) et ΔH* (différence de teinte)
-      const refChroma = Math.sqrt(Math.pow(refMeanA, 2) + Math.pow(refMeanB, 2));
-      if (chromaC !== null) {
-        deltaC = chromaC - refChroma;
-        const dE2 = Math.pow(deltaE, 2);
-        const dL2 = Math.pow(deltaL, 2);
-        const dC2 = Math.pow(deltaC, 2);
-        const diffH2 = dE2 - dL2 - dC2;
-        deltaH = diffH2 > 0 ? Math.sqrt(diffH2) : 0;
-      }
     } else {
       alerts.push({
         id: `alert-col-ref-inc`,
@@ -236,8 +225,6 @@ export function calculateColor(
     deltaA: roundMetric(deltaA, 3),
     deltaB: roundMetric(deltaB, 3),
     deltaE: roundMetric(deltaE, 3),
-    deltaC: roundMetric(deltaC, 3),
-    deltaH: roundMetric(deltaH, 3),
     qualityAssessment,
     protocolStatus: protocolEval.status,
     computation: {

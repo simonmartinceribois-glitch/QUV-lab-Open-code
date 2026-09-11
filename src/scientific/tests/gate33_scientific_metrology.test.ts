@@ -507,15 +507,17 @@ export function runGate33ScientificMetrologyTests(): {
       res.computed.defectsCount === 2 &&
       res.computed.maxRating === 3 &&
       res.computed.qualityAssessment.status === 'WARNING' &&
-      res.alerts.some((a) => a.code === 'STATISTICAL_WARNING' && a.message.includes('Farinage'));
+      // Pacte P1 : plus aucun déclenchement d'alerte sur le seuil « >= 3 » ;
+      // seules les limites normatives 0 et 5 restent actives.
+      !res.alerts.some((a) => a.code === 'STATISTICAL_WARNING' && a.message.includes('Farinage'));
 
     record(
       'G33-OBS-01',
-      'Observations : Évaluation des cotations qualitatives ISO 4628 (2 défauts, maxRating=3, alerte farinage émise)',
+      'Observations : cotations ISO 4628 (2 défauts, maxRating=3) — statut qualité WARNING, AUCUNE alerte émise sur le seuil 3',
       'VISUAL_OBSERVATIONS',
       passed,
-      'totalEvaluated=4, defectsCount=2, maxRating=3, qualityStatus=WARNING',
-      `totalEvaluated=${res.computed.totalEvaluated}, defectsCount=${res.computed.defectsCount}, maxRating=${res.computed.maxRating}`
+      'totalEvaluated=4, defectsCount=2, maxRating=3, qualityStatus=WARNING, pas d\'alerte farinage',
+      `totalEvaluated=${res.computed.totalEvaluated}, defectsCount=${res.computed.defectsCount}, maxRating=${res.computed.maxRating}, status=${res.computed.qualityAssessment.status}`
     );
   }
 

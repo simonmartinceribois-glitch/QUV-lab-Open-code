@@ -150,18 +150,6 @@ export function calculateObservations(
       if (value > 0 || obs.status === 'NON_CONFORME' || obs.status === 'OBSERVE') {
         defectsCount++;
         defectDescriptions.push(`${obs.categoryLabel || obs.category} (Note: ${String(obs.rating)})`);
-
-        if (value >= 3) {
-          alerts.push({
-            id: `alert-obs-severe-${obs.category}-${Date.now()}`,
-            severity: 'WARNING',
-            code: 'STATISTICAL_WARNING',
-            message: `Défaut visuel marqué détecté : ${obs.categoryLabel || obs.category} (cotation ${String(obs.rating)}).`,
-            familyId: 'OBSERVATIONS',
-            panelId: options?.panelId,
-            stageId: options?.stageId
-          });
-        }
       }
     } else if (validity === 'MISSING') {
       missingCount++;
@@ -191,13 +179,12 @@ export function calculateObservations(
   // --------------------------------------------------------------------------
   // Statut de qualité des données (SÉVÉRITÉ OBSERVÉE, jamais un jugement normatif).
   //
-  // Le seuil « maxRatingNum >= 3 » exprime une sévérité d'altération observée
-  // (cotation visuelle selon l'échelle descriptive 0..5, ISO 4628) utilisée
-  // uniquement dans l'évaluation de la qualité/restauration du résultat.
-  // Il NE CONSTITUE PAS un critère de conformité : il ne déclenche aucun
-  // verdict « NF EN 927-6 conforme/non conforme », ni aucun critère INFIPERF.
-  // La conformité normative relève d'un niveau supérieur (CRITÈRE → ANALYSE →
-  // CONCLUSION) et ne doit jamais être dérivée de ce seuil.
+  // Aucune alerte n'est déclenchée sur `maxRatingNum >= 3` : les limites
+  // normatives de la cotation restent strictement 0 et 5 (échelle ISO 4628).
+  // La seule utilisation restante de la sévérité observée est l'indicateur de
+  // statut de qualité ci-dessous — il ne constitue NI un critère de conformité
+  // NI une alerte : il ne déclenche aucun verdict « NF EN 927-6 conforme/non
+  // conforme », ni aucun critère INFIPERF.
   const qualityStatus: QualityStatus =
     invalidCount > 0
       ? 'INVALID'

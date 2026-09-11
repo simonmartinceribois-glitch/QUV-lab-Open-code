@@ -70,8 +70,9 @@ export function BenchAdhesionForm({
   const spacingResult = getApplicableGridSpacing(thickness);
   const gridDisplay = getAdhesionGridDisplay(thickness);
   // Source de vérité unique du délai : la couche CRITÈRE (S3), identique au
-  // rapport. Aucun calcul concurrent dans l'UI ; le seuil (168 h) provient du
-  // moteur scientifique (ADHESION_DEFAULT_REQUIRED_DELAY_HOURS).
+  // rapport. Aucun calcul concurrent dans l'UI ; le seuil (168 h) est un
+  // paramètre protocolaire OPTIONNEL fourni explicitement lorsque configuré,
+  // jamais injecté en dur — sans configuration, la vérification est contournée.
   const delayResult = evaluateAdhesionDelayCriterion({
     applicationDateTime: currentBatch?.applicationDate,
     measurementDateTime: new Date().toISOString()
@@ -148,7 +149,7 @@ export function BenchAdhesionForm({
                 {Math.floor(delayResult.elapsedTimeHours / 24)} j {Math.round(delayResult.elapsedTimeHours % 24)} h ({delayResult.status === 'CONFORME' ? `✅ Conforme ≥ ${delayResult.requiredMinimumDelayHours} h` : `⚠️ < ${delayResult.requiredMinimumDelayHours} h`})
               </span>
             ) : (
-              <span className="text-slate-400 italic">Date d'application manquante</span>
+              <span className="text-slate-400 italic">Non évalué (seuil non configuré ou date manquante)</span>
             )}
           </div>
         </div>

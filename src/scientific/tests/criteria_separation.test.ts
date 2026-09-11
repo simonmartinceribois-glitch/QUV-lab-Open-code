@@ -34,7 +34,8 @@ import {
   ColorRawData,
   GlossRawData,
   PersozRawData,
-  AdhesionRawData
+  AdhesionRawData,
+  ScientificRuleSet
 } from '../../types/scientific';
 import { Trial } from '../../types/trial';
 
@@ -318,18 +319,22 @@ export function runCriteriaSeparationTests(): {
 
     const conforme = evaluateAdhesionDelayCriterion({
       applicationDateTime: app84Days,
-      measurementDateTime: measurementDate
+      measurementDateTime: measurementDate,
+      requiredMinimumDelayHours: 168
     });
     const nonConforme = evaluateAdhesionDelayCriterion({
       applicationDateTime: app4Days,
-      measurementDateTime: measurementDate
+      measurementDateTime: measurementDate,
+      requiredMinimumDelayHours: 168
     });
     const missing = evaluateAdhesionDelayCriterion({
-      measurementDateTime: measurementDate
+      measurementDateTime: measurementDate,
+      requiredMinimumDelayHours: 168
     });
     const invalide = evaluateAdhesionDelayCriterion({
       applicationDateTime: 'date-invalide',
-      measurementDateTime: measurementDate
+      measurementDateTime: measurementDate,
+      requiredMinimumDelayHours: 168
     });
 
     // Cross-check : la projection S3 doit reproduire exactement le mapping
@@ -403,6 +408,65 @@ export function runCriteriaSeparationTests(): {
       modernInitial === 44.1 && legacyInitial === 44.1 && modernInitial === legacyInitial,
       'meanInitialGU = 44,1 (moderne ET hérité), résultats identiques',
       `moderne=${String(modernInitial)}, legacy=${String(legacyInitial)}`
+    );
+  }
+
+  // ----------------------------------------------------------------------------
+  // T6 — CRITÈRE BRILLANCE : seuil absent du RuleSet → aucun verdict conforme
+  //      (aucun repli 50 en dur)
+  // ----------------------------------------------------------------------------
+  {
+    const noThresholdRuleSet = {
+      ...ruleSet,
+      statisticalRules: { ...ruleSet.statisticalRules }
+    } as ScientificRuleSet & { statisticalRules: { retentionThresholdPercent?: number } };
+    delete (noThresholdRuleSet.statisticalRules as { retentionThresholdPercent?: number })
+      .retentionThresholdPercent;
+
+    const threshold = getGlossRetentionThreshold(noThresholdRuleSet);
+    const s3 = evaluateGlossRetentionCriterion(47.4, noThresholdRuleSet);
+
+    const noVerdict =
+      threshold === null && s3.verdict === 'NON_EVALUE' && s3.thresholdPercent === null;
+    const messageExplicit = s3.message.includes('aucun seuil configuré dans le ScientificRuleSet');
+
+    record(
+      6,
+      'T6 Brillance — seuil absent du RuleSet : aucun repli 50, verdict NON_EVALUE, aucun verdict de conformité',
+      'CRITERE_SEPARATION',
+      noVerdict && messageExplicit,
+      'getGlossRetentionThreshold=null ; S3: NON_EVALUE, thresholdPercent=null, message explicite',
+      `threshold=${String(threshold)}, verdict=${s3.verdict}, seuil=${String(s3.thresholdPercent)}, msg=${s3.message}`
+    );
+  }
+
+  // ----------------------------------------------------------------------------
+  // T7 — ADHÉSION : délai = paramètre protocolaire OPTIONNEL. Sans configuration
+  //      explicite → vérification contournée (NON_EVALUE, DELAY_CHECK_SKIPPED).
+  //      Avec 168 h explicite → verdict normal.
+  // ----------------------------------------------------------------------------
+  {
+    const dates = {
+      applicationDateTime: '2026-08-01T00:00:00Z', // 2016 h → CONFORME avec 168 h
+      measurementDateTime: '2026-10-24T00:00:00Z'
+    };
+    const skipped = evaluateAdhesionDelayCriterion(dates);
+    const explicit = evaluateAdhesionDelayCriterion({ ...dates, requiredMinimumDelayHours: 168 });
+
+    const passed =
+      skipped.verdict === 'NON_EVALUE' &&
+      skipped.status === 'DELAY_CHECK_SKIPPED' &&
+      skipped.requiredMinimumDelayHours === null &&
+      skipped.message.includes('paramètre protocolaire optionnel') &&
+      explicit.verdict === 'CONFORME';
+
+    record(
+      7,
+      'T7 Adhésion — seuil optionnel : sans config → NON_EVALUE (skip), avec 168 h → CONFORME',
+      'CRITERE_ADHESION',
+      passed,
+      'sans seuil: NON_EVALUE/DELAY_CHECK_SKIPPED ; avec 168: CONFORME',
+      `sans=${skipped.verdict}(${skipped.status}), avec=${explicit.verdict}(${explicit.status})`
     );
   }
 

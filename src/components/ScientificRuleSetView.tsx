@@ -144,7 +144,7 @@ export const ScientificRuleSetView: React.FC<Props> = ({ ruleSet }) => {
               </div>
               <div className="flex justify-between py-1">
                 <span>Écart-type L* max toléré :</span>
-                <span className="font-medium text-slate-800">{ruleSet.statisticalRules.maxColorStdDev ?? 2.0}</span>
+                <span className="font-medium text-slate-800">{ruleSet.statisticalRules.maxColorStdDev ?? 'Non configuré'}</span>
               </div>
             </div>
           </div>

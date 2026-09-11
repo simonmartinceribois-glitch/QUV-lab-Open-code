@@ -14,7 +14,7 @@ export interface TechnicalSynthesisOptions {
   batchId?: string;
   referenceStageId?: string;
   targetStageId?: string;
-  studyCriteriaGlossRetentionPercent?: number; // ex: 50
+  studyCriteriaGlossRetentionPercent?: number | null; // null = critère absent
   maxSentences?: number;
 }
 
