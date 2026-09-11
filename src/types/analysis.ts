@@ -196,7 +196,7 @@ export interface QUVAnalysisResult {
     batchIds: string[];
     panelIds?: string[];
     measurementFamilies: MeasurementFamilyId[];
-    studyCriteriaGlossRetentionPercent?: number; // ex: 50%
+    studyCriteriaGlossRetentionPercent?: number | null; // null si non configuré au RuleSet
   };
   rawSummary: {
     hasColorRaw: boolean;

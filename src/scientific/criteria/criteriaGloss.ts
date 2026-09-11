@@ -18,7 +18,7 @@ export type GlossRetentionVerdict = 'FAVORABLE' | 'DEFAVORABLE' | 'NON_EVALUE';
 export interface GlossRetentionCriterionEvaluation {
   verdict: GlossRetentionVerdict;
   retentionRatePercent: number | null;
-  thresholdPercent: number;
+  thresholdPercent: number | null;
   origin: 'INFIPERF / FCBA';
   isComplementaryCriterion: true;
   isNormativeRequirement: false;
@@ -28,12 +28,12 @@ export interface GlossRetentionCriterionEvaluation {
 
 /**
  * Seuil de rétention de brillance — source de vérité unique : le référentiel
- * (`statisticalRules.retentionThresholdPercent`). Repli défensif 50 uniquement
- * si le référentiel ne le fournit pas.
+ * (`statisticalRules.retentionThresholdPercent`). Retourne null (et aucun
+ * verdict de conformité) si le référentiel ne le fournit pas : aucun repli en dur.
  */
-export function getGlossRetentionThreshold(ruleSet: ScientificRuleSet): number {
+export function getGlossRetentionThreshold(ruleSet: ScientificRuleSet): number | null {
   const threshold = ruleSet.statisticalRules?.retentionThresholdPercent;
-  return typeof threshold === 'number' && Number.isFinite(threshold) ? threshold : 50;
+  return typeof threshold === 'number' && Number.isFinite(threshold) ? threshold : null;
 }
 
 /**
@@ -54,7 +54,7 @@ export function evaluateGlossRetentionCriterion(
       : null;
 
   const verdict: GlossRetentionVerdict =
-    value === null ? 'NON_EVALUE' : value < thresholdPercent ? 'DEFAVORABLE' : 'FAVORABLE';
+    value === null || thresholdPercent === null ? 'NON_EVALUE' : value < thresholdPercent ? 'DEFAVORABLE' : 'FAVORABLE';
 
   return {
     verdict,
@@ -66,7 +66,9 @@ export function evaluateGlossRetentionCriterion(
     label: 'Critère complémentaire de rétention de brillance (INFIPERF / FCBA)',
     message:
       verdict === 'NON_EVALUE'
-        ? 'Rétention de brillance non évaluable (donnée absente ou invalide).'
+        ? thresholdPercent === null
+          ? 'Rétention de brillance non évaluable : aucun seuil configuré dans le ScientificRuleSet (retentionThresholdPercent absent). Aucun verdict de conformité émis.'
+          : 'Rétention de brillance non évaluable (donnée absente ou invalide).'
         : verdict === 'DEFAVORABLE'
           ? `Rétention de brillance ${value} % inférieure au seuil indicatif complémentaire de ${thresholdPercent} % (INFIPERF / FCBA). Critère défavorable — distinct de toute exigence de conformité NF EN 927-6.`
           : `Rétention de brillance ${value} % supérieure ou égale au seuil indicatif complémentaire de ${thresholdPercent} % (INFIPERF / FCBA).`

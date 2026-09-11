@@ -69,11 +69,23 @@ export function calculateGloss(
   const expectedReadingsPerSeries = config.configuredConfiguration.readingsPerSeries;
   const totalExpectedReadings = config.configuredConfiguration.totalReadings;
 
-  // 1. Contrôle de la géométrie de mesure
-  const configuredGeometry = ruleSet.statisticalRules.glossGeometryDefault || '60';
+  // 1. Contrôle de la géométrie de mesure — aucun repli en dur :
+  //    - RuleSet fournit une géométrie + RAW la déclare différente → WARNING mismatch.
+  //    - Ni RuleSet ni métadonnées RAW ne fournissent de géométrie → calcul INVALID.
+  const configuredGeometry = ruleSet.statisticalRules.glossGeometryDefault;
   const actualGeometry = raw.instrumentMetadata?.geometry;
 
-  if (actualGeometry && actualGeometry !== configuredGeometry) {
+  if (!configuredGeometry && !actualGeometry) {
+    alerts.push({
+      id: `alert-gloss-geom-undef`,
+      severity: 'BLOCKING',
+      code: 'MEASUREMENT_INVALID',
+      message: 'Géométrie de brillance non configurée dans le RuleSet et absente des métadonnées RAW : calcul INVALID.',
+      familyId: 'GLOSS',
+      panelId: options?.panelId,
+      stageId: options?.stageId
+    });
+  } else if (configuredGeometry && actualGeometry && actualGeometry !== configuredGeometry) {
     alerts.push({
       id: `alert-gloss-geom-mismatch`,
       severity: 'WARNING',
@@ -165,6 +177,10 @@ export function calculateGloss(
 
   // 3. Contrôle Qualité global du relevé
   const qualityAssessment = buildQualityAssessment(allValidityStatuses, totalExpectedReadings);
+  if (!configuredGeometry && !actualGeometry) {
+    qualityAssessment.status = 'INVALID';
+    qualityAssessment.warnings.push('Géométrie de brillance non configurée (RuleSet) et absente des métadonnées RAW.');
+  }
 
   // 4. Évaluation de la conformité du protocole
   const protocolEval = evaluateSeriesProtocolCompliance(config, ruleSet);

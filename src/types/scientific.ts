@@ -209,7 +209,10 @@ export interface ScientificRuleSet {
   };
   statisticalRules: {
     stdDevMethod: StandardDeviationMethod;
-    glossGeometryDefault: '60' | '20' | '85' | string;
+    /** Géométrie optique de brillance configurée (ex: 60°). Optionnelle : si
+     *  absente du RuleSet ET absente des métadonnées RAW, le calcul est INVALID
+     *  (aucun repli silencieux). */
+    glossGeometryDefault?: '60' | '20' | '85' | string;
     maxGlossDispersionPercent?: number;
     maxColorStdDev?: number;
     /** Seuil de rétention de brillance — CRITÈRE COMPLÉMENTAIRE d'étude (origine
@@ -277,8 +280,6 @@ export interface ColorComputedData {
   deltaA: number | null;
   deltaB: number | null;
   deltaE: number | null;
-  deltaC?: number | null;
-  deltaH?: number | null;
   qualityAssessment: QualityAssessment;
   protocolStatus: ProtocolComplianceStatus;
   referenceTrace?: ReferenceTrace;
