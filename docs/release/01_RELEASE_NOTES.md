@@ -14,7 +14,7 @@ QUV-Lab v1.2.0 est la solution métier de référence dédiée à la conduite, �
 - **Calendrier Normatif NF EN 927-6 :** 13 jalons stricts ($T_0$ obligatoire + 12 cycles de 168 h, jalon final à 2016 h).
 - **Moteur Scientifique Déterministe :**
   - Couleur CIE 1976 $\Delta E^*_{ab}$ (4 points de mesure avec contrôle de répétabilité).
-  - Brillance 60° GU selon ISO 2813 (Séries S1 parallèle et S2 perpendiculaire, formule de rétention $R = (G_C / G_{T0}) \times 100$).
+  - Brillance 60° GU selon ISO 2813 (Séries S1 sens du fil et S2 sens opposé au fil par rotation 180° de l'instrument, formule de rétention $R = (G_C / G_{T0}) \times 100$).
   - Dureté d'amortissement pendulaire Persoz selon ISO 1522 / procédure labo (3 répétitions, calcul $s$ et $CV\%$).
   - Observations visuelles ISO 4628 (cloquage, craquelage, écaillage, farinage).
 - **Rapport Scientifique NF EN 927-6 :** 19 sections normatives exhaustives + 6 annexes techniques (A à F).

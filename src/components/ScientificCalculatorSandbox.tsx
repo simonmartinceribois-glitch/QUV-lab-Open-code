@@ -123,7 +123,7 @@ export const ScientificCalculatorSandbox: React.FC<Props> = ({ ruleSet }) => {
   const rawGlossT0: GlossRawData = {
     series: glossT0.slice(0, glossSeriesCount).map((s, sIdx) => ({
       seriesIndex: sIdx + 1,
-      orientation: sIdx === 0 ? 'Sens du fil' : 'Perpendiculaire',
+      orientation: sIdx === 0 ? 'GRAIN_DIRECTION' : 'OPPOSITE_GRAIN_DIRECTION',
       readings: s.slice(0, glossReadingsPerSeries).map((v, rIdx) => ({
         pointIndex: rIdx + 1,
         value: v === '' ? null : Number(v)
@@ -135,7 +135,7 @@ export const ScientificCalculatorSandbox: React.FC<Props> = ({ ruleSet }) => {
   const rawGlossTt: GlossRawData = {
     series: glossTt.slice(0, glossSeriesCount).map((s, sIdx) => ({
       seriesIndex: sIdx + 1,
-      orientation: sIdx === 0 ? 'Sens du fil' : 'Perpendiculaire',
+      orientation: sIdx === 0 ? 'GRAIN_DIRECTION' : 'OPPOSITE_GRAIN_DIRECTION',
       readings: s.slice(0, glossReadingsPerSeries).map((v, rIdx) => ({
         pointIndex: rIdx + 1,
         value: v === '' ? null : Number(v)
@@ -499,7 +499,7 @@ export const ScientificCalculatorSandbox: React.FC<Props> = ({ ruleSet }) => {
                 <div>
                   <h3 className="font-bold text-sm text-slate-900">Structure de Mesure Brillance (60°)</h3>
                   <p className="text-xs text-slate-500">
-                    Standard : <strong>2 × 2 = 4 relevés</strong> (sens fil & perpendiculaire).
+                    Standard : <strong>2 × 2 = 4 relevés</strong> (sens fil & sens opposé au fil, 180°).
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -583,7 +583,7 @@ export const ScientificCalculatorSandbox: React.FC<Props> = ({ ruleSet }) => {
                   {glossT0.slice(0, glossSeriesCount).map((series, sIdx) => (
                     <div key={sIdx} className="space-y-1">
                       <div className="text-[11px] font-semibold text-slate-600">
-                        {sIdx === 0 ? 'Sens du fil' : 'Perpendiculaire au fil'} :
+                        {sIdx === 0 ? 'Sens du fil' : 'Sens opposé au fil'} :
                       </div>
                       <div className="flex gap-2">
                         {series.slice(0, glossReadingsPerSeries).map((val, rIdx) => (
@@ -612,7 +612,7 @@ export const ScientificCalculatorSandbox: React.FC<Props> = ({ ruleSet }) => {
                   {glossTt.slice(0, glossSeriesCount).map((series, sIdx) => (
                     <div key={sIdx} className="space-y-1">
                       <div className="text-[11px] font-semibold text-amber-900">
-                        {sIdx === 0 ? 'Sens du fil' : 'Perpendiculaire au fil'} :
+                        {sIdx === 0 ? 'Sens du fil' : 'Sens opposé au fil'} :
                       </div>
                       <div className="flex gap-2">
                         {series.slice(0, glossReadingsPerSeries).map((val, rIdx) => (

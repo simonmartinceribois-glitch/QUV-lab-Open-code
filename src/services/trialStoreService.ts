@@ -856,9 +856,11 @@ export class TrialStoreService {
     if (!trial.auditTrail) trial.auditTrail = [];
 
     if (!active) {
-      // Protection stricte : Un jalon contenant déjà des acquisitions scientifiques ne peut pas être désactivé rétroactivement
+      // Protection stricte : Un jalon contenant déjà des acquisitions scientifiques ne peut pas être désactivé rétroactivement.
+      // Toute acquisition dont le statut n'est pas EMPTY a été touchée (COMPLETE, WARNING, ERROR ou PARTIAL) :
+      // c'est cette condition qui protège, plutôt qu'une énumération manuelle de statuts qui peut diverger du type.
       const hasAcquisitions = Object.values(trial.acquisitions || {}).some(
-        (acq) => acq && acq.stageId === stageId && (acq.raw !== undefined || acq.status === 'COMPLETE' || acq.status === 'VALID' as any)
+        (acq) => acq && acq.stageId === stageId && (acq.raw !== undefined || acq.status !== 'EMPTY')
       );
       if (hasAcquisitions) {
         throw new Error(
@@ -963,7 +965,7 @@ export class TrialStoreService {
       trialId,
       timestamp: now,
       operatorId: operatorId || 'OPERATOR',
-      action: 'UPDATE_MEASUREMENT_PLAN' as any,
+      action: 'UPDATE_MEASUREMENT_PLAN',
       entityType: 'TRIAL',
       entityId: trialId,
       details: {

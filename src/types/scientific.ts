@@ -293,7 +293,7 @@ export interface GlossRawPoint {
 
 export interface GlossMeasurementSeries {
   seriesIndex: number;
-  orientation: 'GRAIN_DIRECTION' | 'PERPENDICULAR_DIRECTION' | string;
+  orientation: 'GRAIN_DIRECTION' | 'OPPOSITE_GRAIN_DIRECTION' | string;
   readings: GlossRawPoint[];
 }
 

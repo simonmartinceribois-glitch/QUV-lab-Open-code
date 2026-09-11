@@ -235,7 +235,7 @@ export function runGate40SystemValidationTests(): {
         raw: {
           series: [
             { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: baseGloss }, { pointIndex: 2, value: baseGloss }] },
-            { seriesIndex: 2, orientation: 'PERPENDICULAR_DIRECTION', readings: [{ pointIndex: 1, value: baseGloss }, { pointIndex: 2, value: baseGloss }] }
+            { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: baseGloss }, { pointIndex: 2, value: baseGloss }] }
           ]
         } as GlossRawData,
         operatorId: 'Tech Paillasse T0'
@@ -353,7 +353,7 @@ export function runGate40SystemValidationTests(): {
           raw: {
             series: [
               { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: baseGloss * glossRet }, { pointIndex: 2, value: baseGloss * glossRet }] },
-              { seriesIndex: 2, orientation: 'PERPENDICULAR_DIRECTION', readings: [{ pointIndex: 1, value: baseGloss * glossRet }, { pointIndex: 2, value: baseGloss * glossRet }] }
+              { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: baseGloss * glossRet }, { pointIndex: 2, value: baseGloss * glossRet }] }
             ]
           } as GlossRawData,
           operatorId: `Opérateur ${stage.name}`

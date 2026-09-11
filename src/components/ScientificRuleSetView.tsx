@@ -176,7 +176,7 @@ export const ScientificRuleSetView: React.FC<Props> = ({ ruleSet }) => {
               </div>
               <div className="flex justify-between py-1 border-b border-slate-100">
                 <span>Orientations :</span>
-                <span className="font-medium text-slate-800">Sens fil + Perpendiculaire</span>
+                <span className="font-medium text-slate-800">Sens fil + Sens opposé (180°)</span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-100">
                 <span>Géométrie standard :</span>

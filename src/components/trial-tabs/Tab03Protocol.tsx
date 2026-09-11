@@ -159,7 +159,7 @@ export function Tab03Protocol({ trial, ruleSet, onTrialUpdated }: Props) {
               </div>
               <div className="flex justify-between">
                 <span>Séries configurées :</span>
-                <strong className="text-slate-900">2 séries (Sens du fil + Perpendiculaire)</strong>
+                <strong className="text-slate-900">2 séries (Sens du fil + Sens opposé au fil, 180°)</strong>
               </div>
               <div className="flex justify-between">
                 <span>Relevés totaux :</span>

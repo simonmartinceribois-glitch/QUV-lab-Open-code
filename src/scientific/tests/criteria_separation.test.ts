@@ -73,7 +73,7 @@ export function runCriteriaSeparationTests(): {
       },
       {
         seriesIndex: 2,
-        orientation: 'PERPENDICULAR_DIRECTION',
+        orientation: 'OPPOSITE_GRAIN_DIRECTION',
         readings: values.slice(2, 4).map((value, i) => ({ pointIndex: i + 1, value }))
       }
     ]

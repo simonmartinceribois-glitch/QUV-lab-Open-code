@@ -1,6 +1,6 @@
 /**
  * QUV-Lab — Moteur Scientifique : Famille Brillance (NF EN 927-6 / ISO 2813)
- * Modélisation multi-séries (Sens du fil & Perpendiculaire), géométries, rétention et immuabilité de RAW.
+ * Modélisation multi-séries (Sens du fil & Sens opposé au fil, rotation 180°), géométries, rétention et immuabilité de RAW.
  */
 
 import {
@@ -24,6 +24,23 @@ import {
 import { evaluateSeriesProtocolCompliance } from './protocolEngine';
 
 export const GLOSS_CALCULATION_VERSION = '1.2.0';
+
+/**
+ * Table de correspondance code sémantique → libellé lisible (S0 §Brillance).
+ * Le RAW stocke le code stable (GRAIN_DIRECTION / OPPOSITE_GRAIN_DIRECTION) ;
+ * cette fonction ne sert qu'à l'affichage (UI, alertes, export). Toute valeur
+ * historique non reconnue (import legacy) est renvoyée telle quelle plutôt
+ * que masquée, pour préserver la traçabilité des données déjà acquises.
+ */
+const GLOSS_ORIENTATION_LABELS: Record<string, string> = {
+  GRAIN_DIRECTION: 'Sens du fil',
+  OPPOSITE_GRAIN_DIRECTION: 'Sens opposé au fil (180°)'
+};
+
+export function getGlossOrientationLabel(orientation?: string | null): string {
+  if (!orientation) return '';
+  return GLOSS_ORIENTATION_LABELS[orientation] ?? orientation;
+}
 
 export interface GlossCalculationResult {
   computed: GlossComputedData;
@@ -78,7 +95,8 @@ export function calculateGloss(
   for (let sIdx = 0; sIdx < expectedSeriesCount; sIdx++) {
     const series = seriesList[sIdx];
     const rawOrientation = series?.orientation;
-    const orientation = rawOrientation || config.configuredConfiguration.orientations?.[sIdx] || `Série #${sIdx + 1}`;
+    const orientationCode = rawOrientation || config.configuredConfiguration.orientations?.[sIdx] || `Série #${sIdx + 1}`;
+    const orientation = getGlossOrientationLabel(orientationCode) || orientationCode;
 
     if (!rawOrientation && (!config.configuredConfiguration.orientations || !config.configuredConfiguration.orientations[sIdx])) {
       alerts.push({
