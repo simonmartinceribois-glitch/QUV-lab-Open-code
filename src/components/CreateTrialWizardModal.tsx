@@ -102,7 +102,8 @@ export function CreateTrialWizardModal({
 
   // Date de début de l'exposition (jalon T0) — saisie explicite par le technicien.
   // Défaut : date du jour (dynamique), modifiable à l'étape 6 Calendrier (G52-DATE).
-  const [startDate, setStartDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  // Date civile locale (fuseau du poste, non-UTC) — R9-DATE : aucune dérive UTC/DST.
+  const [startDate, setStartDate] = useState<string>(new Date().toLocaleDateString('en-CA'));
 
   const toggleCycleMeasurement = (cycleIndex: number) => {
     if (cycleIndex === 0 || cycleIndex === 12) return; // T0 et C12 obligatoires
@@ -132,7 +133,7 @@ export function CreateTrialWizardModal({
       substratePreparation: 'Ponçage grain P120',
       applicationMethod: 'Airmix',
       applicationConditions: '21°C, 55% HR',
-      applicationDate: new Date().toISOString().slice(0, 10),
+      applicationDate: new Date().toLocaleDateString('en-CA'),
       dryingOrConditioningTime: '7 jours à 20°C/65% HR',
       batchNotes: 'Lot témoin sans stabilisant UV renforcé'
     },
@@ -147,7 +148,7 @@ export function CreateTrialWizardModal({
       substratePreparation: 'Ponçage grain P120',
       applicationMethod: 'Airmix',
       applicationConditions: '21°C, 55% HR',
-      applicationDate: new Date().toISOString().slice(0, 10),
+      applicationDate: new Date().toLocaleDateString('en-CA'),
       dryingOrConditioningTime: '7 jours à 20°C/65% HR',
       batchNotes: 'Formulation avec absorbeurs UV organiques'
     },
@@ -162,7 +163,7 @@ export function CreateTrialWizardModal({
       substratePreparation: 'Ponçage grain P120',
       applicationMethod: 'Airmix',
       applicationConditions: '21°C, 55% HR',
-      applicationDate: new Date().toISOString().slice(0, 10),
+      applicationDate: new Date().toLocaleDateString('en-CA'),
       dryingOrConditioningTime: '7 jours à 20°C/65% HR',
       batchNotes: 'Formulation avec nano-charges minérales'
     }
@@ -217,7 +218,7 @@ export function CreateTrialWizardModal({
         substratePreparation: 'Ponçage P120',
         applicationMethod: 'Airmix',
         applicationConditions: '20°C, 60% HR',
-        applicationDate: new Date().toISOString().slice(0, 10),
+        applicationDate: new Date().toLocaleDateString('en-CA'),
         dryingOrConditioningTime: '7 jours à 20°C/65% HR',
         batchNotes: '',
       }

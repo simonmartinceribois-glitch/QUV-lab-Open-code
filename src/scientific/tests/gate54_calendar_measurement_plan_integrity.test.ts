@@ -20,12 +20,17 @@
  * - G54-CAL-13 (D-1 UI) : Résolution et protection banc de mesure (aucun stage INACTIVE sélectionnable)
  * - G54-CAL-14 (D-3) : assessStageQuality() sur stage INACTIVE retourne évaluation non-applicable/vide
  * - G54-CAL-15 : Tests UX G52-CAL-04 et G52-CAL-07 exécutent de vraies vérifications dynamiques
+ * - G54-CAL-16 : ADHESION seule — applicable T0/C12, non applicable C1..C11, C1..C11 restent sélectionnables
+ * - G54-CAL-17 : COLOR + ADHESION à C3 — applicabilité indépendante par famille, C3 sélectionnable
+ * - G54-CAL-18 : T0/C12 obligatoires — jamais désactivables quelle que soit l'applicabilité
+ * - G54-CAL-19 : anti-régression 5c561d9 — familles non applicables ne désactivent jamais globalement un jalon
  */
 
 import { globalTrialStore, generateUUID } from '../../services/trialStore';
 import { assessStageQuality } from '../qualityEngine';
 import { getDefaultScientificRuleSet } from '../ruleSet';
 import { isFamilyScheduledForStage } from '../panelUtils';
+import { getMeasurementApplicability, isCycleGloballySelectable } from '../../components/wizard/measurementApplicability';
 import { ColorRawData, AdhesionRawData, MeasurementFamilyId } from '../../types/scientific';
 import { Trial, TrialMetadata } from '../../types/trial';
 
@@ -533,6 +538,90 @@ export function runGate54CalendarMeasurementPlanTests(): {
     uxLockTestPass && uxNoInterpolationPass,
     'Tests UX dynamiques validés par exécution réelle des règles métier',
     `uxLockTestPass=${uxLockTestPass}, uxNoInterpolationPass=${uxNoInterpolationPass}`
+  );
+
+  // --------------------------------------------------------------------------
+  // G54-CAL-16 : ADHESION seule — applicable T0/C12, non applicable C1..C11,
+  // MAIS les cycles C1..C11 restent sélectionnables globalement.
+  // --------------------------------------------------------------------------
+  const adhAloneT0 = getMeasurementApplicability(['ADHESION'], { cycleIndex: 0 });
+  const adhAloneC1 = getMeasurementApplicability(['ADHESION'], { cycleIndex: 1 });
+  const adhAloneC11 = getMeasurementApplicability(['ADHESION'], { cycleIndex: 11 });
+  const adhAloneC12 = getMeasurementApplicability(['ADHESION'], { cycleIndex: 12 });
+
+  const adhAloneT0Applicable = adhAloneT0.length === 1 && adhAloneT0[0].family === 'ADHESION' && adhAloneT0[0].applicable === true;
+  const adhAloneC1Applicable = adhAloneC1.length === 1 && adhAloneC1[0].applicable === false;
+  const adhAloneC11Applicable = adhAloneC11.length === 1 && adhAloneC11[0].applicable === false;
+  const adhAloneC12Applicable = adhAloneC12.length === 1 && adhAloneC12[0].family === 'ADHESION' && adhAloneC12[0].applicable === true;
+  // C1 et C11 restent sélectionnables globalement malgré ADHESION non applicable
+  const adhAloneCyclesSelectable = isCycleGloballySelectable(false) === true;
+
+  record(
+    'G54-CAL-16',
+    'ADHESION seule : applicable T0/C12, non applicable C1..C11, cycles C1..C11 toujours sélectionnables',
+    'CALENDAR_PLAN_INTEGRITY',
+    adhAloneT0Applicable && adhAloneC1Applicable && adhAloneC11Applicable && adhAloneC12Applicable && adhAloneCyclesSelectable,
+    'T0=true, C1=false, C11=false, C12=true ; sélection globale C1/C11 préservée',
+    `T0[${adhAloneT0[0]?.applicable}], C1[${adhAloneC1[0]?.applicable}], C11[${adhAloneC11[0]?.applicable}], C12[${adhAloneC12[0]?.applicable}], globalSelectable=${adhAloneCyclesSelectable}`
+  );
+
+  // --------------------------------------------------------------------------
+  // G54-CAL-17 : COLOR + ADHESION à C3 — COLOR applicable, ADHESION non
+  // applicable, C3 reste sélectionnable globalement.
+  // --------------------------------------------------------------------------
+  const c3Mix = getMeasurementApplicability(['COLOR', 'ADHESION'], { cycleIndex: 3 });
+  const c3Color = c3Mix.find((f) => f.family === 'COLOR');
+  const c3Adhesion = c3Mix.find((f) => f.family === 'ADHESION');
+  const c3MixApplicabilityOk =
+    c3Mix.length === 2 &&
+    c3Color !== undefined &&
+    c3Color.applicable === true &&
+    c3Adhesion !== undefined &&
+    c3Adhesion.applicable === false;
+  const c3MixSelectable = isCycleGloballySelectable(false) === true;
+
+  record(
+    'G54-CAL-17',
+    'COLOR + ADHESION à C3 : COLOR applicable, ADHESION non applicable, C3 sélectionnable globalement',
+    'CALENDAR_PLAN_INTEGRITY',
+    c3MixApplicabilityOk && c3MixSelectable,
+    'COLOR=true, ADHESION=false, globalSelectable=true',
+    `color=${c3Color?.applicable}, adhesion=${c3Adhesion?.applicable}, globalSelectable=${c3MixSelectable}`
+  );
+
+  // --------------------------------------------------------------------------
+  // G54-CAL-18 : T0/C12 obligatoires — aucune applicabilité ne peut les
+  // rendre désactivables (sélection globale toujours refusée).
+  // --------------------------------------------------------------------------
+  const t0GlobalBlocked = isCycleGloballySelectable(true) === false;
+  const c12GlobalBlocked = isCycleGloballySelectable(true) === false;
+  const mandatoryApplicabilityNeutral = getMeasurementApplicability(['ADHESION'], { cycleIndex: 0 })[0]?.applicable === true;
+
+  record(
+    'G54-CAL-18',
+    'T0/C12 obligatoires : sélection globale refusée, indépendamment de l\'applicabilité',
+    'CALENDAR_PLAN_INTEGRITY',
+    t0GlobalBlocked && c12GlobalBlocked && mandatoryApplicabilityNeutral,
+    'T0/C12 non désactivables (isCycleGloballySelectable(true)===false)',
+    `t0Blocked=${t0GlobalBlocked}, c12Blocked=${c12GlobalBlocked}, adhT0=${mandatoryApplicabilityNeutral}`
+  );
+
+  // --------------------------------------------------------------------------
+  // G54-CAL-19 : anti-régression 5c561d9 — une liste de familles applicable
+  // vide ne transforme JAMAIS le jalon en bouton globalement désactivé.
+  // --------------------------------------------------------------------------
+  const emptyApplicability = getMeasurementApplicability(['ADHESION'], { cycleIndex: 5 });
+  const noApplicableFamily = emptyApplicability.every((f) => f.applicable === false);
+  const cycleStillSelectable = isCycleGloballySelectable(false) === true;
+  const canBeMeasuredPatternAbsent = (emptyApplicability as unknown as { canBeMeasured?: unknown }).canBeMeasured === undefined;
+
+  record(
+    'G54-CAL-19',
+    'Anti-régression 5c561d9 : famille non applicable ne désactive pas globalement le jalon (aucun canBeMeasured)',
+    'CALENDAR_PLAN_INTEGRITY',
+    noApplicableFamily && cycleStillSelectable && canBeMeasuredPatternAbsent,
+    'Applicabilité vide ≠ désactivation globale ; aucune propriété canBeMeasured',
+    `noApplicableFamily=${noApplicableFamily}, cycleStillSelectable=${cycleStillSelectable}, canBeMeasuredAbsent=${canBeMeasuredPatternAbsent}`
   );
 
   const passed = results.filter((r) => r.passed).length;

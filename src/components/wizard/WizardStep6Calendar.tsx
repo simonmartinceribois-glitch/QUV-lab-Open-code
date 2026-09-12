@@ -6,6 +6,7 @@
 
 import { Calendar, Lock, CheckSquare, Square } from 'lucide-react';
 import type { MeasurementFamilyId } from '../../types/scientific';
+import { getMeasurementApplicability, isCycleGloballySelectable } from './measurementApplicability';
 
 interface Props {
   activeFamilies: MeasurementFamilyId[];
@@ -161,11 +162,15 @@ export function WizardStep6Calendar({
         ].map((st) => {
           const isMandatory = st.cycle === 0 || st.cycle === 12;
           const isSelected = selectedMeasurementCycles.includes(st.cycle);
+          const applicability = getMeasurementApplicability(activeFamilies, {
+            cycleIndex: st.cycle,
+            scheduledExposureHours: st.hours
+          });
 
           return (
             <div
               key={st.cycle}
-              onClick={() => !isMandatory && onToggleCycle(st.cycle)}
+              onClick={() => isCycleGloballySelectable(isMandatory) && onToggleCycle(st.cycle)}
               className={`p-3 rounded-xl border flex flex-col justify-between gap-2.5 transition-all ${
                 isMandatory
                   ? st.cycle === 0
@@ -218,7 +223,7 @@ export function WizardStep6Calendar({
                 ) : isSelected ? (
                   <span className="font-bold text-blue-700 flex items-center gap-1">
                     <CheckSquare className="w-3.5 h-3.5 text-blue-600" />
-                    Mesuré
+                    Jalon planifié
                   </span>
                 ) : (
                   <span className="font-medium text-slate-500 flex items-center gap-1">
@@ -236,9 +241,30 @@ export function WizardStep6Calendar({
                       : 'bg-slate-200 text-slate-600'
                   }`}
                 >
-                  {isMandatory ? 'Inviolable' : isSelected ? 'Campagne active' : 'Sans arrêt'}
+                  {isMandatory ? 'Inviolable' : isSelected ? 'Mesure planifiée' : 'Sans arrêt'}
                 </span>
               </div>
+
+              {/* Applicabilité par famille — information indépendante de la sélection globale */}
+              {activeFamilies.length > 0 && (
+                <div className="pt-1.5 border-t border-slate-200/60">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Applicabilité</p>
+                  <ul className="mt-0.5 flex flex-wrap gap-x-2.5 gap-y-0.5">
+                    {applicability.map(({ family, applicable }) => (
+                      <li
+                        key={family}
+                        className={`text-[9px] font-bold ${
+                          applicable ? 'text-emerald-700' : 'text-slate-400 line-through'
+                        }`}
+                        title={applicable ? `${family} applicable à ce jalon` : `${family} non applicable à ce jalon`}
+                        aria-label={`${family} ${applicable ? 'applicable' : 'non applicable'}`}
+                      >
+                        {applicable ? '✓' : '–'} {family}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           );
         })}
