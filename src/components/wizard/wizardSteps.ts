@@ -14,9 +14,17 @@
  * est conservé pour permettre une réactivation future sans le réécrire.
  */
 export interface WizardStepDescriptor {
-  num: number;
+  num: WizardStepNum;
   label: string;
 }
+
+/**
+ * P4-c (audit 11-12/09/2026) : type partagé du numéro d'étape, remplaçant les
+ * `as any` qui existaient sur setStep(...) dans CreateTrialWizardModal.tsx
+ * (arithmétique step+1/step-1 et clic sur le stepper produisaient un simple
+ * `number`, incompatible avec l'union littérale sans assertion large).
+ */
+export type WizardStepNum = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export const WIZARD_STEPS_LIST: WizardStepDescriptor[] = [
   { num: 1, label: '01 Identification' },
@@ -26,3 +34,29 @@ export const WIZARD_STEPS_LIST: WizardStepDescriptor[] = [
   { num: 6, label: '06 Calendrier' },
   { num: 7, label: '07 Validation' }
 ];
+
+/**
+ * Tables de transition explicites (étape 04 volontairement sautée : 3 -> 5).
+ * Remplacent l'arithmétique `step + 1` / `step - 1`, qui produit un `number`
+ * générique incompatible avec l'union littérale WizardStepNum sans recourir à
+ * `as any`.
+ */
+export const NEXT_WIZARD_STEP: Record<WizardStepNum, WizardStepNum> = {
+  1: 2,
+  2: 3,
+  3: 5,
+  4: 5,
+  5: 6,
+  6: 7,
+  7: 7
+};
+
+export const PREVIOUS_WIZARD_STEP: Record<WizardStepNum, WizardStepNum> = {
+  1: 1,
+  2: 1,
+  3: 2,
+  4: 3,
+  5: 3,
+  6: 5,
+  7: 6
+};

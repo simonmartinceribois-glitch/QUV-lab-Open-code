@@ -12,7 +12,7 @@
 import React, { useState } from 'react';
 import { getTodayLocalISODate } from '../utils/dateUtils';
 import { getPresetCycles } from './wizard/measurementApplicability';
-import { WIZARD_STEPS_LIST } from './wizard/wizardSteps';
+import { WIZARD_STEPS_LIST, NEXT_WIZARD_STEP, PREVIOUS_WIZARD_STEP } from './wizard/wizardSteps';
 import {
   TrialMetadata,
   CommonCharacteristics,
@@ -394,10 +394,10 @@ export function CreateTrialWizardModal({
     if (step === 1 && !isStep1Valid) return;
     if (step === 3 && !isStep3Valid) return;
     if (step === 5 && !isStep5Valid) return;
-    setStep((step === 3 ? 5 : step + 1) as any);
+    setStep(NEXT_WIZARD_STEP[step]);
   };
   const goPrevStep = () => {
-    setStep((step === 5 ? 3 : step - 1) as any);
+    setStep(PREVIOUS_WIZARD_STEP[step]);
   };
 
   return (
@@ -425,7 +425,7 @@ export function CreateTrialWizardModal({
               key={s.num}
               onClick={() => {
                 // Navigation vers étapes antérieures toujours permise
-                if (s.num < step) setStep(s.num as any);
+                if (s.num < step) setStep(s.num);
               }}
               className={`flex items-center gap-2 font-medium shrink-0 ${
                 s.num < step ? 'cursor-pointer hover:opacity-80' : ''
