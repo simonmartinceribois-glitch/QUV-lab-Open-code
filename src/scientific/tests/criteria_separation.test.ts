@@ -23,7 +23,7 @@ import {
 import { calculateColor } from '../colorEngine';
 import { calculateGloss } from '../glossEngine';
 import { calculatePersoz } from '../persozEngine';
-import { calculateAdhesion, calculateDelayCompliance } from '../adhesionEngine';
+import { calculateAdhesion, calculateDelayCompliance, ADHESION_DEFAULT_REQUIRED_DELAY_HOURS } from '../adhesionEngine';
 import {
   evaluateGlossRetentionCriterion,
   getGlossRetentionThreshold
@@ -467,6 +467,57 @@ export function runCriteriaSeparationTests(): {
       passed,
       'sans seuil: NON_EVALUE/DELAY_CHECK_SKIPPED ; avec 168: CONFORME',
       `sans=${skipped.verdict}(${skipped.status}), avec=${explicit.verdict}(${explicit.status})`
+    );
+  }
+
+  // ----------------------------------------------------------------------------
+  // T8 (fix R4 - audit 11-12/09) — Couche RAW (calculateAdhesion/adhesionEngine) :
+  // une valeur `requiredMinimumDelayHours` réellement fournie (y compris 0, un
+  // "falsy" JS) ne doit JAMAIS être silencieusement remplacée par le défaut 168 h.
+  // Seule une valeur non finie (undefined/NaN à l'exécution) retombe sur
+  // ADHESION_DEFAULT_REQUIRED_DELAY_HOURS. Avant le fix, `raw.requiredMinimumDelayHours
+  // || ADHESION_DEFAULT_REQUIRED_DELAY_HOURS` remplaçait à tort 0 par 168.
+  // ----------------------------------------------------------------------------
+  {
+    const appDate = '2026-08-01T00:00:00Z';
+    const measDate = '2026-08-01T00:00:00Z'; // délai réel = 0 h
+
+    const zeroDelayRaw = mkAdhRaw({
+      applicationDateTime: appDate,
+      measurementDateTime: measDate,
+      requiredMinimumDelayHours: 0
+    });
+    const zeroDelayRes = calculateAdhesion(zeroDelayRaw, createCountConfiguration('ADHESION', 2, ruleSet), ruleSet);
+    // Avec un seuil réellement configuré à 0 h et un délai écoulé de 0 h, le
+    // contrôle doit être CONFORME (0 >= 0, aucune alerte de délai) — PAS un repli
+    // implicite sur 168 h qui générerait à tort une alerte INSUFFICIENT_DELAY.
+    const zeroDelayAlert = zeroDelayRes.alerts.find((a) => a.message.includes('requis par le protocole'));
+    const zeroPreserved = zeroDelayRes.computed.elapsedTimeHours === 0 && zeroDelayAlert === undefined;
+
+    // Valeur non finie à l'exécution (contournement du typage statique, ex. import
+    // legacy) → repli explicite et documenté sur ADHESION_DEFAULT_REQUIRED_DELAY_HOURS,
+    // identique à la constante utilisée par la couche CRITÈRE (même source canonique).
+    const invalidDelayRaw = mkAdhRaw({
+      applicationDateTime: appDate,
+      measurementDateTime: measDate,
+      requiredMinimumDelayHours: undefined as unknown as number
+    });
+    const invalidDelayRes = calculateAdhesion(invalidDelayRaw, createCountConfiguration('ADHESION', 2, ruleSet), ruleSet);
+    // Délai écoulé = 0h < 168h (défaut) → alerte INSUFFICIENT_DELAY citant "168 h
+    // requis", prouvant que le défaut a bien été appliqué (et non silencieusement
+    // ignoré / laissé à 0h requis).
+    const invalidDelayAlert = invalidDelayRes.alerts.find((a) => a.message.includes(`${ADHESION_DEFAULT_REQUIRED_DELAY_HOURS} h requis`));
+    const fallbackAppliedOnInvalid = invalidDelayAlert !== undefined;
+
+    const passed = zeroPreserved && fallbackAppliedOnInvalid;
+
+    record(
+      8,
+      'T8 Adhésion RAW — 0 h réel préservé (jamais remplacé par 168), défaut appliqué seulement si non finie',
+      'CRITERE_ADHESION',
+      passed,
+      'requiredMinimumDelayHours=0 → CONFORME (aucune alerte délai) ; undefined → défaut 168h appliqué (alerte délai insuffisant citant 168h)',
+      `zeroDelay: elapsed=${zeroDelayRes.computed.elapsedTimeHours}, alertPresent=${zeroDelayAlert !== undefined}; invalidDelay: alertPresent=${fallbackAppliedOnInvalid}`
     );
   }
 

@@ -34,6 +34,7 @@ import {
   ScientificReportStatus,
   ScientificReportReviewComment
 } from '../types/scientific';
+import { ADHESION_DEFAULT_REQUIRED_DELAY_HOURS } from '../scientific/adhesionEngine';
 import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../scientific/ruleSet';
 import { recalculateAcquisition } from '../scientific/recalculator';
 import { createConfigChangeEvent } from '../scientific/auditEngine';
@@ -431,7 +432,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
           coatingThicknessMicrons: batch.dryFilmThicknessMicrons,
           measurementDateTime: '2026-01-15T14:00:00Z',
           applicationDateTime: batch.applicationDate,
-          requiredMinimumDelayHours: 168,
+          requiredMinimumDelayHours: ADHESION_DEFAULT_REQUIRED_DELAY_HOURS,
           normReference: 'NF EN ISO 2409:2020',
           observation: 'Quadrillage net 6×6, bords des incisions parfaitement lisses, aucun détachement (Classe 0).'
         };
@@ -1003,7 +1004,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
         coatingThicknessMicrons: batch.dryFilmThicknessMicrons,
         measurementDateTime: '2026-11-25T15:30:00Z',
         applicationDateTime: batch.applicationDate,
-        requiredMinimumDelayHours: 168,
+        requiredMinimumDelayHours: ADHESION_DEFAULT_REQUIRED_DELAY_HOURS,
         normReference: 'NF EN ISO 2409:2020',
         observation: adhClass === 0
           ? 'Bords des incisions lisses après 2016 h d\'exposition, aucun détachement.'

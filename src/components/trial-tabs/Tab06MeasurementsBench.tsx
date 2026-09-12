@@ -26,7 +26,8 @@ import { globalTrialStore, generateUUID } from '../../services/trialStore';
 import {
   getApplicableGridSpacing,
   normalizeAdhesionMeasurements,
-  resolveAdhesionCountConfig
+  resolveAdhesionCountConfig,
+  ADHESION_DEFAULT_REQUIRED_DELAY_HOURS
 } from '../../scientific/adhesionEngine';
 import { isFamilyScheduledForStage, getActiveFamiliesForStage, isPersozEligiblePanel, isAdhesionEligiblePanel
 } from '../../scientific/panelUtils';
@@ -333,7 +334,7 @@ export function Tab06MeasurementsBench({
             coatingThicknessMicrons: currentBatch.dryFilmThicknessMicrons,
             measurementDateTime: new Date().toISOString(),
             applicationDateTime: currentBatch.applicationDate,
-            requiredMinimumDelayHours: 168,
+            requiredMinimumDelayHours: ADHESION_DEFAULT_REQUIRED_DELAY_HOURS,
             normReference: 'NF EN ISO 2409:2020',
             ...(firstEntry.obs.trim() ? { observation: firstEntry.obs.trim() } : {})
           } as AdhesionRawData
@@ -347,7 +348,7 @@ export function Tab06MeasurementsBench({
             coatingThicknessMicrons: currentBatch.dryFilmThicknessMicrons,
             measurementDateTime: new Date().toISOString(),
             applicationDateTime: currentBatch.applicationDate,
-            requiredMinimumDelayHours: 168,
+            requiredMinimumDelayHours: ADHESION_DEFAULT_REQUIRED_DELAY_HOURS,
             normReference: 'NF EN ISO 2409:2020'
           } as AdhesionRawData;
     } else if (selectedFamilyId === 'OBSERVATIONS') {
