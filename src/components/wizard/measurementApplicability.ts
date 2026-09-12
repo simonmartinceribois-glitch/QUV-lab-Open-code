@@ -53,3 +53,53 @@ export function getMeasurementApplicability(
 export function isCycleGloballySelectable(isMandatory: boolean): boolean {
   return !isMandatory;
 }
+
+/**
+ * R1 (audit 11-12/09/2026) — Source canonique unique du caractère obligatoire
+ * d'un jalon (T0/C12). Remplace la condition dupliquée `cycle === 0 || cycle
+ * === 12` qui existait en dur dans WizardStep6Calendar.tsx.
+ */
+export function isMandatoryCycle(cycle: number): boolean {
+  return cycle === 0 || cycle === 12;
+}
+
+export interface CalendarCycleDescriptor {
+  cycle: number;
+  hours: number;
+  label: string;
+  type: 'INITIAL' | 'INTERMEDIATE' | 'FINAL';
+}
+
+/**
+ * Génère les 13 jalons du calendrier (T0, C1..C11, C12) — source canonique
+ * unique, réutilisée par WizardStep6Calendar.tsx ET par les tests, pour que
+ * les tests exercent exactement les mêmes données que le composant réel.
+ */
+export function buildCalendarCycles(): CalendarCycleDescriptor[] {
+  return [
+    { cycle: 0, hours: 0, label: 'T0 — MESURES INITIALES AVANT EXPOSITION', type: 'INITIAL' },
+    ...Array.from({ length: 11 }, (_, i) => ({
+      cycle: i + 1,
+      hours: (i + 1) * 168,
+      label: `C${i + 1} (${(i + 1) * 168} h) — MESURES EN COURS D'EXPOSITION`,
+      type: 'INTERMEDIATE' as const
+    })),
+    { cycle: 12, hours: 2016, label: 'C12 (2016 h) — MESURES FINALES APRÈS EXPOSITION', type: 'FINAL' as const }
+  ];
+}
+
+/**
+ * R1 (audit 11-12/09/2026) — Décision RÉELLE de câblage du clic sur un jalon.
+ *
+ * C'est EXACTEMENT cette fonction que `WizardStep6Calendar.tsx` invoque dans
+ * son gestionnaire `onClick`. Avant cette extraction, le test « anti-
+ * régression » (G54-CAL-16→19) appelait `isCycleGloballySelectable` avec un
+ * booléen écrit à la main dans le test lui-même — ce qui valide la table de
+ * vérité d'une négation, jamais le câblage réel du composant. En important
+ * CETTE fonction dans le composant ET dans le test (voir G54-CAL-20), une
+ * régression du câblage (ex. ajout d'une condition sur l'applicabilité par
+ * famille dans le calcul d'activation du clic) est détectée par le test.
+ */
+export function isStageClickEnabled(cycle: number): boolean {
+  return isCycleGloballySelectable(isMandatoryCycle(cycle));
+}

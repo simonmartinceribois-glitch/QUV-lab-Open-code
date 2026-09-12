@@ -30,9 +30,12 @@ import { globalTrialStore, generateUUID } from '../../services/trialStore';
 import { assessStageQuality } from '../qualityEngine';
 import { getDefaultScientificRuleSet } from '../ruleSet';
 import { isFamilyScheduledForStage } from '../panelUtils';
-import { getMeasurementApplicability, isCycleGloballySelectable } from '../../components/wizard/measurementApplicability';
+import { getMeasurementApplicability, isCycleGloballySelectable, isStageClickEnabled } from '../../components/wizard/measurementApplicability';
 import { ColorRawData, AdhesionRawData, MeasurementFamilyId } from '../../types/scientific';
 import { Trial, TrialMetadata } from '../../types/trial';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 
 export interface Gate54TestResult {
   id: string;
@@ -622,6 +625,61 @@ export function runGate54CalendarMeasurementPlanTests(): {
     noApplicableFamily && cycleStillSelectable && canBeMeasuredPatternAbsent,
     'Applicabilité vide ≠ désactivation globale ; aucune propriété canBeMeasured',
     `noApplicableFamily=${noApplicableFamily}, cycleStillSelectable=${cycleStillSelectable}, canBeMeasuredAbsent=${canBeMeasuredPatternAbsent}`
+  );
+
+  // --------------------------------------------------------------------------
+  // G54-CAL-20 (R1, audit 11-12/09/2026) : anti-régression du CÂBLAGE RÉEL,
+  // pas seulement de la fonction pure sous-jacente.
+  //
+  // G54-CAL-16→19 ci-dessus appellent isCycleGloballySelectable(true|false)
+  // avec un booléen écrit à la main dans le test — ce qui prouve seulement la
+  // table de vérité d'une négation, jamais que WizardStep6Calendar.tsx
+  // câble réellement son onClick sur cette décision. Ce test :
+  // (a) exerce isStageClickEnabled(cycle) — la fonction EXACTEMENT invoquée
+  //     par le composant — avec de vrais numéros de cycle (0, 3, 7, 12) ;
+  // (b) lit le fichier source réel de WizardStep6Calendar.tsx pour vérifier
+  //     qu'il appelle bien isStageClickEnabled(st.cycle) dans son onClick,
+  //     et qu'aucune condition supplémentaire sur l'applicabilité par famille
+  //     n'a été réintroduite dans cette ligne (le point exact où la
+  //     régression 5c561d9 se produirait).
+  // --------------------------------------------------------------------------
+  const clickEnabledOnIntermediateCycle = isStageClickEnabled(3) === true;
+  const clickEnabledOnAnotherIntermediateCycle = isStageClickEnabled(7) === true;
+  const clickDisabledOnT0 = isStageClickEnabled(0) === false;
+  const clickDisabledOnC12 = isStageClickEnabled(12) === false;
+
+  let onClickLine = '';
+  let onClickCallsCanonicalFunction = false;
+  let onClickFreeOfApplicabilityGating = false;
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const componentPath = path.join(__dirname, '../../components/wizard/WizardStep6Calendar.tsx');
+    const componentSource = fs.readFileSync(componentPath, 'utf-8');
+    const allOnClickLines = componentSource.match(/^\s*onClick=\{.*\}\s*$/gm) || [];
+    const targetLine = allOnClickLines.find((l) => l.includes('onToggleCycle'));
+    onClickLine = targetLine ? targetLine.trim() : '';
+    onClickCallsCanonicalFunction = onClickLine.includes('isStageClickEnabled(st.cycle)');
+    // La ligne onClick ne doit référencer ni "applicability" ni le nom d'une
+    // famille : la décision de câblage doit rester indépendante de
+    // l'applicabilité par famille (cf. G54-CAL-16/17).
+    onClickFreeOfApplicabilityGating = !/applicability|activeFamilies/i.test(onClickLine);
+  } catch {
+    onClickLine = '';
+  }
+
+  record(
+    'G54-CAL-20',
+    "Anti-régression du câblage réel (pas seulement de la fonction pure) : WizardStep6Calendar.tsx appelle isStageClickEnabled(st.cycle) sans condition sur l'applicabilité",
+    'CALENDAR_PLAN_INTEGRITY',
+    clickEnabledOnIntermediateCycle &&
+      clickEnabledOnAnotherIntermediateCycle &&
+      clickDisabledOnT0 &&
+      clickDisabledOnC12 &&
+      onClickCallsCanonicalFunction &&
+      onClickFreeOfApplicabilityGating,
+    'isStageClickEnabled(cycle réel) correct sur T0/C3/C7/C12 ET ligne onClick réelle du composant conforme',
+    `C3=${clickEnabledOnIntermediateCycle}, C7=${clickEnabledOnAnotherIntermediateCycle}, T0=${clickDisabledOnT0}, C12=${clickDisabledOnC12}, onClickLine="${onClickLine}", appelleFonctionCanonique=${onClickCallsCanonicalFunction}, libreDeGatingApplicabilité=${onClickFreeOfApplicabilityGating}`
   );
 
   const passed = results.filter((r) => r.passed).length;

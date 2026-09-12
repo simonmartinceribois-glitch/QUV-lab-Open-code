@@ -6,7 +6,7 @@
 
 import { Calendar, Lock, CheckSquare, Square } from 'lucide-react';
 import type { MeasurementFamilyId } from '../../types/scientific';
-import { getMeasurementApplicability, isCycleGloballySelectable } from './measurementApplicability';
+import { getMeasurementApplicability, buildCalendarCycles, isMandatoryCycle, isStageClickEnabled } from './measurementApplicability';
 
 interface Props {
   activeFamilies: MeasurementFamilyId[];
@@ -150,17 +150,8 @@ export function WizardStep6Calendar({
 
       {/* Grille des 13 cycles physiques d'exposition (sans scroll interne artificiel) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
-        {[
-          { cycle: 0, hours: 0, label: 'T0 — MESURES INITIALES AVANT EXPOSITION', type: 'INITIAL' },
-          ...Array.from({ length: 11 }, (_, i) => ({
-            cycle: i + 1,
-            hours: (i + 1) * 168,
-            label: `C${i + 1} (${(i + 1) * 168} h) — MESURES EN COURS D'EXPOSITION`,
-            type: 'INTERMEDIATE'
-          })),
-          { cycle: 12, hours: 2016, label: 'C12 (2016 h) — MESURES FINALES APRÈS EXPOSITION', type: 'FINAL' }
-        ].map((st) => {
-          const isMandatory = st.cycle === 0 || st.cycle === 12;
+        {buildCalendarCycles().map((st) => {
+          const isMandatory = isMandatoryCycle(st.cycle);
           const isSelected = selectedMeasurementCycles.includes(st.cycle);
           const applicability = getMeasurementApplicability(activeFamilies, {
             cycleIndex: st.cycle,
@@ -170,7 +161,7 @@ export function WizardStep6Calendar({
           return (
             <div
               key={st.cycle}
-              onClick={() => isCycleGloballySelectable(isMandatory) && onToggleCycle(st.cycle)}
+              onClick={() => isStageClickEnabled(st.cycle) && onToggleCycle(st.cycle)}
               className={`p-3 rounded-xl border flex flex-col justify-between gap-2.5 transition-all ${
                 isMandatory
                   ? st.cycle === 0
