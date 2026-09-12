@@ -43,6 +43,11 @@ import { isFamilyScheduledForStage, isPersozEligiblePanel, isAdhesionEligiblePan
 import { generateUUID } from './trialIds';
 import { IntegrityViolationError, validateAcquisitionTarget, validatePhotoTarget, validateAcquisitionFamily, validateAcquisitionRaw, isStructurallyValidTrial, isPlainRecord } from './trialIntegrity';
 import { generateStandardExposureStages } from './trialStages';
+
+// P4-b (audit 11-12/09/2026) : constante nommée remplaçant le repli en dur
+// `|| 2016` sur le libellé d'affichage de l'étape finale C12, cohérente avec
+// la valeur normative NF EN 927-6:2018 (12 × 168 h = 2016 h).
+const C12_SCHEDULED_HOURS = 2016;
 import { createDemoTrial, createValidationTrial } from './trialSeed';
 
 const STORAGE_KEY = 'quv_lab_trials_v2_2';
@@ -131,7 +136,7 @@ export class TrialStoreService {
       } else if (isFinal) {
         stage.stageType = 'FINAL_POST_EXPOSURE';
         if (!stage.name || stage.name.includes('MESURES FINALES') || stage.name.includes('2016 h')) {
-          stage.name = `${stage.scheduledExposureHours || 2016} h — MESURES FINALES APRÈS EXPOSITION`;
+          stage.name = `${stage.scheduledExposureHours || C12_SCHEDULED_HOURS} h — MESURES FINALES APRÈS EXPOSITION`;
         }
       } else {
         // Cycles intermédiaires (168 h à 1848 h)

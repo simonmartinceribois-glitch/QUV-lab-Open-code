@@ -187,9 +187,12 @@ suite11.results.forEach((r) => {
 });
 
 console.log('\n================================================================');
-console.log('12. EXÉCUTION DE LA VALIDATION GATE 54 — CALENDRIER & PLAN DE MESURAGE (15 TESTS)');
-console.log('================================================================');
+// P4-a (audit 11-12/09/2026) : le nombre de tests n'est plus figé dans le
+// titre (il annonçait "15 TESTS" alors que 19 s'exécutaient déjà) — calculé
+// dynamiquement depuis suite12.summary.total pour ne plus jamais diverger.
 const suite12 = runGate54CalendarMeasurementPlanTests();
+console.log(`12. EXÉCUTION DE LA VALIDATION GATE 54 — CALENDRIER & PLAN DE MESURAGE (${suite12.summary.total} TESTS)`);
+console.log('================================================================');
 console.log(`Résultats Suite GATE 54 : ${suite12.summary.passed} / ${suite12.summary.total} réussis.`);
 suite12.results.forEach((r) => {
   console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Gate 54 ${r.category}] ${r.id} - ${r.name}`);
