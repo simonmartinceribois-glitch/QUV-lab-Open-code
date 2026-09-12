@@ -10,6 +10,7 @@ import { runGate50OperationalQualificationTests } from './src/scientific/tests/g
 import { runGate52AdhesionTests } from './src/scientific/tests/gate52_adhesion.test';
 import { runGate53MediaCreatorTests } from './src/scientific/tests/gate53_media_creator_integrity.test';
 import { runGate54CalendarMeasurementPlanTests } from './src/scientific/tests/gate54_calendar_measurement_plan_integrity.test';
+import { runDateUtilsConsistencyTests } from './src/scientific/tests/date_utils_consistency.test';
 import { runCalSeedStagePrefillTests } from './src/scientific/tests/cal_seed_stage_prefill.test';
 import { runAdhesionGridWarningTests } from './src/scientific/tests/adhesion_grid_warning.test';
 import { runAdhesionGridBadgeTests } from './src/scientific/tests/adhesion_grid_badge.test';
@@ -653,6 +654,19 @@ suite47.results.forEach((r) => {
   }
 });
 
+console.log('================================================================');
+console.log('48. EXÉCUTION DES TESTS DE COHÉRENCE DES DATES CIVILES LOCALES — R9-DATE (audit R3)');
+console.log('================================================================');
+const suite48 = runDateUtilsConsistencyTests();
+console.log(`Résultats Cohérence Dates Locales : ${suite48.summary.passed} / ${suite48.summary.total} réussis.`);
+suite48.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [R9-DATE] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -700,7 +714,8 @@ const totalFailed =
   suite44.summary.failed +
   suite45.summary.failed +
   suite46.summary.failed +
-  suite47.summary.failed;
+  suite47.summary.failed +
+  suite48.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -748,7 +763,8 @@ const totalCount =
   suite44.summary.total +
   suite45.summary.total +
   suite46.summary.total +
-  suite47.summary.total;
+  suite47.summary.total +
+  suite48.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
