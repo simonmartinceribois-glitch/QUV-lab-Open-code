@@ -103,3 +103,23 @@ export function buildCalendarCycles(): CalendarCycleDescriptor[] {
 export function isStageClickEnabled(cycle: number): boolean {
   return isCycleGloballySelectable(isMandatoryCycle(cycle));
 }
+
+/**
+ * R2 (audit 11-12/09/2026) — Extraction des préréglages du plan de mesurage,
+ * auparavant codés en dur et dupliqués dans le seul gestionnaire d'événement
+ * `setPlanPreset` de CreateTrialWizardModal.tsx (aucune fonction pure
+ * testable). Source canonique unique, réutilisée par le composant ET par le
+ * test UX 45 (ex-`pass: true` codé en dur, cf. UXTestsSuite.tsx).
+ */
+export type CalendarPreset = 'FULL' | 'QUARTERLY' | 'LIGHT';
+
+export function getPresetCycles(preset: CalendarPreset): number[] {
+  switch (preset) {
+    case 'FULL':
+      return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    case 'QUARTERLY':
+      return [0, 3, 6, 9, 12];
+    case 'LIGHT':
+      return [0, 6, 12];
+  }
+}

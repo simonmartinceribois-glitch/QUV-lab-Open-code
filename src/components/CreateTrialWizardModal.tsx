@@ -11,6 +11,8 @@
 
 import React, { useState } from 'react';
 import { getTodayLocalISODate } from '../utils/dateUtils';
+import { getPresetCycles } from './wizard/measurementApplicability';
+import { WIZARD_STEPS_LIST } from './wizard/wizardSteps';
 import {
   TrialMetadata,
   CommonCharacteristics,
@@ -114,13 +116,7 @@ export function CreateTrialWizardModal({
   };
 
   const setPlanPreset = (preset: 'FULL' | 'QUARTERLY' | 'LIGHT') => {
-    if (preset === 'FULL') {
-      setSelectedMeasurementCycles([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
-    } else if (preset === 'QUARTERLY') {
-      setSelectedMeasurementCycles([0, 3, 6, 9, 12]);
-    } else if (preset === 'LIGHT') {
-      setSelectedMeasurementCycles([0, 6, 12]);
-    }
+    setSelectedMeasurementCycles(getPresetCycles(preset));
   };
   const [batches, setBatches] = useState<LotFormItem[]>([
     {
@@ -393,14 +389,7 @@ export function CreateTrialWizardModal({
 
   // Étape 04 Panneaux masquée (demande utilisateur) : le flux saute de 03 à 05.
   // Le composant WizardStep4Panels est conservé (réactivation possible).
-  const stepsList = [
-    { num: 1, label: '01 Identification' },
-    { num: 2, label: '02 Caractéristiques' },
-    { num: 3, label: '03 Lots' },
-    { num: 5, label: '05 Plan de Mesure' },
-    { num: 6, label: '06 Calendrier' },
-    { num: 7, label: '07 Validation' }
-  ];
+  const stepsList = WIZARD_STEPS_LIST;
   const goNextStep = () => {
     if (step === 1 && !isStep1Valid) return;
     if (step === 3 && !isStep3Valid) return;
