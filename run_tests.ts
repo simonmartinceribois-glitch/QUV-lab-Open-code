@@ -12,6 +12,7 @@ import { runGate53MediaCreatorTests } from './src/scientific/tests/gate53_media_
 import { runGate54CalendarMeasurementPlanTests } from './src/scientific/tests/gate54_calendar_measurement_plan_integrity.test';
 import { runDateUtilsConsistencyTests } from './src/scientific/tests/date_utils_consistency.test';
 import { runObservationsNoSeverityAlertTests } from './src/scientific/tests/observations_no_severity_alert.test';
+import { runMeasurementPlanRoundTripTests } from './src/scientific/tests/measurement_plan_round_trip.test';
 import { runCalSeedStagePrefillTests } from './src/scientific/tests/cal_seed_stage_prefill.test';
 import { runAdhesionGridWarningTests } from './src/scientific/tests/adhesion_grid_warning.test';
 import { runAdhesionGridBadgeTests } from './src/scientific/tests/adhesion_grid_badge.test';
@@ -684,6 +685,19 @@ suite49.results.forEach((r) => {
   }
 });
 
+console.log('================================================================');
+console.log('50. EXÉCUTION DU ROUND-TRIP JSON RÉEL DU PLAN DE MESURAGE (audit P3-b)');
+console.log('================================================================');
+const suite50 = runMeasurementPlanRoundTripTests();
+console.log(`Résultats Round-Trip JSON : ${suite50.summary.passed} / ${suite50.summary.total} réussis.`);
+suite50.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [P3-b] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -733,7 +747,8 @@ const totalFailed =
   suite46.summary.failed +
   suite47.summary.failed +
   suite48.summary.failed +
-  suite49.summary.failed;
+  suite49.summary.failed +
+  suite50.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -783,7 +798,8 @@ const totalCount =
   suite46.summary.total +
   suite47.summary.total +
   suite48.summary.total +
-  suite49.summary.total;
+  suite49.summary.total +
+  suite50.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
