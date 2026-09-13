@@ -11,6 +11,7 @@ import { runGate52AdhesionTests } from './src/scientific/tests/gate52_adhesion.t
 import { runGate53MediaCreatorTests } from './src/scientific/tests/gate53_media_creator_integrity.test';
 import { runGate54CalendarMeasurementPlanTests } from './src/scientific/tests/gate54_calendar_measurement_plan_integrity.test';
 import { runDateUtilsConsistencyTests } from './src/scientific/tests/date_utils_consistency.test';
+import { runObservationsNoSeverityAlertTests } from './src/scientific/tests/observations_no_severity_alert.test';
 import { runCalSeedStagePrefillTests } from './src/scientific/tests/cal_seed_stage_prefill.test';
 import { runAdhesionGridWarningTests } from './src/scientific/tests/adhesion_grid_warning.test';
 import { runAdhesionGridBadgeTests } from './src/scientific/tests/adhesion_grid_badge.test';
@@ -670,6 +671,19 @@ suite48.results.forEach((r) => {
   }
 });
 
+console.log('================================================================');
+console.log('49. EXÉCUTION DES TESTS ANTI-RÉGRESSION — ABSENCE ALERTE SÉVÉRITÉ OBSERVATIONS (audit P3-a)');
+console.log('================================================================');
+const suite49 = runObservationsNoSeverityAlertTests();
+console.log(`Résultats Absence Alerte Sévérité : ${suite49.summary.passed} / ${suite49.summary.total} réussis.`);
+suite49.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [P3-a] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -718,7 +732,8 @@ const totalFailed =
   suite45.summary.failed +
   suite46.summary.failed +
   suite47.summary.failed +
-  suite48.summary.failed;
+  suite48.summary.failed +
+  suite49.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -767,7 +782,8 @@ const totalCount =
   suite45.summary.total +
   suite46.summary.total +
   suite47.summary.total +
-  suite48.summary.total;
+  suite48.summary.total +
+  suite49.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
