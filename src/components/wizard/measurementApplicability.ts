@@ -15,6 +15,7 @@
 
 import type { MeasurementFamilyId } from '../../types/scientific';
 import { isFamilyScheduledForStage } from '../../scientific/panelUtils';
+import { generateStandardExposureStages } from '../../services/trialStages';
 
 export interface FamilyApplicability {
   family: MeasurementFamilyId;
@@ -71,21 +72,35 @@ export interface CalendarCycleDescriptor {
 }
 
 /**
- * Génère les 13 jalons du calendrier (T0, C1..C11, C12) — source canonique
- * unique, réutilisée par WizardStep6Calendar.tsx ET par les tests, pour que
- * les tests exercent exactement les mêmes données que le composant réel.
+ * Génère les 13 jalons du calendrier (T0, C1..C11, C12) pour l'affichage du
+ * sélecteur de plan de mesurage (étape 6 de l'assistant, AVANT la création
+ * réelle de l'essai — aucun `trialId` ni `Trial.stages` n'existe encore à ce
+ * stade).
+ *
+ * Contre-audit (post-11-12/09/2026) : la première version de cette fonction
+ * recalculait indépendamment `(i + 1) * 168` et `2016`, dupliquant les
+ * constantes physiques déjà définies canoniquement dans
+ * `generateStandardExposureStages()` (src/services/trialStages.ts), qui
+ * génère les VRAIS `Trial.stages` persistés à la création de l'essai. Cette
+ * fonction délègue désormais à cette source unique plutôt que de redéfinir
+ * la durée des cycles côté wizard : seuls `cycle`, `hours` et le type de
+ * jalon sont réellement utilisés par WizardStep6Calendar.tsx (le champ
+ * `label` généré ici n'est pas affiché — le composant construit son propre
+ * texte à partir de `cycle`/`hours`).
  */
 export function buildCalendarCycles(): CalendarCycleDescriptor[] {
-  return [
-    { cycle: 0, hours: 0, label: 'T0 — MESURES INITIALES AVANT EXPOSITION', type: 'INITIAL' },
-    ...Array.from({ length: 11 }, (_, i) => ({
-      cycle: i + 1,
-      hours: (i + 1) * 168,
-      label: `C${i + 1} (${(i + 1) * 168} h) — MESURES EN COURS D'EXPOSITION`,
-      type: 'INTERMEDIATE' as const
-    })),
-    { cycle: 12, hours: 2016, label: 'C12 (2016 h) — MESURES FINALES APRÈS EXPOSITION', type: 'FINAL' as const }
-  ];
+  const stages = generateStandardExposureStages('preview');
+  return stages.map((s) => ({
+    cycle: s.cycleIndex,
+    hours: s.scheduledExposureHours,
+    label: s.name,
+    type:
+      s.stageType === 'INITIAL_PRE_EXPOSURE'
+        ? 'INITIAL'
+        : s.stageType === 'FINAL_POST_EXPOSURE'
+          ? 'FINAL'
+          : 'INTERMEDIATE'
+  }));
 }
 
 /**
