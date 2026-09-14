@@ -1,6 +1,8 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { getDefaultScientificRuleSet } from './scientific/ruleSet';
 import { globalTrialStore } from './services/trialStore';
+import { mediaStorage } from './services/mediaStorageService';
+import { runMediaMigration } from './services/mediaMigrationService';
 import { Trial } from './types/trial';
 import { TrialDashboard } from './components/TrialDashboard';
 import { TrialDetailView } from './components/TrialDetailView';
@@ -49,6 +51,31 @@ export default function App() {
   const [selectedTrialId, setSelectedTrialId] = useState<string | null>(null);
   const [activeTrialTab, setActiveTrialTab] = useState<string>('06');
   const [showCreateWizard, setShowCreateWizard] = useState<boolean>(false);
+
+  // État d'initialisation de la migration média (Base64 → IndexedDB)
+  const [mediaMigration, setMediaMigration] = useState<'idle' | 'migrating' | 'success' | 'failed' | 'interrupted'>('idle');
+  const [mediaMigrationSummary, setMediaMigrationSummary] = useState<{ migrated: number; remainingLegacy: number } | null>(null);
+  const migrationStartedRef = useRef(false);
+
+  useEffect(() => {
+    if (migrationStartedRef.current) return;
+    migrationStartedRef.current = true;
+
+    setMediaMigration('migrating');
+    runMediaMigration({
+      backend: mediaStorage,
+      trials: globalTrialStore.getAllTrials(),
+      saveTrial: (t) => globalTrialStore.saveTrial(t)
+    })
+      .then((summary) => {
+        setMediaMigrationSummary({ migrated: summary.migrated, remainingLegacy: summary.remainingLegacy });
+        setMediaMigration(summary.remainingLegacy > 0 ? 'interrupted' : 'success');
+        refreshTrials();
+      })
+      .catch(() => {
+        setMediaMigration('failed');
+      });
+  }, []);
 
   const ruleSet = getDefaultScientificRuleSet();
 
@@ -148,6 +175,30 @@ export default function App() {
             </button>
           </div>
         </div>
+
+        {/* Bandeau d'initialisation de la migration média (Base64 → IndexedDB) */}
+        {mediaMigration !== 'idle' && mediaMigration !== 'success' && (
+          <div
+            className={`px-4 py-1.5 text-[11px] font-semibold flex items-center gap-2 border-t ${
+              mediaMigration === 'failed'
+                ? 'bg-rose-900/60 text-rose-100 border-rose-700'
+                : 'bg-blue-900/60 text-blue-100 border-blue-700'
+            }`}
+          >
+            <FlaskConical className="w-3.5 h-3.5 shrink-0" />
+            {mediaMigration === 'migrating' ? (
+              <span>Initialisation de la photothèque : migration des clichés Base64 vers IndexedDB…</span>
+            ) : mediaMigration === 'interrupted' ? (
+              <span>
+                Migration média partielle ({mediaMigrationSummary?.migrated ?? 0} clichés migrés,{' '}
+                {(mediaMigrationSummary?.remainingLegacy ?? 0)} encore en Base64). Redémarrez
+                l'application pour reprendre la migration de façon idempotente.
+              </span>
+            ) : (
+              <span>Échec de l'initialisation de la migration média. Les clichés legacy restent gérés en Base64.</span>
+            )}
+          </div>
+        )}
       </header>
 
       {/* Main Content */}

@@ -8,6 +8,7 @@ import { Split, AlertTriangle, Camera, Maximize2, FileImage } from 'lucide-react
 import { cycleTag, formatStageOption } from '../../scientific/panelUtils';
 import type { MediaReference, PanelDefinition, Trial } from '../../types/trial';
 import type { PanelMap, StageMap } from './photoTypes';
+import { PhotoStorageImage } from './PhotoStorageImage';
 
 interface Props {
   trial: Trial;
@@ -196,11 +197,10 @@ export function PhotoCompareView({
 
                   {/* Image Thumbnail */}
                   <div className="relative aspect-4/3 bg-slate-950 overflow-hidden group">
-                    <img
-                      src={photo.storageKey}
+                    <PhotoStorageImage
+                      storageKey={photo.storageKey}
                       alt={photo.caption || 'Cliché chronologique'}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      referrerPolicy="no-referrer"
                     />
                     <button
                       type="button"

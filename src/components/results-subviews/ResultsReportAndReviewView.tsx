@@ -16,6 +16,7 @@ import {
   exportRawDataToCsv
 } from '../../services/reportGenerator';
 import { downloadTextFile, downloadJsonFile, printElementById } from '../../services/exportService';
+import { sanitizeTrialForExport } from '../../services/mediaMigrationService';
 import { globalTrialStore } from '../../services/trialStore';
 import {
   FileText,
@@ -100,7 +101,12 @@ export function ResultsReportAndReviewView({ trial, ruleSet, onTrialUpdated }: P
 
   const handleExportJson = () => {
     const filename = `DOSSIER_SCIENTIFIQUE_${trial.metadata.reference}.json`;
-    downloadJsonFile(filename, { trial, ruleSet, activeReport });
+    // Export sans binaire : aucune Data URI / base64 dans le JSON scientifique.
+    downloadJsonFile(filename, {
+      trial: sanitizeTrialForExport(trial),
+      ruleSet,
+      activeReport
+    });
     globalTrialStore.logReportExport(trial.id, activeReport?.id || trial.id, 'COMPUTED_DATA_CSV', operatorId);
   };
 

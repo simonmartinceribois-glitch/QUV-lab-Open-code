@@ -22,6 +22,12 @@
 import React, { useState, useMemo } from 'react';
 import { Trial, MediaReference, BatchDefinition, PanelDefinition, ExposureStage } from '../../types/trial';
 import { globalTrialStore } from '../../services/trialStore';
+import { mediaStorage } from '../../services/mediaStorageService';
+import {
+  createNewMediaStorageKey,
+  convertDataUriToBlob,
+  deleteUnreferencedMedia
+} from '../../services/mediaMigrationService';
 import { PhotoModeSwitcher } from '../phototheque/PhotoModeSwitcher';
 import { PhotoTimelineView } from '../phototheque/PhotoTimelineView';
 import { PhotoCompareView } from '../phototheque/PhotoCompareView';
@@ -102,8 +108,18 @@ export function TabPhotographs({ trial, onTrialUpdated }: Props) {
   const [newPhotoCaption, setNewPhotoCaption] = useState<string>('');
 
   const [newPhotoOperator, setNewPhotoOperator] = useState<string>(trial.metadata.createdBy || 'Simon Martin (Technicien)');
-  const [newPhotoDataUrl, setNewPhotoDataUrl] = useState<string>('');
+  const [newPhotoFile, setNewPhotoFile] = useState<File | null>(null);
+  const [newPhotoPreviewUrl, setNewPhotoPreviewUrl] = useState<string>('');
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Libération de l'Object URL de prévisualisation (symétrie create/revoke)
+  const resetPhotoPreview = () => {
+    setNewPhotoFile(null);
+    setNewPhotoPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return '';
+    });
+  };
 
   // Lightbox
   const [lightboxMedia, setLightboxMedia] = useState<MediaReference | null>(null);
@@ -238,7 +254,7 @@ export function TabPhotographs({ trial, onTrialUpdated }: Props) {
     panelMap
   ]);
 
-  // Gestion du fichier image
+  // Gestion du fichier image (aucun encodage Base64 : stocké en Blob dans IndexedDB)
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -248,16 +264,12 @@ export function TabPhotographs({ trial, onTrialUpdated }: Props) {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      setNewPhotoDataUrl(result);
-      setUploadError(null);
-    };
-    reader.onerror = () => {
-      setUploadError('Erreur lors de la lecture du fichier image.');
-    };
-    reader.readAsDataURL(file);
+    setNewPhotoFile(file);
+    setNewPhotoPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+    setUploadError(null);
   };
 
   const handleOpenAddModalForStage = (batchId: string, panelId: string, stageId: string) => {
@@ -265,12 +277,12 @@ export function TabPhotographs({ trial, onTrialUpdated }: Props) {
     setNewPhotoPanelId(panelId);
     setNewPhotoStageId(stageId);
     setNewPhotoCaption('');
-    setNewPhotoDataUrl('');
+    resetPhotoPreview();
     setUploadError(null);
     setShowAddModal(true);
   };
 
-  const handleSavePhoto = () => {
+  const handleSavePhoto = async () => {
     if (!newPhotoPanelId || !newPhotoStageId) {
       setUploadError('Veuillez sélectionner une éprouvette et un jalon.');
       return;
@@ -282,11 +294,31 @@ export function TabPhotographs({ trial, onTrialUpdated }: Props) {
     const stageName = stage ? stage.name : 'Jalon';
     const filename = `PHOTO_${label.replace(/\s+/g, '_')}_${stage ? stage.cycleIndex : 0}_${Date.now()}.jpg`;
 
-    // Générer une image par défaut haute fidélité si l'utilisateur n'a pas chargé d'image physique
-    const defaultDataUrl =
-      newPhotoDataUrl ||
-      `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400"><defs><linearGradient id="bgnew" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23d97706"/><stop offset="100%" stop-color="%2378350f"/></linearGradient><pattern id="woodpat" width="40" height="10" patternUnits="userSpaceOnUse"><path d="M 0 5 Q 20 0 40 5" stroke="%23ffffff" stroke-width="0.5" stroke-opacity="0.15" fill="none"/></pattern></defs><rect width="600" height="400" fill="url(%23bgnew)"/><rect width="600" height="400" fill="url(%23woodpat)"/><rect x="20" y="20" width="560" height="360" rx="14" fill="none" stroke="%23ffffff" stroke-width="1.5" stroke-opacity="0.35"/><rect x="35" y="35" width="220" height="32" rx="8" fill="%230f172a" fill-opacity="0.85"/><text x="45" y="56" font-family="monospace" font-size="13" font-weight="bold" fill="%2338bdf8">${label}</text><rect x="420" y="35" width="145" height="32" rx="8" fill="%231e293b" fill-opacity="0.85"/><text x="492" y="56" font-family="monospace" font-size="13" font-weight="bold" fill="%23fbbf24" text-anchor="middle">${stage?.name || 'Jalon'}</text><rect x="35" y="295" width="530" height="70" rx="10" fill="%23020617" fill-opacity="0.8"/><text x="50" y="322" font-family="sans-serif" font-size="13" font-weight="bold" fill="%23f8fafc">${newPhotoCaption.trim() || `Cliché documentaire ${label}`}</text><text x="50" y="346" font-family="monospace" font-size="11" fill="%2394a3b8">NF EN 927-6 • ${newPhotoOperator} • ${new Date().toLocaleDateString('fr-FR')}</text></svg>`;
+    // Blob et MIME réels : fichier physique OU image générée haute fidélité (placeholder)
+    let blob: Blob;
+    let mimeType: string;
+    if (newPhotoFile) {
+      blob = newPhotoFile;
+      mimeType = newPhotoFile.type || 'image/jpeg';
+    } else {
+      const defaultDataUrl = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400"><defs><linearGradient id="bgnew" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23d97706"/><stop offset="100%" stop-color="%2378350f"/></linearGradient><pattern id="woodpat" width="40" height="10" patternUnits="userSpaceOnUse"><path d="M 0 5 Q 20 0 40 5" stroke="%23ffffff" stroke-width="0.5" stroke-opacity="0.15" fill="none"/></pattern></defs><rect width="600" height="400" fill="url(%23bgnew)"/><rect width="600" height="400" fill="url(%23woodpat)"/><rect x="20" y="20" width="560" height="360" rx="14" fill="none" stroke="%23ffffff" stroke-width="1.5" stroke-opacity="0.35"/><rect x="35" y="35" width="220" height="32" rx="8" fill="%230f172a" fill-opacity="0.85"/><text x="45" y="56" font-family="monospace" font-size="13" font-weight="bold" fill="%2338bdf8">${label}</text><rect x="420" y="35" width="145" height="32" rx="8" fill="%231e293b" fill-opacity="0.85"/><text x="492" y="56" font-family="monospace" font-size="13" font-weight="bold" fill="%23fbbf24" text-anchor="middle">${stage?.name || 'Jalon'}</text><rect x="35" y="295" width="530" height="70" rx="10" fill="%23020617" fill-opacity="0.8"/><text x="50" y="322" font-family="sans-serif" font-size="13" font-weight="bold" fill="%23f8fafc">${newPhotoCaption.trim() || `Cliché documentaire ${label}`}</text><text x="50" y="346" font-family="monospace" font-size="11" fill="%2394a3b8">NF EN 927-6 • ${newPhotoOperator} • ${new Date().toLocaleDateString('fr-FR')}</text></svg>`;
+      const converted = convertDataUriToBlob(defaultDataUrl);
+      blob = converted.blob;
+      mimeType = converted.mimeType;
+    }
 
+    // 1. Persistance du Blob en IndexedDB AVANT toute référence (ecriture validation-read)
+    const storageKey = createNewMediaStorageKey(mimeType, filename);
+    try {
+      await mediaStorage.put(blob, storageKey, mimeType);
+    } catch (err: any) {
+      setUploadError(
+        err?.message || "Erreur lors de l'enregistrement du média en IndexedDB"
+      );
+      return;
+    }
+
+    // 2. Création de la référence après validation de l'écriture média
     try {
       globalTrialStore.attachPhoto({
         trialId: trial.id,
@@ -295,12 +327,14 @@ export function TabPhotographs({ trial, onTrialUpdated }: Props) {
         filename,
         caption: newPhotoCaption.trim() || `Cliché documentaire ${label} — ${stageName}`,
         operatorId: newPhotoOperator.trim() || 'Simon Martin (Technicien)',
-        storageKey: defaultDataUrl
+        storageKey,
+        sizeBytes: blob.size,
+        mimeType
       });
 
       setShowAddModal(false);
       setNewPhotoCaption('');
-      setNewPhotoDataUrl('');
+      resetPhotoPreview();
       setUploadError(null);
       onTrialUpdated();
     } catch (err: any) {
@@ -330,6 +364,12 @@ export function TabPhotographs({ trial, onTrialUpdated }: Props) {
     }
     setSelectedPhotoIdsForCompare((prev) => prev.filter((id) => id !== mediaId));
     onTrialUpdated();
+
+    // GC des Blobs : suppression en IndexedDB uniquement si aucune référence
+    // (actif, archivé, remplacé, partagé) ne subsiste dans tous les essais.
+    deleteUnreferencedMedia(mediaStorage, globalTrialStore.getAllTrials()).catch(() => {
+      // GC best-effort : ne bloque jamais l'expérience utilisateur
+    });
   };
 
   const toggleComparePhoto = (photoId: string) => {
@@ -455,7 +495,7 @@ export function TabPhotographs({ trial, onTrialUpdated }: Props) {
           onCaptionChange={setNewPhotoCaption}
           newPhotoOperator={newPhotoOperator}
           onOperatorChange={setNewPhotoOperator}
-          newPhotoDataUrl={newPhotoDataUrl}
+          newPhotoPreviewUrl={newPhotoPreviewUrl}
           modalBatchPanels={modalBatchPanels}
           onFileSelected={handleFileSelected}
           onSavePhoto={handleSavePhoto}

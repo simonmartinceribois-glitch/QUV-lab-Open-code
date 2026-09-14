@@ -8,6 +8,7 @@ import { useMemo } from 'react';
 import { getActiveStages, cycleTag } from '../../scientific/panelUtils';
 import type { Trial } from '../../types/trial';
 import type { MediaReference } from '../../types/trial';
+import { PhotoStorageImage } from './PhotoStorageImage';
 
 interface Props {
   trial: Trial;
@@ -93,11 +94,10 @@ export function PhotoMatrixView({
                             className="inline-block relative group"
                             title={`${code} - ${st.name} : ${photo.caption}`}
                           >
-                            <img
-                              src={photo.storageKey}
+                            <PhotoStorageImage
+                              storageKey={photo.storageKey}
                               alt="Cliché"
-                              className="w-12 h-10 object-cover rounded border border-slate-300 group-hover:scale-110 transition-transform shadow-2xs"
-                              referrerPolicy="no-referrer"
+                              imgClassName="w-12 h-10 object-cover rounded border border-slate-300 group-hover:scale-110 transition-transform shadow-2xs"
                             />
                           </button>
                         ) : (
