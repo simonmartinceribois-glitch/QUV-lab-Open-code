@@ -15,6 +15,7 @@ import {
   Trash2,
   Info
 } from 'lucide-react';
+import { PhotoStorageImage } from './PhotoStorageImage';
 import { useMemo } from 'react';
 import { getActiveStages, formatStageTitle } from '../../scientific/panelUtils';
 import type { BatchDefinition, MediaReference, PanelDefinition, Trial } from '../../types/trial';
@@ -252,11 +253,10 @@ export function PhotoTimelineView({
                                 onClick={() => onPreviewPhoto(photo)}
                                 className="relative group shrink-0 aspect-4/3 w-20 bg-slate-900 rounded-lg overflow-hidden border border-slate-200"
                               >
-                                <img
-                                  src={photo.storageKey}
+                                <PhotoStorageImage
+                                  storageKey={photo.storageKey}
                                   alt={photo.caption || 'Cliché'}
                                   className="w-full h-full object-cover group-hover:scale-110 transition-transform"
-                                  referrerPolicy="no-referrer"
                                 />
                                 <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                   <Maximize2 className="w-3.5 h-3.5 text-white" />

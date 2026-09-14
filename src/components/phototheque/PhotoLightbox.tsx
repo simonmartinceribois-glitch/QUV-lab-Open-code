@@ -8,6 +8,7 @@ import { Camera, X, Trash2 } from 'lucide-react';
 import { formatStageOption } from '../../scientific/panelUtils';
 import type { MediaReference } from '../../types/trial';
 import type { PanelMap, StageMap } from './photoTypes';
+import { PhotoStorageImage } from './PhotoStorageImage';
 
 interface Props {
   media: MediaReference;
@@ -50,11 +51,11 @@ export function PhotoLightbox({ media, panelMap, stageMap, onClose, onDeletePhot
         {/* Content & Metadata */}
         <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4 overflow-y-auto">
           <div className="md:col-span-2 aspect-4/3 bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center">
-            <img
-              src={media.storageKey}
-              alt={media.caption}
-              className="max-w-full max-h-full object-contain"
-              referrerPolicy="no-referrer"
+            <PhotoStorageImage
+              storageKey={media.storageKey}
+              alt={media.caption || 'Photographie'}
+              className="w-full h-full flex items-center justify-center"
+              imgClassName="max-w-full max-h-full object-contain"
             />
           </div>
 

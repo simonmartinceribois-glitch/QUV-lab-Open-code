@@ -24,7 +24,7 @@ interface Props {
   onCaptionChange: Dispatch<SetStateAction<string>>;
   newPhotoOperator: string;
   onOperatorChange: Dispatch<SetStateAction<string>>;
-  newPhotoDataUrl: string;
+  newPhotoPreviewUrl: string;
   modalBatchPanels: PanelDefinition[];
   onFileSelected: (e: ChangeEvent<HTMLInputElement>) => void;
   onSavePhoto: () => void;
@@ -45,7 +45,7 @@ export function PhotoAddModal({
   onCaptionChange,
   newPhotoOperator,
   onOperatorChange,
-  newPhotoDataUrl,
+  newPhotoPreviewUrl,
   modalBatchPanels,
   onFileSelected,
   onSavePhoto,
@@ -150,10 +150,10 @@ export function PhotoAddModal({
                 onChange={onFileSelected}
                 className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
               />
-              {newPhotoDataUrl && (
+              {newPhotoPreviewUrl && (
                 <div className="mt-3 aspect-16/9 max-h-36 rounded-lg overflow-hidden border border-slate-200 mx-auto">
                   <img
-                    src={newPhotoDataUrl}
+                    src={newPhotoPreviewUrl}
                     alt="Aperçu"
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"

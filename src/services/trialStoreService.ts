@@ -996,6 +996,8 @@ export class TrialStoreService {
     operatorId: string;
     storageKey?: string;
     replaceExisting?: boolean;
+    sizeBytes?: number;
+    mimeType?: string;
   }): Trial {
     const trial = this.getTrial(params.trialId);
     if (!trial) throw new Error(`Essai ${params.trialId} introuvable`);
@@ -1047,8 +1049,8 @@ export class TrialStoreService {
       status: 'ACTIVE',
       storageKey: params.storageKey || `photos/${params.filename}`,
       filename: params.filename,
-      mimeType: 'image/jpeg',
-      sizeBytes: 1024 * 250,
+      mimeType: params.mimeType || 'image/jpeg',
+      sizeBytes: params.sizeBytes ?? 1024 * 250,
       capturedAt: now,
       capturedBy: params.operatorId || 'OPERATOR',
       caption: params.caption,
