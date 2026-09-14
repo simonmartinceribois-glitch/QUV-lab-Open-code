@@ -37,6 +37,7 @@
 
 import { TrialStoreService } from '../../services/trialStore';
 import type { Trial } from '../../types/trial';
+import type { ColorRawData } from '../../types/scientific';
 
 export interface RoundTripTestResult {
   id: string;
@@ -289,6 +290,120 @@ export function runMeasurementPlanRoundTripTests(): {
       startDatePreserved,
       String(created.startDate),
       String(reloaded.startDate)
+    );
+
+    // ============================================================================
+    // Fix contre-audit c1edb84 (point 2) : round-trip JSON avec un essai LOCKED.
+    //
+    // Scénario : sessionA enregistre une acquisition réelle (verrouille
+    // automatiquement l'essai) → sauvegarde JSON → SESSION C, nouvelle instance
+    // indépendante sur le même stockage (troisième "rechargement de page") →
+    // le statut LOCKED doit survivre au round-trip ET une tentative de
+    // modification du plan sur l'instance rechargée doit être rejetée (pas
+    // seulement sur l'instance d'origine, ce qui ne prouverait rien sur la
+    // persistance réelle du verrou).
+    // ============================================================================
+    const t0Stage = created.stages.find((s) => s.cycleIndex === 0);
+    const exposedPanel = created.batches[0]?.panels.find((p) => p.roleCode === 'E1');
+
+    if (!t0Stage || !exposedPanel) {
+      record(
+        'P3-B-10',
+        'Précondition disponible pour le scénario LOCKED (jalon T0 et panneau E1 présents sur l\'essai frais)',
+        false,
+        'Jalon T0 et panneau E1 présents',
+        `t0Stage=${!!t0Stage}, exposedPanel=${!!exposedPanel}`
+      );
+      return finalize(results);
+    }
+
+    const rawColor: ColorRawData = {
+      readings: [
+        { pointIndex: 1, L: 60.1, a: 5.2, b: 20.3 },
+        { pointIndex: 2, L: 60.2, a: 5.1, b: 20.4 }
+      ]
+    };
+
+    let lockedAfterAcquisition = false;
+    try {
+      sessionA.recordAcquisition({
+        trialId: referenceId,
+        stageId: t0Stage.id,
+        batchId: created.batches[0].id,
+        panelId: exposedPanel.id,
+        familyId: 'COLOR',
+        raw: rawColor,
+        operatorId: 'audit-p3b'
+      });
+      const trialAfterAcquisitionInSessionA = sessionA.getTrial(referenceId);
+      lockedAfterAcquisition = trialAfterAcquisitionInSessionA?.configurationStatus === 'LOCKED';
+    } catch (e) {
+      record(
+        'P3-B-10',
+        "Une acquisition réelle verrouille automatiquement l'essai (configurationStatus -> LOCKED) dans la session d'origine",
+        false,
+        'Acquisition enregistrée sans exception, configurationStatus === LOCKED',
+        `Exception levée : ${(e as Error).message}`
+      );
+      return finalize(results);
+    }
+
+    record(
+      'P3-B-10',
+      "Une acquisition réelle verrouille automatiquement l'essai (configurationStatus -> LOCKED) dans la session d'origine",
+      lockedAfterAcquisition,
+      'LOCKED',
+      lockedAfterAcquisition ? 'LOCKED' : 'non-LOCKED'
+    );
+
+    // Session C : TROISIÈME instance indépendante, simulant un nouveau
+    // rechargement de page APRÈS le verrouillage — le point précis que le
+    // contre-audit demandait de couvrir (pas seulement le round-trip d'un
+    // essai encore EDITABLE, testé en P3-B-00→09 ci-dessus).
+    const sessionC = new TrialStoreService();
+    const reloadedLocked = sessionC.getTrial(referenceId);
+
+    if (!reloadedLocked) {
+      record(
+        'P3-B-11',
+        "L'essai verrouillé (LOCKED) est retrouvé après un troisième rechargement complet (nouvelle instance)",
+        false,
+        `Essai ${referenceId} présent après rechargement post-verrouillage`,
+        'Essai introuvable après rechargement (perte de données au round-trip JSON)'
+      );
+      return finalize(results);
+    }
+
+    const lockPreservedAfterReload = reloadedLocked.configurationStatus === 'LOCKED';
+    record(
+      'P3-B-11',
+      'Le statut LOCKED (acquis via une acquisition réelle) survit au round-trip JSON complet (nouvelle instance, même stockage)',
+      lockPreservedAfterReload,
+      'LOCKED',
+      reloadedLocked.configurationStatus
+    );
+
+    // P3-B-12 : tentative de modification du plan sur l'instance RECHARGÉE
+    // (sessionC, pas sessionA) — doit être rejetée. C'est la vérification
+    // demandée explicitement par le contre-audit : le rejet doit être prouvé
+    // après un vrai passage par JSON.stringify -> localStorage -> JSON.parse,
+    // pas seulement sur l'objet encore en mémoire de la session d'origine.
+    let planModificationRejectedAfterReload = false;
+    let rejectionMessage = '';
+    try {
+      sessionC.updateMeasurementPlan(referenceId, [0, 12], 'audit-p3b');
+    } catch (e) {
+      rejectionMessage = (e as Error).message;
+      planModificationRejectedAfterReload =
+        rejectionMessage.includes('verrouillé') || rejectionMessage.toUpperCase().includes('LOCKED');
+    }
+
+    record(
+      'P3-B-12',
+      "Une tentative de modification du plan de mesurage sur l'instance rechargée (post-LOCKED) est rejetée",
+      planModificationRejectedAfterReload,
+      'Exception levée mentionnant le verrouillage (LOCKED)',
+      planModificationRejectedAfterReload ? `Rejetée : "${rejectionMessage}"` : 'Aucune exception levée (anomalie)'
     );
 
     return finalize(results);
