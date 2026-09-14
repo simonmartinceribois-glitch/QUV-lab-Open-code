@@ -10,6 +10,10 @@ import { runGate50OperationalQualificationTests } from './src/scientific/tests/g
 import { runGate52AdhesionTests } from './src/scientific/tests/gate52_adhesion.test';
 import { runGate53MediaCreatorTests } from './src/scientific/tests/gate53_media_creator_integrity.test';
 import { runGate54CalendarMeasurementPlanTests } from './src/scientific/tests/gate54_calendar_measurement_plan_integrity.test';
+import { runDateUtilsConsistencyTests } from './src/scientific/tests/date_utils_consistency.test';
+import { runObservationsNoSeverityAlertTests } from './src/scientific/tests/observations_no_severity_alert.test';
+import { runMeasurementPlanRoundTripTests } from './src/scientific/tests/measurement_plan_round_trip.test';
+import { runUxSmokeSelfCheckTests } from './src/scientific/tests/ux_smoke_self_check.test';
 import { runCalSeedStagePrefillTests } from './src/scientific/tests/cal_seed_stage_prefill.test';
 import { runAdhesionGridWarningTests } from './src/scientific/tests/adhesion_grid_warning.test';
 import { runAdhesionGridBadgeTests } from './src/scientific/tests/adhesion_grid_badge.test';
@@ -186,9 +190,12 @@ suite11.results.forEach((r) => {
 });
 
 console.log('\n================================================================');
-console.log('12. EXÉCUTION DE LA VALIDATION GATE 54 — CALENDRIER & PLAN DE MESURAGE (15 TESTS)');
-console.log('================================================================');
+// P4-a (audit 11-12/09/2026) : le nombre de tests n'est plus figé dans le
+// titre (il annonçait "15 TESTS" alors que 19 s'exécutaient déjà) — calculé
+// dynamiquement depuis suite12.summary.total pour ne plus jamais diverger.
 const suite12 = runGate54CalendarMeasurementPlanTests();
+console.log(`12. EXÉCUTION DE LA VALIDATION GATE 54 — CALENDRIER & PLAN DE MESURAGE (${suite12.summary.total} TESTS)`);
+console.log('================================================================');
 console.log(`Résultats Suite GATE 54 : ${suite12.summary.passed} / ${suite12.summary.total} réussis.`);
 suite12.results.forEach((r) => {
   console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Gate 54 ${r.category}] ${r.id} - ${r.name}`);
@@ -653,6 +660,58 @@ suite47.results.forEach((r) => {
   }
 });
 
+console.log('================================================================');
+console.log('48. EXÉCUTION DES TESTS DE COHÉRENCE DES DATES CIVILES LOCALES — R9-DATE (audit R3)');
+console.log('================================================================');
+const suite48 = runDateUtilsConsistencyTests();
+console.log(`Résultats Cohérence Dates Locales : ${suite48.summary.passed} / ${suite48.summary.total} réussis.`);
+suite48.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [R9-DATE] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
+console.log('================================================================');
+console.log('49. EXÉCUTION DES TESTS ANTI-RÉGRESSION — ABSENCE ALERTE SÉVÉRITÉ OBSERVATIONS (audit P3-a)');
+console.log('================================================================');
+const suite49 = runObservationsNoSeverityAlertTests();
+console.log(`Résultats Absence Alerte Sévérité : ${suite49.summary.passed} / ${suite49.summary.total} réussis.`);
+suite49.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [P3-a] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
+console.log('================================================================');
+console.log('50. EXÉCUTION DU ROUND-TRIP JSON RÉEL DU PLAN DE MESURAGE (audit P3-b)');
+console.log('================================================================');
+const suite50 = runMeasurementPlanRoundTripTests();
+console.log(`Résultats Round-Trip JSON : ${suite50.summary.passed} / ${suite50.summary.total} réussis.`);
+suite50.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [P3-b] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
+console.log('================================================================');
+console.log('51. AUTO-TEST DU MÉCANISME DE DÉTECTION DU SMOKE TEST UX (contre-audit point 3)');
+console.log('================================================================');
+const suite51 = runUxSmokeSelfCheckTests();
+console.log(`Résultats Auto-Test Smoke UX : ${suite51.summary.passed} / ${suite51.summary.total} réussis.`);
+suite51.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [UX-SMOKE] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -700,7 +759,11 @@ const totalFailed =
   suite44.summary.failed +
   suite45.summary.failed +
   suite46.summary.failed +
-  suite47.summary.failed;
+  suite47.summary.failed +
+  suite48.summary.failed +
+  suite49.summary.failed +
+  suite50.summary.failed +
+  suite51.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -748,7 +811,11 @@ const totalCount =
   suite44.summary.total +
   suite45.summary.total +
   suite46.summary.total +
-  suite47.summary.total;
+  suite47.summary.total +
+  suite48.summary.total +
+  suite49.summary.total +
+  suite50.summary.total +
+  suite51.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

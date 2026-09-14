@@ -9,6 +9,16 @@ import { Trial } from '../types/trial';
 import { ScientificRuleSet } from '../types/scientific';
 import { globalTrialStore, TrialStoreService } from '../services/trialStore';
 import { isFamilyScheduledForStage, getActiveFamiliesForStage, isMandatoryStage } from '../scientific/panelUtils';
+import { getQualityStatus } from '../scientific/validity';
+import { assessStageQuality, assessTrialQuality } from '../scientific/qualityEngine';
+import { evaluateCountProtocolCompliance } from '../scientific/protocolEngine';
+import { isAdaptationJustificationValid } from '../scientific/ruleSet';
+import { getPresetCycles } from './wizard/measurementApplicability';
+import { WIZARD_STEPS_LIST } from './wizard/wizardSteps';
+import { ResultsGlobalView } from './results-subviews/ResultsGlobalView';
+import { ResultsBatchAnalysisView } from './results-subviews/ResultsBatchAnalysisView';
+import { ResultsPanelAnalysisView } from './results-subviews/ResultsPanelAnalysisView';
+import { ResultsFamilyAnalysisView } from './results-subviews/ResultsFamilyAnalysisView';
 import {
   CheckCircle2,
   XCircle,
@@ -125,10 +135,34 @@ export const uxTestCases: UXTestCase[] = [
       description: 'Vérifie que toute déviation du nombre standard requiert une justification obligatoire.',
       expectedResult: 'Justification enregistrée dans la configuration et journalisée dans l\'audit.',
       targetTab: '03',
-      verify: (t) => ({
-        pass: true,
-        details: 'Moteur de validation de justification opérationnel.'
-      })
+      verify: (t, r) => {
+        const adaptedConfigs = t.config.activeFamilies
+          .map((familyId) => t.config.familyConfigs[familyId]?.countConfig)
+          .filter((cfg): cfg is NonNullable<typeof cfg> => !!cfg);
+        if (adaptedConfigs.length === 0) {
+          return {
+            pass: false,
+            details: 'Aucune configuration de nombre de mesures trouvée pour vérifier la règle de justification.'
+          };
+        }
+        // Une configuration ADAPTED_JUSTIFIED doit toujours avoir une justification
+        // réellement valide (>= 8 caractères utiles), et réciproquement une
+        // configuration ADAPTED_UNJUSTIFIED ne doit jamais avoir de justification valide.
+        const inconsistent = adaptedConfigs.filter((cfg) => {
+          const evaluation = evaluateCountProtocolCompliance(cfg, r);
+          const hasValidJustification = isAdaptationJustificationValid(cfg.justification);
+          if (evaluation.status === 'ADAPTED_JUSTIFIED') return !hasValidJustification;
+          if (evaluation.status === 'ADAPTED_UNJUSTIFIED') return hasValidJustification;
+          return false;
+        });
+        return {
+          pass: inconsistent.length === 0,
+          details:
+            inconsistent.length === 0
+              ? `${adaptedConfigs.length} configuration(s) contrôlée(s), règle de justification (>= 8 caractères) cohérente sur chacune.`
+              : `${inconsistent.length} configuration(s) incohérente(s) entre statut ADAPTED_* et validité de la justification.`
+        };
+      }
     },
     {
       id: 8,
@@ -221,10 +255,23 @@ export const uxTestCases: UXTestCase[] = [
       description: 'Vérifie la détection instantanée des dispersions anormales et valeurs manquantes.',
       expectedResult: 'Pastille de qualité temps-réel et liste d\'alertes explicite.',
       targetTab: '06',
-      verify: (t) => ({
-        pass: true,
-        details: 'Contrôle qualité multi-niveaux actif à chaque saisie.'
-      })
+      verify: (t) => {
+        const acquisitions = Object.values(t.acquisitions);
+        if (acquisitions.length === 0) {
+          return {
+            pass: false,
+            details: 'Aucune acquisition disponible pour vérifier le contrôle qualité instantané.'
+          };
+        }
+        const withoutQualityStatus = acquisitions.filter((a) => getQualityStatus(a.computed) === null);
+        return {
+          pass: withoutQualityStatus.length === 0,
+          details:
+            withoutQualityStatus.length === 0
+              ? `Qualité (GOOD/ACCEPTABLE/WARNING/INVALID) évaluée pour les ${acquisitions.length} acquisition(s) présentes.`
+              : `${withoutQualityStatus.length} / ${acquisitions.length} acquisition(s) sans évaluation qualité exploitable.`
+        };
+      }
     },
     {
       id: 15,
@@ -263,10 +310,17 @@ export const uxTestCases: UXTestCase[] = [
       description: 'Vérifie qu\'un panneau exclu passe à EXCLUDED avec motif obligatoire sans être effacé.',
       expectedResult: 'Statut EXCLUDED, motif tracé, éprouvette conservée dans l\'arborescence.',
       targetTab: '02',
-      verify: (t) => ({
-        pass: true,
-        details: 'Service d\'exclusion motivée et audit trail fonctionnels.'
-      })
+      verify: (t) => {
+        const excludedPanels = t.batches.flatMap((b) => b.panels).filter((p) => p.status === 'EXCLUDED');
+        const allHaveReason = excludedPanels.every((p) => !!p.exclusionReason && p.exclusionReason.trim().length > 0);
+        return {
+          pass: excludedPanels.length > 0 && allHaveReason,
+          details:
+            excludedPanels.length > 0
+              ? `${excludedPanels.length} panneau(x) exclu(s) et toujours présent(s) dans l'arborescence ; motif renseigné pour chacun : ${allHaveReason}.`
+              : "Aucun panneau au statut EXCLUDED dans cet essai — exclure un panneau avec motif pour valider ce test."
+        };
+      }
     },
     {
       id: 18,
@@ -275,10 +329,24 @@ export const uxTestCases: UXTestCase[] = [
       description: 'Vérifie l\'accès aux 4 vues : Globale, par Lot, Fiche Panneau, et par Famille.',
       expectedResult: 'Navigation fluide entre les 4 synthèses avec indicateurs calculés.',
       targetTab: '08',
-      verify: (t) => ({
-        pass: true,
-        details: '4 vues synthétiques implémentées.'
-      })
+      verify: () => {
+        const views = {
+          Globale: ResultsGlobalView,
+          'par Lot': ResultsBatchAnalysisView,
+          'Fiche Panneau': ResultsPanelAnalysisView,
+          'par Famille': ResultsFamilyAnalysisView
+        };
+        const missing = Object.entries(views)
+          .filter(([, component]) => typeof component !== 'function')
+          .map(([name]) => name);
+        return {
+          pass: missing.length === 0,
+          details:
+            missing.length === 0
+              ? "Les 4 composants de vue (Globale, par Lot, Fiche Panneau, par Famille) sont bien exportés et intégrés à l'onglet Résultats."
+              : `Vue(s) manquante(s) ou non exportée(s) : ${missing.join(', ')}.`
+        };
+      }
     },
     {
       id: 19,
@@ -299,23 +367,43 @@ export const uxTestCases: UXTestCase[] = [
       description: 'Vérifie le découplage strict entre la conformité du relevé brut et la conclusion d\'essai.',
       expectedResult: 'Niveau 5 indépendant des niveaux 1 à 4.',
       targetTab: '08',
-      verify: (t) => ({
-        pass: true,
-        details: 'Découplage strict des 5 niveaux d\'analyse validé.'
-      })
+      verify: (t, r) => {
+        const assessment = assessTrialQuality(t, r);
+        // Le moteur scientifique pur ne doit JAMAIS produire de conclusion
+        // normative formelle (CONFORME/NON_CONFORME) de lui-même — seule une
+        // revue humaine explicite peut la porter. Quel que soit le niveau de
+        // qualité (Niveau 1-4) calculé, le Niveau 5 doit rester NON_EVALUEE.
+        const decoupled = assessment.normativeConclusion === 'NON_EVALUEE';
+        return {
+          pass: decoupled,
+          details: decoupled
+            ? `Qualité globale=${assessment.globalQuality}, conformité protocole=${assessment.protocolCompliance} — conclusion normative (Niveau 5) restée NON_EVALUEE indépendamment de ces niveaux.`
+            : `Anomalie : le moteur scientifique a produit une conclusion normative automatique (${assessment.normativeConclusion}) sans revue humaine.`
+        };
+      }
     },
     // --- NOUVEAUX TESTS UX 21 À 36 (PROMPT 6 v6.1) ---
     {
       id: 21,
-      title: 'TEST UX 21 — Assistant de Création en 7 Étapes',
+      title: 'TEST UX 21 — Assistant de Création par Étapes Ordonnées',
       category: 'Création & Wizard',
-      description: 'Vérifie que l\'assistant de création comporte exactement 7 étapes ordonnées selon le flux métier.',
-      expectedResult: 'Étapes 1 à 7 présentes (Identification, Caractéristiques, Lots, Panneaux, Plan, Calendrier, Récapitulatif).',
+      // R2 (audit 11-12/09/2026) : la description d'origine ('exactement 7
+      // étapes') ne correspondait plus au comportement réel — l'étape 04
+      // Panneaux est volontairement masquée du parcours visible depuis une
+      // demande produit antérieure (cf. wizardSteps.ts). Description alignée
+      // sur le comportement actuel plutôt que sur une valeur figée obsolète.
+      description: 'Vérifie que l\'assistant de création comporte des étapes numérotées de façon strictement croissante, sans doublon, correspondant au flux métier actuel (étape 04 Panneaux volontairement masquée).',
+      expectedResult: 'Étapes 1, 2, 3, 5, 6, 7 présentes et strictement ordonnées (Identification, Caractéristiques, Lots, Plan, Calendrier, Récapitulatif).',
       targetTab: '01',
-      verify: () => ({
-        pass: true,
-        details: 'Assistant en 7 étapes séquentielles configuré dans CreateTrialWizardModal.'
-      })
+      verify: () => {
+        const nums = WIZARD_STEPS_LIST.map((s) => s.num);
+        const strictlyIncreasing = nums.every((n, i) => i === 0 || n > nums[i - 1]);
+        const matchesCurrentFlow = JSON.stringify(nums) === JSON.stringify([1, 2, 3, 5, 6, 7]);
+        return {
+          pass: strictlyIncreasing && matchesCurrentFlow,
+          details: `Étapes visibles : ${nums.join(', ')} (ordre strictement croissant : ${strictlyIncreasing}).`
+        };
+      }
     },
     {
       id: 22,
@@ -426,10 +514,32 @@ export const uxTestCases: UXTestCase[] = [
       description: 'Vérifie le flux : ÉTAPE -> FAMILLE -> ENSEMBLE DES LOTS -> ENSEMBLE DES PANNEAUX -> CONTRÔLE QUALITÉ -> FAMILLE SUIVANTE.',
       expectedResult: 'Le poste de paillasse permet la rotation continue des éprouvettes pour un appareil donné.',
       targetTab: '06',
-      verify: () => ({
-        pass: true,
-        details: 'Flux opératoire par famille et sélecteur panoramique d\'éprouvettes opérationnels.'
-      })
+      verify: (t) => {
+        const activeStages = t.stages.filter((s) => s.status !== 'INACTIVE');
+        if (activeStages.length === 0) {
+          return { pass: false, details: 'Aucune étape active pour vérifier le flux ÉTAPE→FAMILLE→LOTS→PANNEAUX.' };
+        }
+        const stage = activeStages[0];
+        const families = getActiveFamiliesForStage(t.config.activeFamilies, stage);
+        if (families.length === 0) {
+          return { pass: false, details: `Aucune famille active pour l'étape (cycle ${stage.cycleIndex}).` };
+        }
+        const rotationCovered = families.every((familyId) =>
+          t.batches.some((b) =>
+            b.panels.some((p) =>
+              Object.values(t.acquisitions).some(
+                (a) => a.familyId === familyId && a.stageId === stage.id && a.panelId === p.id
+              )
+            )
+          )
+        );
+        return {
+          pass: rotationCovered,
+          details: rotationCovered
+            ? `Rotation ÉTAPE→FAMILLE→LOTS→PANNEAUX confirmée pour ${families.length} famille(s) sur l'étape active (cycle ${stage.cycleIndex}).`
+            : `Au moins une famille active (${families.join(', ')}) n'a aucune acquisition sur l'étape active — rotation incomplète.`
+        };
+      }
     },
     {
       id: 29,
@@ -480,10 +590,23 @@ export const uxTestCases: UXTestCase[] = [
       description: 'Vérifie le comptage précis des éprouvettes acquises / attendues pour chaque famille sur l\'étape.',
       expectedResult: 'Indicateurs de complétude (ex: 8/8 complétés, 100%) calculés dynamiquement.',
       targetTab: '05',
-      verify: () => ({
-        pass: true,
-        details: 'Calculateur de statistiques d\'étape et jauges d\'avancement opérationnels.'
-      })
+      verify: (t, r) => {
+        const activeStages = t.stages.filter((s) => s.status !== 'INACTIVE');
+        if (activeStages.length === 0) {
+          return { pass: false, details: 'Aucune étape active pour vérifier la complétude par famille.' };
+        }
+        const assessments = activeStages.map((s) => assessStageQuality(s.id, t, r));
+        const countersConsistent = assessments.every(
+          (a) => a.panelsComplete <= a.panelsEvaluated && a.panelsEvaluated >= 0 && a.panelsComplete >= 0
+        );
+        const hasEvaluableData = assessments.some((a) => a.panelsEvaluated > 0);
+        return {
+          pass: countersConsistent && hasEvaluableData,
+          details: `${assessments
+            .map((a) => `${a.panelsComplete}/${a.panelsEvaluated}`)
+            .join(', ')} (complet/évalué par étape active) — cohérence des compteurs : ${countersConsistent}.`
+        };
+      }
     },
     {
       id: 33,
@@ -509,10 +632,25 @@ export const uxTestCases: UXTestCase[] = [
       description: 'Vérifie qu\'un contrôle qualité "GOOD" atteste de la précision métrologique sans préjuger de la tenue du produit.',
       expectedResult: 'Statut QUALITÉ (Niveau 3) rigoureusement dissocié du statut NORMATIF (Niveau 5).',
       targetTab: '06',
-      verify: () => ({
-        pass: true,
-        details: 'Architecture à 5 niveaux garantissant la séparation qualité métrologique vs verdict produit.'
-      })
+      verify: (t, r) => {
+        const goodQualityAcquisitions = Object.values(t.acquisitions).filter(
+          (a) => getQualityStatus(a.computed) === 'GOOD'
+        );
+        if (goodQualityAcquisitions.length === 0) {
+          return {
+            pass: false,
+            details: 'Aucune acquisition au statut qualité GOOD pour vérifier le découplage qualité/normatif.'
+          };
+        }
+        const assessment = assessTrialQuality(t, r);
+        const decoupled = assessment.normativeConclusion === 'NON_EVALUEE';
+        return {
+          pass: decoupled,
+          details: decoupled
+            ? `${goodQualityAcquisitions.length} acquisition(s) au statut qualité GOOD, sans déclenchement automatique d'une conclusion normative (Niveau 5 resté NON_EVALUEE).`
+            : `Anomalie : présence d'acquisitions GOOD associée à une conclusion normative automatique (${assessment.normativeConclusion}).`
+        };
+      }
     },
     {
       id: 35,
@@ -721,7 +859,13 @@ export const uxTestCases: UXTestCase[] = [
         mockTrialWithAcq.configurationStatus = 'EDITABLE';
         const testStage = mockTrialWithAcq.stages.find((s) => s.cycleIndex === 4);
         if (!testStage) {
-          return { pass: true, details: 'Jalon C4 non trouvé pour le test.' };
+          // R2 (audit 11-12/09/2026) : un pass:true silencieux masquait une
+          // précondition non remplie. Si le jalon C4 est introuvable, le test
+          // ne peut rien vérifier — il doit échouer, pas passer par défaut.
+          return {
+            pass: false,
+            details: "Précondition non remplie : jalon C4 introuvable — impossible de vérifier la protection des données historiques."
+          };
         }
         mockTrialWithAcq.acquisitions = {
           [`${testStage.id}__p1__COLOR`]: {
@@ -761,10 +905,20 @@ export const uxTestCases: UXTestCase[] = [
       description: 'Vérifie la disponibilité des préréglages standard (Complet 13 jalons, Trimestriel 5 jalons, Allégé 3 jalons) avec T0 et C12 garantis.',
       expectedResult: 'Préréglages validés avec conformité normative systématique.',
       targetTab: '04',
-      verify: () => ({
-        pass: true,
-        details: 'Préréglages FULL (13 jalons), QUARTERLY (5 jalons: T0, C3, C6, C9, C12), LIGHT (3 jalons: T0, C6, C12) opérationnels.'
-      })
+      verify: () => {
+        const full = getPresetCycles('FULL');
+        const quarterly = getPresetCycles('QUARTERLY');
+        const light = getPresetCycles('LIGHT');
+        const allContainT0AndC12 = [full, quarterly, light].every((c) => c.includes(0) && c.includes(12));
+        const correctCounts = full.length === 13 && quarterly.length === 5 && light.length === 3;
+        const correctQuarterly = [0, 3, 6, 9, 12].every((c) => quarterly.includes(c));
+        const correctLight = [0, 6, 12].every((c) => light.includes(c));
+        const pass = allContainT0AndC12 && correctCounts && correctQuarterly && correctLight;
+        return {
+          pass,
+          details: `FULL=${full.length} jalons, QUARTERLY=[${quarterly.join(',')}], LIGHT=[${light.join(',')}] — T0/C12 garantis sur les 3 préréglages : ${allContainT0AndC12}.`
+        };
+      }
     },
     {
       id: 46,

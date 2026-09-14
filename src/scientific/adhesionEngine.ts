@@ -381,11 +381,28 @@ export function calculateAdhesion(
         ? `Moyenne panneau : ${panelMean} — indicateur numérique complémentaire (hors classification ISO 2409)`
         : 'Non mesurée';
 
-  // 2. Contrôle du délai d'application
+  // 2. Contrôle du délai d'application.
+  // NOTE (fix R4 - audit 11-12/09) : `requiredMinimumDelayHours` est un champ RAW
+  // obligatoire (types/scientific.ts) ; on ne remplace donc plus silencieusement
+  // toute valeur "falsy" par le défaut via `||` (un délai réel de 0h, bien
+  // qu'improbable, serait alors interprété à tort comme "non configuré").
+  // Seule une valeur réellement absente/invalide (undefined/NaN à l'exécution,
+  // ex. import legacy contournant le typage statique) retombe explicitement sur
+  // ADHESION_DEFAULT_REQUIRED_DELAY_HOURS, unique constante partagée avec la
+  // couche CRITÈRE (criteriaAdhesion.ts) et avec les points de saisie RAW
+  // (Tab06MeasurementsBench.tsx, trialSeed.ts).
+  // Fix contre-audit c1edb84 (point 1) : une valeur NÉGATIVE n'est pas un délai
+  // valide au sens du contrat métier — traitée comme absente/invalide, au même
+  // titre que NaN/undefined, et retombe donc sur la constante canonique
+  // partagée (jamais utilisée telle quelle, ce qui ferait accepter n'importe
+  // quel délai comme "conforme" dans calculateDelayCompliance).
+  const requiredMinimumDelayHours = Number.isFinite(raw.requiredMinimumDelayHours) && raw.requiredMinimumDelayHours >= 0
+    ? raw.requiredMinimumDelayHours
+    : ADHESION_DEFAULT_REQUIRED_DELAY_HOURS;
   const delayCheck = calculateDelayCompliance(
     raw.applicationDateTime,
     raw.measurementDateTime,
-    raw.requiredMinimumDelayHours || ADHESION_DEFAULT_REQUIRED_DELAY_HOURS
+    requiredMinimumDelayHours
   );
 
   if (delayCheck.status === 'INVALID_DATE') {

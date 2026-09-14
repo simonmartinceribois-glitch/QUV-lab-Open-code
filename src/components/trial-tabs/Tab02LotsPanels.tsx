@@ -9,6 +9,7 @@
 import React, { useState } from 'react';
 import { Trial, BatchDefinition, PanelDefinition, WoodGrainOrientation, ExposureFace } from '../../types/trial';
 import { globalTrialStore, generateUUID } from '../../services/trialStore';
+import { getTodayLocalISODate } from '../../utils/dateUtils';
 import { getApplicableGridSpacing } from '../../scientific/adhesionEngine';
 import { getAdhesionGridDisplay } from '../bench/BenchAdhesionForm';
 import {
@@ -75,7 +76,9 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
   const [newBatchPrep, setNewBatchPrep] = useState('Ponçage grain P120');
   const [newBatchMethod, setNewBatchMethod] = useState('Pinceau');
   const [newBatchConditions, setNewBatchConditions] = useState('21°C, 55% HR');
-  const [newBatchDate, setNewBatchDate] = useState(new Date().toISOString().slice(0, 10));
+  // R3 (audit 11-12/09/2026) : date civile locale (getTodayLocalISODate), pas
+  // UTC — cohérent avec CreateTrialWizardModal.tsx (règle R9-DATE).
+  const [newBatchDate, setNewBatchDate] = useState(getTodayLocalISODate());
   const [newBatchDrying, setNewBatchDrying] = useState('7 jours à 20°C/65% HR');
   const [newBatchThickness, setNewBatchThickness] = useState<number | undefined>(60);
   const [newBatchNotes, setNewBatchNotes] = useState('');

@@ -10,6 +10,9 @@
  */
 
 import React, { useState } from 'react';
+import { getTodayLocalISODate } from '../utils/dateUtils';
+import { getPresetCycles } from './wizard/measurementApplicability';
+import { WIZARD_STEPS_LIST, NEXT_WIZARD_STEP, PREVIOUS_WIZARD_STEP } from './wizard/wizardSteps';
 import {
   TrialMetadata,
   CommonCharacteristics,
@@ -103,7 +106,7 @@ export function CreateTrialWizardModal({
   // Date de début de l'exposition (jalon T0) — saisie explicite par le technicien.
   // Défaut : date du jour (dynamique), modifiable à l'étape 6 Calendrier (G52-DATE).
   // Date civile locale (fuseau du poste, non-UTC) — R9-DATE : aucune dérive UTC/DST.
-  const [startDate, setStartDate] = useState<string>(new Date().toLocaleDateString('en-CA'));
+  const [startDate, setStartDate] = useState<string>(getTodayLocalISODate());
 
   const toggleCycleMeasurement = (cycleIndex: number) => {
     if (cycleIndex === 0 || cycleIndex === 12) return; // T0 et C12 obligatoires
@@ -113,13 +116,7 @@ export function CreateTrialWizardModal({
   };
 
   const setPlanPreset = (preset: 'FULL' | 'QUARTERLY' | 'LIGHT') => {
-    if (preset === 'FULL') {
-      setSelectedMeasurementCycles([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
-    } else if (preset === 'QUARTERLY') {
-      setSelectedMeasurementCycles([0, 3, 6, 9, 12]);
-    } else if (preset === 'LIGHT') {
-      setSelectedMeasurementCycles([0, 6, 12]);
-    }
+    setSelectedMeasurementCycles(getPresetCycles(preset));
   };
   const [batches, setBatches] = useState<LotFormItem[]>([
     {
@@ -133,7 +130,7 @@ export function CreateTrialWizardModal({
       substratePreparation: 'Ponçage grain P120',
       applicationMethod: 'Airmix',
       applicationConditions: '21°C, 55% HR',
-      applicationDate: new Date().toLocaleDateString('en-CA'),
+      applicationDate: getTodayLocalISODate(),
       dryingOrConditioningTime: '7 jours à 20°C/65% HR',
       batchNotes: 'Lot témoin sans stabilisant UV renforcé'
     },
@@ -148,7 +145,7 @@ export function CreateTrialWizardModal({
       substratePreparation: 'Ponçage grain P120',
       applicationMethod: 'Airmix',
       applicationConditions: '21°C, 55% HR',
-      applicationDate: new Date().toLocaleDateString('en-CA'),
+      applicationDate: getTodayLocalISODate(),
       dryingOrConditioningTime: '7 jours à 20°C/65% HR',
       batchNotes: 'Formulation avec absorbeurs UV organiques'
     },
@@ -163,7 +160,7 @@ export function CreateTrialWizardModal({
       substratePreparation: 'Ponçage grain P120',
       applicationMethod: 'Airmix',
       applicationConditions: '21°C, 55% HR',
-      applicationDate: new Date().toLocaleDateString('en-CA'),
+      applicationDate: getTodayLocalISODate(),
       dryingOrConditioningTime: '7 jours à 20°C/65% HR',
       batchNotes: 'Formulation avec nano-charges minérales'
     }
@@ -218,7 +215,7 @@ export function CreateTrialWizardModal({
         substratePreparation: 'Ponçage P120',
         applicationMethod: 'Airmix',
         applicationConditions: '20°C, 60% HR',
-        applicationDate: new Date().toLocaleDateString('en-CA'),
+        applicationDate: getTodayLocalISODate(),
         dryingOrConditioningTime: '7 jours à 20°C/65% HR',
         batchNotes: '',
       }
@@ -392,22 +389,15 @@ export function CreateTrialWizardModal({
 
   // Étape 04 Panneaux masquée (demande utilisateur) : le flux saute de 03 à 05.
   // Le composant WizardStep4Panels est conservé (réactivation possible).
-  const stepsList = [
-    { num: 1, label: '01 Identification' },
-    { num: 2, label: '02 Caractéristiques' },
-    { num: 3, label: '03 Lots' },
-    { num: 5, label: '05 Plan de Mesure' },
-    { num: 6, label: '06 Calendrier' },
-    { num: 7, label: '07 Validation' }
-  ];
+  const stepsList = WIZARD_STEPS_LIST;
   const goNextStep = () => {
     if (step === 1 && !isStep1Valid) return;
     if (step === 3 && !isStep3Valid) return;
     if (step === 5 && !isStep5Valid) return;
-    setStep((step === 3 ? 5 : step + 1) as any);
+    setStep(NEXT_WIZARD_STEP[step]);
   };
   const goPrevStep = () => {
-    setStep((step === 5 ? 3 : step - 1) as any);
+    setStep(PREVIOUS_WIZARD_STEP[step]);
   };
 
   return (
@@ -435,7 +425,7 @@ export function CreateTrialWizardModal({
               key={s.num}
               onClick={() => {
                 // Navigation vers étapes antérieures toujours permise
-                if (s.num < step) setStep(s.num as any);
+                if (s.num < step) setStep(s.num);
               }}
               className={`flex items-center gap-2 font-medium shrink-0 ${
                 s.num < step ? 'cursor-pointer hover:opacity-80' : ''

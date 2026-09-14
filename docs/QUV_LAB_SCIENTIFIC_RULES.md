@@ -1231,3 +1231,30 @@ Besoins identifiés :
 * évolution de la restitution couleur ;
 * évolution des tests scientifiques associés ;
 * éventuelle adaptation des agrégations et de la chaîne RAW → COMPUTED → CRITÈRE → ANALYSE → RESTITUTION pour ces métriques.
+
+## 24. Dates civiles locales — R9-DATE
+
+Ajouté a posteriori (audit du 11-12/09/2026, anomalie R5) pour documenter une règle déjà implémentée en code sous la référence « R9-DATE » (`src/utils/dateUtils.ts`) sans documentation S0 préalable — régularisation de la gouvernance décrite en §21.
+
+### Principe
+
+Toute date « civile » saisie ou calculée par défaut par l'application (date de début d'exposition T0, date d'application d'un revêtement, date d'ajout d'un lot, etc.) doit être exprimée dans le **fuseau horaire local du poste opérateur**, jamais en UTC.
+
+### Justification
+
+`new Date().toISOString().slice(0, 10)` calcule la date en UTC. Pour un opérateur situé dans un fuseau UTC+1/+2 (France), entre minuit et 1h/2h du matin heure locale, ce calcul renvoie encore la veille — un décalage d'un jour sur une donnée de calendrier scientifique. `new Date().toLocaleDateString('en-CA')` renvoie le format `YYYY-MM-DD` dans le fuseau local du poste et ne présente pas ce décalage.
+
+### Portée
+
+Cette règle s'applique à tout point de saisie ou d'initialisation d'une date « aujourd'hui » par défaut dans l'application. Au 12/09/2026, les points identifiés sont :
+
+* `src/components/CreateTrialWizardModal.tsx` (date de début d'exposition, dates d'application des lots de démonstration) ;
+* `src/components/trial-tabs/Tab02LotsPanels.tsx` (date d'application par défaut lors de l'ajout d'un lot).
+
+### Implémentation
+
+Source canonique unique : `getTodayLocalISODate()` (`src/utils/dateUtils.ts`). Tout nouveau point de saisie de date « aujourd'hui » par défaut doit importer et utiliser cette fonction plutôt que de réimplémenter le calcul — pour éviter la duplication qui a permis l'incohérence identifiée lors de l'audit (un écran corrigé, l'autre resté sur l'ancien calcul UTC).
+
+### Hors périmètre
+
+Cette règle ne modifie pas le format ou le fuseau des horodatages techniques (`measurementDateTime`, `applicationDateTime` complets avec heure) utilisés dans les calculs de délai (ex. délai minimal avant contrôle d'adhérence, §15.9/15.10) : ces horodatages restent des instants précis comparés entre eux, indépendamment du fuseau d'affichage, et ne sont pas concernés par R9-DATE.
