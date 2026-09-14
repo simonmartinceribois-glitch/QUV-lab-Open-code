@@ -391,7 +391,12 @@ export function calculateAdhesion(
   // ADHESION_DEFAULT_REQUIRED_DELAY_HOURS, unique constante partagée avec la
   // couche CRITÈRE (criteriaAdhesion.ts) et avec les points de saisie RAW
   // (Tab06MeasurementsBench.tsx, trialSeed.ts).
-  const requiredMinimumDelayHours = Number.isFinite(raw.requiredMinimumDelayHours)
+  // Fix contre-audit c1edb84 (point 1) : une valeur NÉGATIVE n'est pas un délai
+  // valide au sens du contrat métier — traitée comme absente/invalide, au même
+  // titre que NaN/undefined, et retombe donc sur la constante canonique
+  // partagée (jamais utilisée telle quelle, ce qui ferait accepter n'importe
+  // quel délai comme "conforme" dans calculateDelayCompliance).
+  const requiredMinimumDelayHours = Number.isFinite(raw.requiredMinimumDelayHours) && raw.requiredMinimumDelayHours >= 0
     ? raw.requiredMinimumDelayHours
     : ADHESION_DEFAULT_REQUIRED_DELAY_HOURS;
   const delayCheck = calculateDelayCompliance(

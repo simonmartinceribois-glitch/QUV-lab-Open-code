@@ -521,6 +521,61 @@ export function runCriteriaSeparationTests(): {
     );
   }
 
+  // ----------------------------------------------------------------------------
+  // T9 (fix contre-audit c1edb84, point 1) — requiredMinimumDelayHours NÉGATIF
+  // (ex. -1) n'est pas un délai valide au sens du contrat métier. Une valeur
+  // négative ne doit JAMAIS être utilisée telle quelle : dans
+  // calculateDelayCompliance, `elapsedHours < requiredMinimumHours` avec un seuil
+  // négatif serait TOUJOURS faux (un délai écoulé, toujours >= 0, satisferait
+  // n'importe quel seuil négatif) → le contrôle de délai serait silencieusement
+  // neutralisé (toujours "CONFORME", quel que soit le délai réel). Vérifié sur
+  // les DEUX couches : CRITÈRE (evaluateAdhesionDelayCriterion) doit traiter -1
+  // comme non configuré (NON_EVALUE/DELAY_CHECK_SKIPPED, comme undefined/NaN) ;
+  // RAW (calculateAdhesion) doit retomber sur ADHESION_DEFAULT_REQUIRED_DELAY_HOURS
+  // (168 h), jamais utiliser -1 tel quel.
+  // ----------------------------------------------------------------------------
+  {
+    const appDate = '2026-08-01T00:00:00Z';
+    const measDate = '2026-08-01T00:00:00Z'; // délai réel écoulé = 0 h
+
+    // Couche CRITÈRE : -1 doit être traité comme "non configuré", au même
+    // titre qu'une valeur absente.
+    const negativeDelayCriterion = evaluateAdhesionDelayCriterion({
+      applicationDateTime: appDate,
+      measurementDateTime: measDate,
+      requiredMinimumDelayHours: -1
+    });
+    const criterionRejectsNegative =
+      negativeDelayCriterion.verdict === 'NON_EVALUE' &&
+      negativeDelayCriterion.status === 'DELAY_CHECK_SKIPPED' &&
+      negativeDelayCriterion.requiredMinimumDelayHours === null;
+
+    // Couche RAW : -1 doit retomber sur le défaut 168 h (jamais utilisé tel
+    // quel), prouvé par la présence de l'alerte de délai insuffisant citant
+    // "168 h requis" pour un délai réellement écoulé de 0 h.
+    const negativeDelayRaw = mkAdhRaw({
+      applicationDateTime: appDate,
+      measurementDateTime: measDate,
+      requiredMinimumDelayHours: -1
+    });
+    const negativeDelayRes = calculateAdhesion(negativeDelayRaw, createCountConfiguration('ADHESION', 2, ruleSet), ruleSet);
+    const negativeDelayAlert = negativeDelayRes.alerts.find((a) =>
+      a.message.includes(`${ADHESION_DEFAULT_REQUIRED_DELAY_HOURS} h requis`)
+    );
+    const rawFallsBackToDefaultOnNegative = negativeDelayAlert !== undefined;
+
+    const passed = criterionRejectsNegative && rawFallsBackToDefaultOnNegative;
+
+    record(
+      9,
+      'T9 Adhésion — requiredMinimumDelayHours = -1 : rejeté sur les deux couches (jamais accepté comme délai valide)',
+      'CRITERE_ADHESION',
+      passed,
+      'CRITÈRE: NON_EVALUE/DELAY_CHECK_SKIPPED (requiredMinimumDelayHours=null) ; RAW: repli sur 168h (alerte délai insuffisant), -1 jamais utilisé tel quel',
+      `critère=${negativeDelayCriterion.verdict}(${negativeDelayCriterion.status}, requis=${negativeDelayCriterion.requiredMinimumDelayHours}) ; RAW alertePrésente=${rawFallsBackToDefaultOnNegative}`
+    );
+  }
+
   return {
     results,
     summary: {

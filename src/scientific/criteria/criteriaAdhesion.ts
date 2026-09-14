@@ -35,10 +35,16 @@ export function evaluateAdhesionDelayCriterion(input: {
   measurementDateTime?: string;
   requiredMinimumDelayHours?: number;
 }): AdhesionDelayCriterionEvaluation {
+  // Fix contre-audit c1edb84 (point 1) : une valeur NÉGATIVE n'est pas un délai
+  // valide au sens du contrat métier (un délai minimal ne peut pas être
+  // négatif) — traitée comme non configurée, au même titre qu'une valeur
+  // absente/NaN, plutôt que silencieusement acceptée par calculateDelayCompliance
+  // (qui la traiterait comme "toujours conforme", contournant la vérification).
   const requiredMinimumDelayHours =
     input.requiredMinimumDelayHours === undefined ||
     input.requiredMinimumDelayHours === null ||
-    !Number.isFinite(input.requiredMinimumDelayHours)
+    !Number.isFinite(input.requiredMinimumDelayHours) ||
+    input.requiredMinimumDelayHours < 0
       ? null
       : input.requiredMinimumDelayHours;
 
