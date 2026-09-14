@@ -13,6 +13,7 @@ import { runGate54CalendarMeasurementPlanTests } from './src/scientific/tests/ga
 import { runDateUtilsConsistencyTests } from './src/scientific/tests/date_utils_consistency.test';
 import { runObservationsNoSeverityAlertTests } from './src/scientific/tests/observations_no_severity_alert.test';
 import { runMeasurementPlanRoundTripTests } from './src/scientific/tests/measurement_plan_round_trip.test';
+import { runUxSmokeSelfCheckTests } from './src/scientific/tests/ux_smoke_self_check.test';
 import { runCalSeedStagePrefillTests } from './src/scientific/tests/cal_seed_stage_prefill.test';
 import { runAdhesionGridWarningTests } from './src/scientific/tests/adhesion_grid_warning.test';
 import { runAdhesionGridBadgeTests } from './src/scientific/tests/adhesion_grid_badge.test';
@@ -698,6 +699,19 @@ suite50.results.forEach((r) => {
   }
 });
 
+console.log('================================================================');
+console.log('51. AUTO-TEST DU MÉCANISME DE DÉTECTION DU SMOKE TEST UX (contre-audit point 3)');
+console.log('================================================================');
+const suite51 = runUxSmokeSelfCheckTests();
+console.log(`Résultats Auto-Test Smoke UX : ${suite51.summary.passed} / ${suite51.summary.total} réussis.`);
+suite51.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [UX-SMOKE] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -748,7 +762,8 @@ const totalFailed =
   suite47.summary.failed +
   suite48.summary.failed +
   suite49.summary.failed +
-  suite50.summary.failed;
+  suite50.summary.failed +
+  suite51.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -799,7 +814,8 @@ const totalCount =
   suite47.summary.total +
   suite48.summary.total +
   suite49.summary.total +
-  suite50.summary.total;
+  suite50.summary.total +
+  suite51.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

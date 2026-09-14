@@ -1,5 +1,5 @@
 /**
- * QUV-Lab — Smoke test des 45 cas d'acceptation UX (UXTestsSuite.tsx).
+ * QUV-Lab — Smoke test des cas d'acceptation UX (UXTestsSuite.tsx).
  *
  * R2 (audit 11-12/09/2026) : uxTestCases est un tableau exécuté UNIQUEMENT
  * dans le navigateur (composant React), donc jamais couvert par
@@ -12,14 +12,23 @@
  * résultat métier `pass:false` (certains tests échouent légitimement sur le
  * jeu de données "validation", qui est volontairement incomplet sur certains
  * aspects — ex. aucune configuration de comptage, aucun panneau exclu). Il
- * échoue uniquement si une fonction verify() lève une exception, ce qui
- * indiquerait une régression structurelle (import cassé, champ renommé...).
+ * échoue sur toute exception runtime, ce qui indiquerait une régression
+ * structurelle (import cassé, champ renommé...).
+ *
+ * Fix contre-audit c1edb84 (point 3) : le comptage pass/fail/exception
+ * utilisé ici est désormais la fonction PARTAGÉE `runUxTestCasesAgainst`
+ * (src/scientific/uxSmokeRunner.ts), dont la fiabilité (elle ne doit jamais
+ * avaler silencieusement un `pass:false` ou une exception) est prouvée par
+ * un test Node réel et gaté dans run_tests.ts
+ * (src/scientific/tests/ux_smoke_self_check.test.ts, suite51) — pas
+ * seulement affirmée dans ce commentaire.
  *
  * Usage : npx tsx smoke_ux_tests.ts
  */
 import { getDefaultScientificRuleSet } from './src/scientific/ruleSet';
 import { createDemoTrial, createValidationTrial } from './src/services/trialSeed';
 import { uxTestCases } from './src/components/UXTestsSuite';
+import { runUxTestCasesAgainst } from './src/scientific/uxSmokeRunner';
 
 const ruleSet = getDefaultScientificRuleSet();
 const trials = {
@@ -27,22 +36,19 @@ const trials = {
   validation: createValidationTrial(ruleSet)
 };
 
-let totalErrors = 0;
-let totalFail = 0;
 let totalPass = 0;
+let totalFail = 0;
+let totalErrors = 0;
 
 for (const [trialName, trial] of Object.entries(trials)) {
   console.log(`\n=== Essai: ${trialName} (${Object.keys(trial.acquisitions).length} acquisitions, ${trial.stages.length} stages) ===`);
-  for (const tc of uxTestCases) {
-    try {
-      const result = tc.verify(trial, ruleSet);
-      if (result.pass) totalPass++; else totalFail++;
-      const marker = result.pass ? 'PASS' : 'FAIL';
-      console.log(`[${marker}] #${tc.id} ${tc.title} :: ${result.details}`);
-    } catch (e) {
-      totalErrors++;
-      console.log(`[ERROR] #${tc.id} ${tc.title} :: EXCEPTION -> ${(e as Error).message}`);
-    }
+  const run = runUxTestCasesAgainst(uxTestCases, trial, ruleSet);
+  totalPass += run.passedIds.length;
+  totalFail += run.failedIds.length;
+  totalErrors += run.erroredIds.length;
+  for (const outcome of run.outcomes) {
+    const marker = outcome.status === 'PASS' ? 'PASS' : outcome.status === 'FAIL' ? 'FAIL' : 'ERROR';
+    console.log(`[${marker}] #${outcome.id} ${outcome.title} :: ${outcome.details}`);
   }
 }
 
