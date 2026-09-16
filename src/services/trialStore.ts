@@ -7,6 +7,7 @@ export { IntegrityViolationError, validateAcquisitionTarget, validatePhotoTarget
 export { generateStandardExposureStages } from './trialStages';
 export { createValidationTrial } from './trialSeed';
 export { TrialStoreService } from './trialStoreService';
+export type { StorageErrorEvent } from './trialStoreService';
 import { TrialStoreService } from './trialStoreService';
 
 export const globalTrialStore = new TrialStoreService();

@@ -51,6 +51,23 @@ const C12_SCHEDULED_HOURS = 2016;
 import { createDemoTrial, createValidationTrial } from './trialSeed';
 
 const STORAGE_KEY = 'quv_lab_trials_v2_2';
+
+/**
+ * Événement émis lorsqu'une écriture localStorage échoue (quota dépassé ou autre).
+ * Depuis la migration IndexedDB (PR #111), localStorage ne contient plus que des
+ * métadonnées JSON (les Blobs photo n'y transitent plus) : le risque de saturation
+ * est donc bien plus faible qu'avant, mais il reste non nul (accumulation d'essais
+ * sur la durée, navigation privée, quota déjà partiellement occupé par une autre
+ * application du même domaine, etc.). Cet événement permet à la couche UI d'avertir
+ * l'opérateur au lieu de laisser passer l'échec en silence.
+ */
+export interface StorageErrorEvent {
+  type: 'STORAGE_QUOTA_EXCEEDED' | 'STORAGE_UNKNOWN_ERROR';
+  message: string;
+  timestamp: string;
+}
+
+type StorageErrorListener = (event: StorageErrorEvent) => void;
 /**
  * Service TrialStore complet
  */
@@ -58,6 +75,8 @@ export class TrialStoreService {
   private trials: Map<UUID, Trial> = new Map();
   private ruleSet: ScientificRuleSet;
   private isEphemeral: boolean;
+  private storageErrorListeners: StorageErrorListener[] = [];
+  private persistenceHealthy = true;
 
   constructor(options?: { ephemeral?: boolean }) {
     this.ruleSet = getDefaultScientificRuleSet();
@@ -228,9 +247,60 @@ export class TrialStoreService {
     try {
       const list = Array.from(this.trials.values()).filter((t) => !t.id.startsWith('MOCK_TEST_'));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-    } catch {
-      // ignore
+      this.persistenceHealthy = true;
+    } catch (err) {
+      // Ancien comportement : l'erreur était totalement avalée ici. Les Blobs photo
+      // ne transitent plus par localStorage depuis la PR #111 (IndexedDB), mais un
+      // échec d'écriture des métadonnées JSON reste possible et doit être visible.
+      this.persistenceHealthy = false;
+      const errName = err instanceof Error || (err && typeof err === 'object') ? (err as { name?: unknown }).name : undefined;
+      const errCode = err && typeof err === 'object' ? (err as { code?: unknown }).code : undefined;
+      // Détection par duck-typing (nom/code) plutôt que par `instanceof DOMException` :
+      // certains environnements (polyfills, tests, realms différents) peuvent produire
+      // une erreur portant name === 'QuotaExceededError' sans être une véritable
+      // DOMException du même realm — un `instanceof` strict la classerait à tort en
+      // erreur inconnue.
+      const isQuotaError =
+        errName === 'QuotaExceededError' || errName === 'NS_ERROR_DOM_QUOTA_REACHED' || errCode === 22;
+      this.notifyStorageError({
+        type: isQuotaError ? 'STORAGE_QUOTA_EXCEEDED' : 'STORAGE_UNKNOWN_ERROR',
+        message: isQuotaError
+          ? "Espace de stockage local saturé : les métadonnées de l'essai n'ont pas pu être enregistrées."
+          : "Échec de l'enregistrement local des essais. Vos dernières modifications peuvent ne pas avoir été sauvegardées.",
+        timestamp: new Date().toISOString()
+      });
     }
+  }
+
+  /**
+   * S'abonne aux échecs de persistance locale. Retourne une fonction de désabonnement.
+   */
+  public onStorageError(listener: StorageErrorListener): () => void {
+    this.storageErrorListeners.push(listener);
+    return () => {
+      this.storageErrorListeners = this.storageErrorListeners.filter((l) => l !== listener);
+    };
+  }
+
+  /**
+   * Reflète uniquement le résultat de la DERNIÈRE tentative d'écriture localStorage
+   * (true dès que ce dernier setItem() a réussi). Ce n'est PAS une garantie que
+   * l'intégralité des modifications actuellement en mémoire a été persistée : un
+   * appel à saveTrial() peut très bien réussir alors qu'une mutation antérieure,
+   * elle, avait échoué et n'a pas été rejouée automatiquement.
+   */
+  public isPersistenceHealthy(): boolean {
+    return this.persistenceHealthy;
+  }
+
+  private notifyStorageError(event: StorageErrorEvent): void {
+    this.storageErrorListeners.forEach((listener) => {
+      try {
+        listener(event);
+      } catch {
+        // un listener défaillant ne doit jamais casser la persistance elle-même
+      }
+    });
   }
 
   public getTrials(): Trial[] {
