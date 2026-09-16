@@ -51,6 +51,7 @@ import { runProtocolAdaptationsTests } from './src/scientific/tests/protocol_ada
 import { runGlossOrientationTests } from './src/scientific/tests/gloss_orientation.test';
 import { runGate55MediaStorageTests } from './src/scientific/tests/gate55_media_storage.test';
 import { runGate59IdbIntegrationTests } from './src/scientific/tests/gate59_idb_integration.test';
+import { runStorageErrorNotificationTests } from './src/scientific/tests/storage_error_notification.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -754,6 +755,19 @@ suite54.results.forEach((r) => {
   }
 });
 
+console.log('================================================================');
+console.log('55. EXÉCUTION NOTIFICATION ERREURS DE PERSISTANCE (R-STORAGE-01 → 08, 8 TESTS)');
+console.log('================================================================');
+const suite55 = runStorageErrorNotificationTests();
+console.log(`Résultats Notification Stockage : ${suite55.summary.passed} / ${suite55.summary.total} réussis.`);
+suite55.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Storage Error] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -808,7 +822,8 @@ const totalFailed =
   suite51.summary.failed +
   suite52.summary.failed +
   suite53.summary.failed +
-  suite54.summary.failed;
+  suite54.summary.failed +
+  suite55.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -863,7 +878,8 @@ const totalCount =
   suite51.summary.total +
   suite52.summary.total +
   suite53.summary.total +
-  suite54.summary.total;
+  suite54.summary.total +
+  suite55.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

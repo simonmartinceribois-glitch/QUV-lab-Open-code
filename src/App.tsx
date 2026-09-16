@@ -6,6 +6,7 @@ import { runMediaMigration } from './services/mediaMigrationService';
 import { Trial } from './types/trial';
 import { TrialDashboard } from './components/TrialDashboard';
 import { TrialDetailView } from './components/TrialDetailView';
+import type { StorageErrorEvent } from './services/trialStore';
 
 // perf/lazy-sections : sections secondaires chargées à la demande (TRIALS reste eager).
 const CreateTrialWizardModal = lazy(() =>
@@ -39,7 +40,8 @@ import {
   Layers,
   ShieldCheck,
   LayoutDashboard,
-  CheckSquare
+  CheckSquare,
+  AlertTriangle
 } from 'lucide-react';
 
 export default function App() {
@@ -56,6 +58,17 @@ export default function App() {
   const [mediaMigration, setMediaMigration] = useState<'idle' | 'migrating' | 'success' | 'failed' | 'interrupted'>('idle');
   const [mediaMigrationSummary, setMediaMigrationSummary] = useState<{ migrated: number; remainingLegacy: number } | null>(null);
   const migrationStartedRef = useRef(false);
+  const [storageWarning, setStorageWarning] = useState<StorageErrorEvent | null>(null);
+
+  // Remonte à l'opérateur tout échec d'écriture des métadonnées localStorage
+  // (résiduel depuis la migration IndexedDB des photos, PR #111) au lieu de le
+  // laisser passer inaperçu.
+  useEffect(() => {
+    const unsubscribe = globalTrialStore.onStorageError((event) => {
+      setStorageWarning(event);
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     if (migrationStartedRef.current) return;
@@ -197,6 +210,22 @@ export default function App() {
             ) : (
               <span>Échec de l'initialisation de la migration média. Les clichés legacy restent gérés en Base64.</span>
             )}
+          </div>
+        )}
+
+        {/* Bandeau d'alerte : échec d'écriture des métadonnées localStorage */}
+        {storageWarning && (
+          <div className="px-4 py-1.5 text-[11px] font-semibold flex items-center justify-between gap-2 border-t bg-rose-900/60 text-rose-100 border-rose-700">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span>{storageWarning.message}</span>
+            </div>
+            <button
+              onClick={() => setStorageWarning(null)}
+              className="text-rose-100/80 hover:text-white text-[11px] font-semibold underline underline-offset-2 shrink-0"
+            >
+              Masquer
+            </button>
           </div>
         )}
       </header>
