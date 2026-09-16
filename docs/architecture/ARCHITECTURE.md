@@ -19,7 +19,7 @@
 ## 2. Architecture React (lazy par section depuis perf/lazy-sections)
 
 ```text
-src/main.tsx → src/App.tsx — TRIALS eager, 4 sections + wizard en React.lazy (entrée 7,8 kB)
+src/main.tsx → src/App.tsx — TRIALS eager, 3 sections + wizard en React.lazy (entrée 7,8 kB)
   TRIALS → TrialDashboard → TrialDetailView (9 onglets, 07 supprimé : PR #28)
     01 Identification / 02 Lots & Échantillons / 03 Protocole / 04 Calendrier /
     05 Étapes / 06 Mesures (bench/ : topbar, grille, calculs, 5 formulaires) /
