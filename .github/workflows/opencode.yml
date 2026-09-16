@@ -8,11 +8,17 @@ on:
 
 jobs:
   opencode:
+    # Sécurité : sur un dépôt public, tout utilisateur GitHub peut poster un commentaire.
+    # Sans ce filtre, n'importe qui peut déclencher le workflow (consommation de
+    # OPENCODE_API_KEY, risque d'abus) simplement en commentant "/oc" sur une issue ou une PR.
     if: |
-      contains(github.event.comment.body, ' /oc') ||
-      startsWith(github.event.comment.body, '/oc') ||
-      contains(github.event.comment.body, ' /opencode') ||
-      startsWith(github.event.comment.body, '/opencode')
+      (
+        contains(github.event.comment.body, ' /oc') ||
+        startsWith(github.event.comment.body, '/oc') ||
+        contains(github.event.comment.body, ' /opencode') ||
+        startsWith(github.event.comment.body, '/opencode')
+      ) &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
     permissions:
       id-token: write
