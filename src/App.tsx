@@ -18,9 +18,6 @@ const UXTestsSuite = lazy(() =>
 const ScientificRuleSetView = lazy(() =>
   import('./components/ScientificRuleSetView').then((m) => ({ default: m.ScientificRuleSetView }))
 );
-const ScientificCalculatorSandbox = lazy(() =>
-  import('./components/ScientificCalculatorSandbox').then((m) => ({ default: m.ScientificCalculatorSandbox }))
-);
 const ScientificTestsViewer = lazy(() =>
   import('./components/ScientificTestsViewer').then((m) => ({ default: m.ScientificTestsViewer }))
 );
@@ -35,7 +32,6 @@ function SectionFallback() {
 import {
   FlaskConical,
   BookOpen,
-  Calculator,
   CheckCircle2,
   Layers,
   ShieldCheck,
@@ -46,7 +42,7 @@ import {
 
 export default function App() {
   const [activeSection, setActiveSection] = useState<
-    'TRIALS' | 'UX_TESTS' | 'SANDBOX' | 'RULESET' | 'SCIENTIFIC_TESTS'
+    'TRIALS' | 'UX_TESTS' | 'RULESET' | 'SCIENTIFIC_TESTS'
   >('TRIALS');
 
   const [trials, setTrials] = useState<Trial[]>(() => globalTrialStore.getAllTrials());
@@ -164,18 +160,6 @@ export default function App() {
             </button>
 
             <button
-              onClick={() => setActiveSection('SANDBOX')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
-                activeSection === 'SANDBOX'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
-              }`}
-            >
-              <Calculator className="w-3.5 h-3.5" />
-              Sandbox
-            </button>
-
-            <button
               onClick={() => setActiveSection('RULESET')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
                 activeSection === 'RULESET'
@@ -273,12 +257,6 @@ export default function App() {
         {activeSection === 'SCIENTIFIC_TESTS' && (
           <Suspense fallback={<SectionFallback />}>
             <ScientificTestsViewer />
-          </Suspense>
-        )}
-
-        {activeSection === 'SANDBOX' && (
-          <Suspense fallback={<SectionFallback />}>
-            <ScientificCalculatorSandbox ruleSet={ruleSet} />
           </Suspense>
         )}
 
