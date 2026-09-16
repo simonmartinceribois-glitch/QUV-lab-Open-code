@@ -34,6 +34,63 @@ export function isLegacyMediaReference(m: MediaReference | undefined | null): bo
 }
 
 /**
+ * Écrit un code point Unicode en UTF-8 dans le tableau d'octets.
+ * Les surrogates isolés (U+D800-U+DFFF) sont remplacés par U+FFFD,
+ * conformément au comportement de TextEncoder.
+ */
+function appendUtf8Bytes(bytes: number[], codePoint: number): void {
+  if (codePoint >= 0xd800 && codePoint <= 0xdfff) {
+    appendUtf8Bytes(bytes, 0xfffd);
+    return;
+  }
+  if (codePoint <= 0x7f) {
+    bytes.push(codePoint);
+  } else if (codePoint <= 0x7ff) {
+    bytes.push(0xc0 | (codePoint >> 6), 0x80 | (codePoint & 0x3f));
+  } else if (codePoint <= 0xffff) {
+    bytes.push(0xe0 | (codePoint >> 12), 0x80 | ((codePoint >> 6) & 0x3f), 0x80 | (codePoint & 0x3f));
+  } else {
+    bytes.push(
+      0xf0 | (codePoint >> 18),
+      0x80 | ((codePoint >> 12) & 0x3f),
+      0x80 | ((codePoint >> 6) & 0x3f),
+      0x80 | (codePoint & 0x3f)
+    );
+  }
+}
+
+/**
+ * Décodage percent tolérant, AU NIVEAU OCTET, du payload d'une Data URI
+ * non-base64. Trois règles déterministes :
+ *  - `%XX` valide (suivi de deux hexadécimaux) → l'octet correspondant
+ *    (%20 → 0x20, %23 → 0x23, %25 → 0x25, %C3%A9 → 0xC3 0xA9) ;
+ *  - `%` littéral non suivi de deux hexadécimaux → caractère '%' conservé
+ *    (0% → "0%" : 0x30 0x25 ; 100% → "100%") ;
+ *  - caractère Unicode direct → ses octets UTF-8 (é → C3 A9, 📷 → F0 9F 93 B7).
+ *
+ * Strictement équivalent à `decodeURIComponent` + `TextEncoder` sur tout
+ * payload correctement encodé, tout en supportant les payloads legacy
+ * historiques qui mélangent `%XX` valides et `%` littéraux (0%, 100%).
+ * N'utilise AUCUN fallback global try/catch → payload brut : une telle
+ * approche perdrait le décodage des séquences `%XX` valides du même payload.
+ */
+function percentDecodeToUtf8(payload: string): Uint8Array {
+  const bytes: number[] = [];
+  for (let i = 0; i < payload.length; ) {
+    const code = payload.charCodeAt(i);
+    if (code === 0x25 /* '%' */ && /^[0-9a-fA-F]{2}$/.test(payload.slice(i + 1, i + 3))) {
+      bytes.push(parseInt(payload.slice(i + 1, i + 3), 16));
+      i += 3;
+    } else {
+      const codePoint = payload.codePointAt(i) as number;
+      appendUtf8Bytes(bytes, codePoint);
+      i += codePoint > 0xffff ? 2 : 1;
+    }
+  }
+  return new Uint8Array(bytes);
+}
+
+/**
  * Conversion d'une Data URI legacy vers Blob + type MIME réel.
  * Couvre base64 (;base64,xxx) et encodage utf8 (data:image/svg+xml;utf8,<...>).
  */
@@ -57,8 +114,7 @@ export function convertDataUriToBlob(dataUri: string): { blob: Blob; mimeType: s
       bytes[i] = binary.charCodeAt(i);
     }
   } else {
-    const decoded = decodeURIComponent(payload);
-    bytes = new TextEncoder().encode(decoded);
+    bytes = percentDecodeToUtf8(payload);
   }
 
   return { blob: new Blob([bytes], { type: mimeType }), mimeType };
@@ -140,7 +196,13 @@ export async function runMediaMigration(ctx: MigrationContext): Promise<Migratio
     const refs = trial.mediaReferences;
     if (!Array.isArray(refs) || refs.length === 0) continue;
 
-    let trialChanged = false;
+    const pending: Array<{
+      ref: MediaReference;
+      originalStorageKey: string;
+      originalMimeType: string;
+      originalSizeBytes: number;
+    }> = [];
+
     for (const ref of refs) {
       if (!detector(ref.storageKey)) continue;
       summary.examined += 1;
@@ -162,20 +224,43 @@ export async function runMediaMigration(ctx: MigrationContext): Promise<Migratio
           throw new Error(`Écriture IndexedDB non confirmée pour ${newKey}`);
         }
 
+        pending.push({
+          ref,
+          originalStorageKey: ref.storageKey,
+          originalMimeType: ref.mimeType,
+          originalSizeBytes: ref.sizeBytes
+        });
         ref.storageKey = newKey;
         ref.mimeType = mimeType;
         ref.sizeBytes = written.blob.size;
-        trialChanged = true;
-        summary.migrated += 1;
       } catch (err) {
+        // Échec ISOLÉ : erreur comptabilisée, référence legacy conservée telle
+        // quelle (réessayable), migration des autres médias poursuivie.
         summary.errors += 1;
         summary.failedKeys.push(ref.id);
-        // Référence legacy conservée telle quelle : reprise possible.
       }
     }
 
-    if (trialChanged) {
-      ctx.saveTrial(trial);
+    if (pending.length > 0) {
+      try {
+        ctx.saveTrial(trial);
+      } catch (saveErr) {
+        // Échec de persistance du trial : le Blob IndexedDB peut avoir été
+        // écrit, mais la référence n'a pas pu être persistée. Les références
+        // sont restaurées à leur valeur legacy (remainingLegacy reste exact) ;
+        // le Blob valide est conservé — un retry ultérieur le réconcilie via
+        // la clé déterministe + has(). L'état incohérent IDB/legacy est LE
+        // mieux évité possible, aucun Blob valide n'est supprimé.
+        for (const p of pending) {
+          p.ref.storageKey = p.originalStorageKey;
+          p.ref.mimeType = p.originalMimeType;
+          p.ref.sizeBytes = p.originalSizeBytes;
+          summary.errors += 1;
+          summary.failedKeys.push(p.ref.id);
+        }
+        continue;
+      }
+      summary.migrated += pending.length;
     }
   }
 

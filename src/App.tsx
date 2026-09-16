@@ -184,15 +184,15 @@ export default function App() {
           >
             <FlaskConical className="w-3.5 h-3.5 shrink-0" />
             {mediaMigration === 'migrating' ? (
-              <span>Initialisation de la photothèque : migration des clichés Base64 vers IndexedDB…</span>
+              <span>Initialisation de la photothèque : migration des clichés vers IndexedDB…</span>
             ) : mediaMigration === 'interrupted' ? (
               <span>
                 Migration média partielle ({mediaMigrationSummary?.migrated ?? 0} clichés migrés,{' '}
-                {(mediaMigrationSummary?.remainingLegacy ?? 0)} encore en Base64). Redémarrez
+                {(mediaMigrationSummary?.remainingLegacy ?? 0)} encore non migrés). Redémarrez
                 l'application pour reprendre la migration de façon idempotente.
               </span>
             ) : (
-              <span>Échec de l'initialisation de la migration média. Les clichés legacy restent gérés en Base64.</span>
+              <span>Échec de l'initialisation de la migration média. Les clichés legacy restent non migrés.</span>
             )}
           </div>
         )}

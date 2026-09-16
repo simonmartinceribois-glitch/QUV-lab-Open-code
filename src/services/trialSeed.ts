@@ -549,8 +549,23 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
   const stage2 = trial.stages[2]; // 336h
 
   if (panelSample && stage0 && stage1) {
-    const makeSvg = (label: string, hours: number, stageName: string, stateText: string, colorHue: string) =>
-      `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400"><defs><linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${colorHue}"/><stop offset="100%" stop-color="%2378350f"/></linearGradient><pattern id="wood" width="40" height="10" patternUnits="userSpaceOnUse"><path d="M 0 5 Q 20 0 40 5" stroke="%23ffffff" stroke-width="0.5" stroke-opacity="0.15" fill="none"/></pattern></defs><rect width="600" height="400" fill="url(%23bg)"/><rect width="600" height="400" fill="url(%23wood)"/><rect x="20" y="20" width="560" height="360" rx="16" fill="none" stroke="%23ffffff" stroke-width="1.5" stroke-opacity="0.3"/><circle cx="50" cy="50" r="14" fill="%23ffffff" fill-opacity="0.2"/><text x="50" y="55" font-family="sans-serif" font-size="12" font-weight="bold" fill="%23ffffff" text-anchor="middle">📷</text><text x="80" y="55" font-family="sans-serif" font-size="16" font-weight="bold" fill="%23ffffff">${label} — ${hours} h (${stageName})</text><rect x="40" y="290" width="520" height="70" rx="10" fill="%230f172a" fill-opacity="0.75"/><text x="60" y="318" font-family="sans-serif" font-size="13" font-weight="bold" fill="%23f8fafc">Suivi documentaire : ${stateText}</text><text x="60" y="342" font-family="monospace" font-size="11" fill="%2394a3b8">NF EN 927-6 • Éprouvette Pin sylvestre • QUV-Lab France</text></svg>`;
+    const makeSvg = (label: string, hours: number, stageName: string, stateText: string, colorHue: string) => {
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400">` +
+        `<defs><linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">` +
+        `<stop offset="0%" stop-color="${colorHue}"/><stop offset="100%" stop-color="#78350f"/></linearGradient>` +
+        `<pattern id="wood" width="40" height="10" patternUnits="userSpaceOnUse">` +
+        `<path d="M 0 5 Q 20 0 40 5" stroke="#ffffff" stroke-width="0.5" stroke-opacity="0.15" fill="none"/></pattern></defs>` +
+        `<rect width="600" height="400" fill="url(#bg)"/><rect width="600" height="400" fill="url(#wood)"/>` +
+        `<rect x="20" y="20" width="560" height="360" rx="16" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-opacity="0.3"/>` +
+        `<circle cx="50" cy="50" r="14" fill="#ffffff" fill-opacity="0.2"/>` +
+        `<text x="50" y="55" font-family="sans-serif" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">📷</text>` +
+        `<text x="80" y="55" font-family="sans-serif" font-size="16" font-weight="bold" fill="#ffffff">${label} — ${hours} h (${stageName})</text>` +
+        `<rect x="40" y="290" width="520" height="70" rx="10" fill="#0f172a" fill-opacity="0.75"/>` +
+        `<text x="60" y="318" font-family="sans-serif" font-size="13" font-weight="bold" fill="#f8fafc">Suivi documentaire : ${stateText}</text>` +
+        `<text x="60" y="342" font-family="monospace" font-size="11" fill="#94a3b8">NF EN 927-6 • Éprouvette Pin sylvestre • QUV-Lab France</text></svg>`;
+      return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+    };
 
     trial.mediaReferences.push({
       id: 'photo-demo-01',
@@ -559,7 +574,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
       stageId: stage0.id,
       type: 'PHOTO',
       status: 'ACTIVE',
-      storageKey: makeSvg('LOT XX1C - Éprouvette 1', 0, 'T0', 'État initial homogène, brillant intact, surface saine', '%23b45309'),
+      storageKey: makeSvg('LOT XX1C - Éprouvette 1', 0, 'T0', 'État initial homogène, brillant intact, surface saine', '#b45309'),
       filename: 'PHOTO_LOT_XX1C_1_T0_0h.jpg',
       mimeType: 'image/jpeg',
       sizeBytes: 245000,
@@ -575,7 +590,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
       stageId: stage1.id,
       type: 'PHOTO',
       status: 'ACTIVE',
-      storageKey: makeSvg('LOT XX1C - Éprouvette 1', 168, 'Cycle 1 (168 h)', 'Légère perte de brillance superficielle, couleur stable', '%2392400e'),
+      storageKey: makeSvg('LOT XX1C - Éprouvette 1', 168, 'Cycle 1 (168 h)', 'Légère perte de brillance superficielle, couleur stable', '#92400e'),
       filename: 'PHOTO_LOT_XX1C_1_C1_168h.jpg',
       mimeType: 'image/jpeg',
       sizeBytes: 252000,
@@ -592,7 +607,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
         stageId: stage2.id,
         type: 'PHOTO',
         status: 'ACTIVE',
-        storageKey: makeSvg('LOT XX1C - Éprouvette 1', 336, 'Cycle 2 (336 h)', 'Matification accentuée, film adhérent, micro-relief visible', '%2378350f'),
+        storageKey: makeSvg('LOT XX1C - Éprouvette 1', 336, 'Cycle 2 (336 h)', 'Matification accentuée, film adhérent, micro-relief visible', '#78350f'),
         filename: 'PHOTO_LOT_XX1C_1_C2_336h.jpg',
         mimeType: 'image/jpeg',
         sizeBytes: 260000,
@@ -612,7 +627,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
         stageId: stage0.id,
         type: 'PHOTO',
         status: 'ACTIVE',
-        storageKey: makeSvg('LOT XX1C - Témoin T', 0, 'T0', 'Éprouvette témoin de référence non exposée', '%231e293b'),
+        storageKey: makeSvg('LOT XX1C - Témoin T', 0, 'T0', 'Éprouvette témoin de référence non exposée', '#1e293b'),
         filename: 'PHOTO_LOT_XX1C_T_T0.jpg',
         mimeType: 'image/jpeg',
         sizeBytes: 238000,
@@ -1022,8 +1037,24 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
   const st9 = stages[9]; // C9 - 1512h
   const st12 = stages[12]; // C12 - 2016h
 
-  const makeValSvg = (hours: number, stageLabel: string, desc: string, gradStart: string) =>
-    `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400"><defs><linearGradient id="valbg${hours}" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${gradStart}"/><stop offset="100%" stop-color="%23451a03"/></linearGradient><pattern id="woodpat" width="50" height="12" patternUnits="userSpaceOnUse"><path d="M 0 6 Q 25 0 50 6" stroke="%23ffffff" stroke-width="0.6" stroke-opacity="0.18" fill="none"/></pattern></defs><rect width="600" height="400" fill="url(%23valbg${hours})"/><rect width="600" height="400" fill="url(%23woodpat)"/><rect x="20" y="20" width="560" height="360" rx="14" fill="none" stroke="%23ffffff" stroke-width="1.5" stroke-opacity="0.35"/><rect x="35" y="35" width="220" height="32" rx="8" fill="%230f172a" fill-opacity="0.85"/><text x="45" y="56" font-family="monospace" font-size="13" font-weight="bold" fill="%2338bdf8">LOT A - Échantillon 1</text><rect x="400" y="35" width="165" height="32" rx="8" fill="%231e293b" fill-opacity="0.85"/><text x="482" y="56" font-family="monospace" font-size="13" font-weight="bold" fill="%23fbbf24" text-anchor="middle">${stageLabel} — ${hours} h</text><rect x="35" y="295" width="530" height="70" rx="10" fill="%23020617" fill-opacity="0.8"/><text x="50" y="322" font-family="sans-serif" font-size="13" font-weight="bold" fill="%23f8fafc">${desc}</text><text x="50" y="346" font-family="monospace" font-size="11" fill="%2394a3b8">NF EN 927-6 (Cycle A) • Pinus sylvestris • QUV-Lab Métrologie</text></svg>`;
+  const makeValSvg = (hours: number, stageLabel: string, desc: string, gradStart: string) => {
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400">` +
+      `<defs><linearGradient id="valbg${hours}" x1="0%" y1="0%" x2="100%" y2="100%">` +
+      `<stop offset="0%" stop-color="${gradStart}"/><stop offset="100%" stop-color="#451a03"/></linearGradient>` +
+      `<pattern id="woodpat" width="50" height="12" patternUnits="userSpaceOnUse">` +
+      `<path d="M 0 6 Q 25 0 50 6" stroke="#ffffff" stroke-width="0.6" stroke-opacity="0.18" fill="none"/></pattern></defs>` +
+      `<rect width="600" height="400" fill="url(#valbg${hours})"/><rect width="600" height="400" fill="url(#woodpat)"/>` +
+      `<rect x="20" y="20" width="560" height="360" rx="14" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-opacity="0.35"/>` +
+      `<rect x="35" y="35" width="220" height="32" rx="8" fill="#0f172a" fill-opacity="0.85"/>` +
+      `<text x="45" y="56" font-family="monospace" font-size="13" font-weight="bold" fill="#38bdf8">LOT A - Échantillon 1</text>` +
+      `<rect x="400" y="35" width="165" height="32" rx="8" fill="#1e293b" fill-opacity="0.85"/>` +
+      `<text x="482" y="56" font-family="monospace" font-size="13" font-weight="bold" fill="#fbbf24" text-anchor="middle">${stageLabel} — ${hours} h</text>` +
+      `<rect x="35" y="295" width="530" height="70" rx="10" fill="#020617" fill-opacity="0.8"/>` +
+      `<text x="50" y="322" font-family="sans-serif" font-size="13" font-weight="bold" fill="#f8fafc">${desc}</text>` +
+      `<text x="50" y="346" font-family="monospace" font-size="11" fill="#94a3b8">NF EN 927-6 (Cycle A) • Pinus sylvestris • QUV-Lab Métrologie</text></svg>`;
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  };
 
   trial.mediaReferences.push(
     {
@@ -1033,7 +1064,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
       stageId: st0.id,
       type: 'PHOTO',
       status: 'ACTIVE',
-      storageKey: makeValSvg(0, 'T0', 'État initial : film satiné translucide sans défaut', '%23d97706'),
+      storageKey: makeValSvg(0, 'T0', 'État initial : film satiné translucide sans défaut', '#d97706'),
       filename: 'PHOTO_LOTA_1_T0_0h.jpg',
       mimeType: 'image/jpeg',
       sizeBytes: 248000,
@@ -1048,7 +1079,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
       stageId: st3.id,
       type: 'PHOTO',
       status: 'ACTIVE',
-      storageKey: makeValSvg(504, 'C3', 'Après 504 h : début de matification, teinte stable', '%23b45309'),
+      storageKey: makeValSvg(504, 'C3', 'Après 504 h : début de matification, teinte stable', '#b45309'),
       filename: 'PHOTO_LOTA_1_C3_504h.jpg',
       mimeType: 'image/jpeg',
       sizeBytes: 254000,
@@ -1063,7 +1094,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
       stageId: st6.id,
       type: 'PHOTO',
       status: 'ACTIVE',
-      storageKey: makeValSvg(1008, 'C6', 'Après 1008 h : matification progressive, film continu', '%2392400e'),
+      storageKey: makeValSvg(1008, 'C6', 'Après 1008 h : matification progressive, film continu', '#92400e'),
       filename: 'PHOTO_LOTA_1_C6_1008h.jpg',
       mimeType: 'image/jpeg',
       sizeBytes: 259000,
@@ -1078,7 +1109,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
       stageId: st9.id,
       type: 'PHOTO',
       status: 'ACTIVE',
-      storageKey: makeValSvg(1512, 'C9', 'Après 1512 h : matification prononcée, intégrité préservée', '%2378350f'),
+      storageKey: makeValSvg(1512, 'C9', 'Après 1512 h : matification prononcée, intégrité préservée', '#78350f'),
       filename: 'PHOTO_LOTA_1_C9_1512h.jpg',
       mimeType: 'image/jpeg',
       sizeBytes: 263000,
@@ -1093,7 +1124,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
       stageId: st12.id,
       type: 'PHOTO',
       status: 'ACTIVE',
-      storageKey: makeValSvg(2016, 'C12', 'Après 2016 h : terme d\'exposition, aspect mat sans altération grave', '%23581c87'),
+      storageKey: makeValSvg(2016, 'C12', 'Après 2016 h : terme d\'exposition, aspect mat sans altération grave', '#581c87'),
       filename: 'PHOTO_LOTA_1_C12_2016h.jpg',
       mimeType: 'image/jpeg',
       sizeBytes: 271000,
