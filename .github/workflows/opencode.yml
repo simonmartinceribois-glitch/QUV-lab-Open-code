@@ -21,12 +21,35 @@ jobs:
       issues: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        # Pinné au SHA du tag v6.1.0 (vérifié le 16/09/2026 via git ls-remote sur
+        # actions/checkout). Le tag `v6` est mutable et peut être redirigé sans
+        # revue par le mainteneur de l'action ; le SHA ne peut pas l'être.
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
 
       - name: Run opencode
-        uses: anomalyco/opencode/github@latest
+        # Pinné au SHA du tag github-v1.2.25 (dernier tag versionné vérifié le
+        # 16/09/2026 via l'API GitHub sur anomalyco/opencode). Le tag `@latest`
+        # de ce dépôt est mutable ET s'est déjà avéré désynchronisé par le passé
+        # (issue amont anomalyco/opencode#19865 : `@latest` restait bloqué sur
+        # github-v1.2.9 alors que des tags plus récents existaient) : il ne
+        # garantit ni la fraîcheur ni la reproductibilité de l'action exécutée.
+        # Diff vérifié entre github-v1.2.9 et github-v1.2.25 (action.yml) :
+        # ajout additif d'un input optionnel `variant`, non utilisé ici —
+        # aucun changement de comportement pour ce workflow.
+        #
+        # LIMITE RÉSIDUELLE NON RÉSOLUE PAR CE PIN (cf. rapport d'audit) :
+        # même figée à ce SHA exact, l'action `github/action.yml` télécharge à
+        # chaque exécution le binaire `opencode` via
+        # `curl -fsSL https://opencode.ai/install | bash`, après avoir résolu
+        # dynamiquement la version « latest » via l'API GitHub
+        # (`repos/anomalyco/opencode/releases/latest`). Aucun input de cette
+        # action ne permet de figer la version du binaire installé : ce risque
+        # de supply-chain (curl|bash + résolution dynamique de version) est
+        # architectural à l'action tierce et ne peut pas être neutralisé
+        # depuis ce fichier sans forker/vendoriser l'action elle-même.
+        uses: anomalyco/opencode/github@a3b97d9090ccf4aa9ac32268486283e3131e36b4 # github-v1.2.25
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         with:
