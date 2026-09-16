@@ -27,7 +27,6 @@ src/main.tsx → src/App.tsx — TRIALS eager, 4 sections + wizard en React.lazy
     08 Résultats (7 sous-vues) / 09 Journal d'audit
   UX_TESTS → UXTestsSuite.tsx (64 tests, dynamique)
   SCIENTIFIC_TESTS → ScientificTestsViewer.tsx (44 tests, dynamique)
-  SANDBOX → ScientificCalculatorSandbox.tsx
   RULESET → ScientificRuleSetView.tsx
   Wizard → CreateTrialWizardModal.tsx + wizard/ (7 fichiers d'étape, 04 masquée : flux 01-02-03-05-06-07)
 ```
