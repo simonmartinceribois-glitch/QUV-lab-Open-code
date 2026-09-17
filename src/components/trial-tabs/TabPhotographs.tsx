@@ -28,6 +28,11 @@ import {
   convertDataUriToBlob,
   deleteUnreferencedMedia
 } from '../../services/mediaMigrationService';
+import {
+  selectActivePanelPhotos,
+  selectComparedPhotos,
+  excludeArchivedFromSelection
+} from '../phototheque/photoCompareSelection';
 import { PhotoModeSwitcher } from '../phototheque/PhotoModeSwitcher';
 import { PhotoTimelineView } from '../phototheque/PhotoTimelineView';
 import { PhotoCompareView } from '../phototheque/PhotoCompareView';
@@ -179,20 +184,20 @@ export function TabPhotographs({ trial, onTrialUpdated }: Props) {
   }, [trial.mediaReferences, newPhotoPanelId, newPhotoStageId]);
 
   // Photographies actives de l'échantillon actuellement sélectionné
+  // (Correctif A1 : exclut les photographies ARCHIVED de toute sélection)
   const activePanelPhotos = useMemo(() => {
     if (!activePanel) return [];
-    return trial.mediaReferences
-      .filter((m) => m.type === 'PHOTO' && m.panelId === activePanel.id)
-      .sort((a, b) => {
-        const stA = a.stageId ? stageMap.get(a.stageId)?.cycleIndex ?? 0 : 0;
-        const stB = b.stageId ? stageMap.get(b.stageId)?.cycleIndex ?? 0 : 0;
-        return stA - stB;
-      });
+    return selectActivePanelPhotos(trial.mediaReferences, activePanel.id).sort((a, b) => {
+      const stA = a.stageId ? stageMap.get(a.stageId)?.cycleIndex ?? 0 : 0;
+      const stB = b.stageId ? stageMap.get(b.stageId)?.cycleIndex ?? 0 : 0;
+      return stA - stB;
+    });
   }, [trial.mediaReferences, activePanel, stageMap]);
 
   // Photographies sélectionnées pour la comparaison temporelle
+  // (Correctif A1 : dernière barrière — une photo ARCHIVED ne peut jamais être comparée)
   const comparedPhotos = useMemo(() => {
-    const list = trial.mediaReferences.filter((m) => selectedPhotoIdsForCompare.includes(m.id) && m.type === 'PHOTO');
+    const list = selectComparedPhotos(trial.mediaReferences, selectedPhotoIdsForCompare);
     // Trier dans l'ordre chronologique strict (cycleIndex croissant)
     return list.sort((a, b) => {
       const stA = a.stageId ? stageMap.get(a.stageId)?.cycleIndex ?? 0 : 0;
@@ -346,6 +351,12 @@ export function TabPhotographs({ trial, onTrialUpdated }: Props) {
         sizeBytes: blob.size,
         mimeType
       });
+
+      // Correctif A1 : l'ancienne photo (remplacée) est retirée de la sélection
+      // de comparaison ; les photos actives choisies sont conservées.
+      setSelectedPhotoIdsForCompare((prev) =>
+        excludeArchivedFromSelection(trial.mediaReferences, prev)
+      );
 
       setShowAddModal(false);
       setNewPhotoCaption('');
