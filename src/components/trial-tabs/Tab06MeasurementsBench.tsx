@@ -50,7 +50,6 @@ import {
   Save,
   Check,
   RotateCcw,
-  Zap,
   Info,
   Sliders,
   ShieldCheck,
@@ -399,32 +398,6 @@ export function Tab06MeasurementsBench({
     }
   };
 
-  // Remplissage rapide / Import simulation
-  const handleFastPrefill = () => {
-    if (selectedFamilyId === 'COLOR') {
-      setColorReadings([
-        { L: '62.5', a: '8.4', b: '24.2' },
-        { L: '62.3', a: '8.5', b: '24.1' },
-        { L: '62.6', a: '8.3', b: '24.3' },
-        { L: '62.4', a: '8.4', b: '24.2' }
-      ]);
-    } else if (selectedFamilyId === 'GLOSS') {
-      setGlossSeriesData([
-        { orientation: 'GRAIN_DIRECTION', values: ['44.5', '44.8'] },
-        { orientation: 'OPPOSITE_GRAIN_DIRECTION', values: ['43.2', '43.6'] }
-      ]);
-    } else if (selectedFamilyId === 'PERSOZ') {
-      setPersozValues(['85.2', '84.8', '85.5']);
-    } else if (selectedFamilyId === 'ADHESION') {
-      setAdhEntries(
-        Array.from({ length: Math.max(adhExpectedCount, 1) }, (_, i) => ({
-          cls: (i + 1) % 6,
-          obs: ''
-        }))
-      );
-    }
-  };
-
   const computed: unknown = currentRecord?.computed;
 
   // Calcul du résumé de la campagne pour la famille
@@ -524,17 +497,6 @@ export function Tab06MeasurementsBench({
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleFastPrefill}
-                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center gap-1"
-                  title="Pré-remplissage rapide pour test"
-                >
-                  <Zap className="w-3.5 h-3.5 text-amber-600" />
-                  Test Rapide
-                </button>
-              </div>
             </div>
 
             {/* Formulaire spécifique à la famille */}
