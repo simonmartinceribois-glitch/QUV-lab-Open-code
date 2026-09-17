@@ -3,16 +3,21 @@
  *
  * Conversion des PhotoReferences legacy dont `storageKey` est une Data URI
  * (data:image/jpeg;base64,... | data:image/svg+xml;utf8,...) vers une clé
- * logique `media/<hash>` et écriture du Blob dans IndexedDB.
+ * content-addressed `media/sha256/<64hex>` (repli `media/<hash>` hors contexte
+ * sécurisé) et écriture du Blob dans IndexedDB.
  *
  * GARANTIES :
- *  - idempotence : la nouvelle clé est une fonction déterministe du contenu
- *    legacy ; relancer la migration ne recrée jamais de média dupliqué.
+ *  - idempotence : la clé dérive du contenu ; relancer la migration ne recrée
+ *    jamais de média dupliqué (comparaison de contenu avant toute écriture).
+ *  - collision : une clé existante au contenu DIFFÉRENT n'est jamais écrasée ;
+ *    une erreur explicite est signalée et la référence legacy est conservée.
  *  - reprise : en cas d'échec d'un média, la référence legacy est conservée,
  *    les autres continuent ; la migration est rejouable.
  *  - mémoire : traitement séquentiel média par média (pas de Promise.all global).
  *  - atomicité : la référence n'est mise à jour qu'après réussite de l'écriture
  *    IndexedDB ; localStorage n'est réécrit qu'après validation.
+ *  - compatibilité : les clés déjà migrées `media/<16hex>` restent valides et
+ *    ne sont jamais recalculées ni supprimées.
  */
 import type { Trial, MediaReference } from '../types/trial';
 import type { MediaStoragePort } from './mediaStorageService';
@@ -145,6 +150,57 @@ export function createMigratedStorageKey(legacyKey: string): string {
   return `media/${stableHash(legacyKey)}`;
 }
 
+/** Préfixe des clés content-addressed (SHA-256, 64 hexadécimaux). */
+export const CONTENT_ADDRESSED_PREFIX = 'media/sha256/';
+
+/**
+ * Erreur explicite levée lorsqu'une clé content-addressed existe déjà avec un
+ * contenu DIFFÉRENT. Aucun écrasement : la référence legacy est conservée.
+ */
+export class MediaCollisionError extends Error {
+  public readonly storageKey: string;
+  constructor(storageKey: string) {
+    super(
+      `COLLISION DÉTECTÉE : la clé ${storageKey} référence déjà un contenu différent ; écriture refusée, référence legacy conservée`
+    );
+    this.name = 'MediaCollisionError';
+    this.storageKey = storageKey;
+  }
+}
+
+/**
+ * Empreinte SHA-256 (`media/sha256/<64hex>`) du contenu binaire, via Web Crypto.
+ * Retourne `null` lorsque `crypto.subtle` est indisponible (contexte non
+ * sécurisé : HTTP sur IP LAN) : l'appelant applique alors le repli déterministe
+ * `createMigratedStorageKey` pour ne jamais interrompre la migration.
+ */
+export async function computeContentAddressedKey(blob: Blob): Promise<string | null> {
+  const subtle = (globalThis as unknown as { crypto?: Crypto }).crypto?.subtle;
+  if (!subtle || typeof subtle.digest !== 'function') return null;
+  try {
+    const buffer = await blob.arrayBuffer();
+    const digest = await subtle.digest('SHA-256', buffer);
+    const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+    return `${CONTENT_ADDRESSED_PREFIX}${hex}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Comparaison octet à octet de deux Blobs (taille d'abord, puis contenu).
+ */
+async function blobsHaveSameContent(a: Blob, b: Blob): Promise<boolean> {
+  if (a.size !== b.size) return false;
+  const [ab, bb] = await Promise.all([a.arrayBuffer(), b.arrayBuffer()]);
+  const ua = new Uint8Array(ab);
+  const ub = new Uint8Array(bb);
+  for (let i = 0; i < ua.length; i++) {
+    if (ua[i] !== ub[i]) return false;
+  }
+  return true;
+}
+
 /**
  * Clé logique pour une nouvelle capture (côté navigateur).
  */
@@ -169,6 +225,7 @@ export interface MigrationSummary {
   errors: number;
   remainingLegacy: number;
   failedKeys: string[];
+  collisions: string[];
 }
 
 export interface MigrationContext {
@@ -189,7 +246,8 @@ export async function runMediaMigration(ctx: MigrationContext): Promise<Migratio
     migrated: 0,
     errors: 0,
     remainingLegacy: 0,
-    failedKeys: []
+    failedKeys: [],
+    collisions: []
   };
 
   for (const trial of ctx.trials) {
@@ -209,12 +267,22 @@ export async function runMediaMigration(ctx: MigrationContext): Promise<Migratio
 
       try {
         const { blob, mimeType } = convertDataUriToBlob(ref.storageKey);
-        const newKey = createMigratedStorageKey(ref.storageKey);
 
-        // Idempotence : si le média existe déjà sous la même clé déterministe,
-        // on ne réécrit pas (aucun doublon).
-        const exists = await ctx.backend.has(newKey);
-        if (!exists) {
+        // Clé content-addressed (SHA-256). Repli déterministe legacy uniquement
+        // hors contexte sécurisé (crypto.subtle indisponible) : les anciennes
+        // clés `media/<16hex>` restent alors produites à l'identique.
+        const contentKey = await computeContentAddressedKey(blob);
+        const newKey = contentKey ?? createMigratedStorageKey(ref.storageKey);
+
+        // Idempotence / collision : un contenu identique déjà présent n'est pas
+        // réécrit ; un contenu DIFFÉRENT sous la même clé lève une erreur
+        // explicite et n'écrase JAMAIS l'existant (référence legacy conservée).
+        const existing = await ctx.backend.get(newKey);
+        if (existing) {
+          if (!(await blobsHaveSameContent(existing.blob, blob))) {
+            throw new MediaCollisionError(newKey);
+          }
+        } else {
           await ctx.backend.put(blob, newKey, mimeType);
         }
 
@@ -234,10 +302,14 @@ export async function runMediaMigration(ctx: MigrationContext): Promise<Migratio
         ref.mimeType = mimeType;
         ref.sizeBytes = written.blob.size;
       } catch (err) {
-        // Échec ISOLÉ : erreur comptabilisée, référence legacy conservée telle
-        // quelle (réessayable), migration des autres médias poursuivie.
+        // Échec ISOLÉ (conversion, collision, écriture...) : erreur comptabilisée,
+        // référence legacy conservée telle quelle (réessayable), migration des
+        // autres médias poursuivie.
         summary.errors += 1;
         summary.failedKeys.push(ref.id);
+        if (err instanceof MediaCollisionError) {
+          summary.collisions.push(ref.id);
+        }
       }
     }
 
@@ -249,7 +321,7 @@ export async function runMediaMigration(ctx: MigrationContext): Promise<Migratio
         // écrit, mais la référence n'a pas pu être persistée. Les références
         // sont restaurées à leur valeur legacy (remainingLegacy reste exact) ;
         // le Blob valide est conservé — un retry ultérieur le réconcilie via
-        // la clé déterministe + has(). L'état incohérent IDB/legacy est LE
+        // la clé content-addressed + comparaison de contenu. L'état incohérent IDB/legacy est LE
         // mieux évité possible, aucun Blob valide n'est supprimé.
         for (const p of pending) {
           p.ref.storageKey = p.originalStorageKey;
@@ -279,6 +351,9 @@ export async function runMediaMigration(ctx: MigrationContext): Promise<Migratio
  * Préparation d'un essai pour EXPORT sans binaire.
  * Une référence legacy (Data URI) est remplacée par sa clé logique déterministe
  * `media/<hash>` : le JSON scientifique ne contient jamais data:image/ ni base64.
+ * NOTE : opération SYNCHRONE → ne peut pas calculer le SHA-256 ; cette clé legacy
+ * n'est produite que pour une référence NON ENCORE migrée (repli défensif : la
+ * migration au démarrage précède normalement tout export).
  * La référence originale (en mémoire / localStorage) n'est pas modifiée.
  */
 export function sanitizeTrialForExport(trial: Trial): Trial {

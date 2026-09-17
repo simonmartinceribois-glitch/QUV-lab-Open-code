@@ -16,6 +16,7 @@ import {
   runMediaMigration,
   convertDataUriToBlob,
   createMigratedStorageKey,
+  computeContentAddressedKey,
   isLegacyStorageKey
 } from '../../services/mediaMigrationService';
 import type { Trial, PhotoReference } from '../../types/trial';
@@ -137,7 +138,9 @@ export async function runGate59IdbIntegrationTests(): Promise<GateTestSuite> {
     const trial = createBaseTrial('mig02');
     trial.mediaReferences.push(makeRef('r1', trial.id, JPEG_KEY));
 
-    const expectedKey = createMigratedStorageKey(JPEG_KEY);
+    const expectedKey =
+      (await computeContentAddressedKey(convertDataUriToBlob(JPEG_KEY).blob)) ??
+      createMigratedStorageKey(JPEG_KEY);
 
     try {
       const summary = await runMediaMigration({
@@ -200,8 +203,12 @@ export async function runGate59IdbIntegrationTests(): Promise<GateTestSuite> {
     const altJpeg = JPEG_KEY_ALT; // Data URI différente → clé différente
     trial.mediaReferences.push(makeRef('rb', trial.id, altJpeg));
 
-    const keyA = createMigratedStorageKey(JPEG_KEY);
-    const keyB = createMigratedStorageKey(altJpeg);
+    const keyA =
+      (await computeContentAddressedKey(convertDataUriToBlob(JPEG_KEY).blob)) ??
+      createMigratedStorageKey(JPEG_KEY);
+    const keyB =
+      (await computeContentAddressedKey(convertDataUriToBlob(altJpeg).blob)) ??
+      createMigratedStorageKey(altJpeg);
 
     try {
       // Run 1 : migration complète
