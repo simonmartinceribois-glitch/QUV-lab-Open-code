@@ -53,6 +53,7 @@ import { runGate55MediaStorageTests } from './src/scientific/tests/gate55_media_
 import { runGate59IdbIntegrationTests } from './src/scientific/tests/gate59_idb_integration.test';
 import { runStorageErrorNotificationTests } from './src/scientific/tests/storage_error_notification.test';
 import { runArchivedComparisonExclusionTests } from './src/scientific/tests/a1_archived_comparison.test';
+import { runO1O2PhotoMediaTests } from './src/scientific/tests/o1_o2_photo_media.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -782,6 +783,19 @@ suite56.results.forEach((r) => {
   }
 });
 
+console.log('================================================================');
+console.log('57. EXÉCUTION DU CORRECTIF O1/O2 — ROBUSTESSE PHOTOTHÈQUE & CLÉS MÉDIA');
+console.log('================================================================');
+const suite57 = await runO1O2PhotoMediaTests();
+console.log(`Résultats Correctif O1/O2 : ${suite57.summary.passed} / ${suite57.summary.total} réussis.`);
+suite57.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [O1/O2 Media] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -838,7 +852,8 @@ const totalFailed =
   suite53.summary.failed +
   suite54.summary.failed +
   suite55.summary.failed +
-  suite56.summary.failed;
+  suite56.summary.failed +
+  suite57.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -895,7 +910,8 @@ const totalCount =
   suite53.summary.total +
   suite54.summary.total +
   suite55.summary.total +
-  suite56.summary.total;
+  suite56.summary.total +
+  suite57.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

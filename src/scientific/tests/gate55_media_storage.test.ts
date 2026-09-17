@@ -15,6 +15,7 @@ import {
   convertDataUriToBlob,
   stableHash,
   createMigratedStorageKey,
+  computeContentAddressedKey,
   runMediaMigration,
   deleteUnreferencedMedia,
   sanitizeTrialForExport
@@ -245,9 +246,14 @@ export async function runGate55MediaStorageTests(): Promise<GateTestSuite> {
   {
     const b = inMemoryBackend();
     let fail = false;
+    // Clé réelle produite par la migration (content-addressed, ou repli legacy
+    // hors contexte sécurisé) : l'injection d'échec cible exactement cette clé.
+    const jpegContentKey =
+      (await computeContentAddressedKey(convertDataUriToBlob(JPEG_KEY).blob)) ??
+      createMigratedStorageKey(JPEG_KEY);
     const failBackend: MediaStoragePort = {
       async put(file, key, mimeType) {
-        if (fail && key.includes(stableHash(JPEG_KEY))) throw new Error('fail');
+        if (fail && key === jpegContentKey) throw new Error('fail');
         return b.put(file, key, mimeType);
       },
       async get(k) { return b.get(k); },

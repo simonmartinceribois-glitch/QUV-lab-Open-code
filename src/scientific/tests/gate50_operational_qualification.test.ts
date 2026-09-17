@@ -313,8 +313,7 @@ export function runGate50OperationalQualificationTests(): Gate50Summary {
     panelId: batches[0].panels[1].id,
     filename: 'photo_T0_E1_v2_HD.jpg',
     caption: 'Photo initiale T0 Haute Définition étalonnée',
-    operatorId: 'SM',
-    replaceExisting: true
+    operatorId: 'SM'
   });
 
   // =========================================================================

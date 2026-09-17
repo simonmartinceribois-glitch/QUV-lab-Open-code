@@ -1065,7 +1065,6 @@ export class TrialStoreService {
     caption?: string;
     operatorId: string;
     storageKey?: string;
-    replaceExisting?: boolean;
     sizeBytes?: number;
     mimeType?: string;
   }): Trial {
