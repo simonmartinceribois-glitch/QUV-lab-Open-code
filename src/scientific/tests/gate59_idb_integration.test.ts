@@ -7,6 +7,8 @@
  * IDB-INT-01 : CRUD réel (put → get → delete) via MediaStorageService + idb + fake-indexeddb
  * IDB-INT-02 : Migration réelle (Data URI → Blob dans idb → ref mise à jour)
  * IDB-INT-03 : Reprise / idempotence réelle (deux runs = même résultat, 0 doublon)
+ * IDB-INT-04 : Migration réelle d'un SVG production legacy (0%, 100%, %23, é, —)
+ * IDB-INT-05 : Grand volume réel (100 refs : 50 legacy SVG + 30 JPEG base64 + 20 SVG encodés)
  */
 import 'fake-indexeddb/auto';
 import { MediaStorageService } from '../../services/mediaStorageService';
@@ -23,6 +25,13 @@ type GateTestSuite = { summary: { failed: number; total: number; passed: number 
 
 const JPEG_KEY = 'data:image/jpeg;base64,/9j/4AAQSkZJRg';
 const JPEG_KEY_ALT = 'data:image/jpeg;base64,/9j/AAAA/4AAQSkZJRg';
+
+// SVG production-représentatif DÉCODÉ (texte cible) — marqueurs legacy :
+// '%' littéraux (0%, 100%) + %XX valides (%23) + Unicode (é, —).
+const SVG_XML =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400"><defs><linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#d97706"/><stop offset="100%" stop-color="#78350f"/></linearGradient></defs><rect width="600" height="400" fill="url(#bg)"/><text x="50" y="55" fill="#ffffff">Éprouvette 1 — A1 100%</text></svg>';
+// Forme legacy historique persistée dans les trials (cause de l'URIError d'origine).
+const SVG_KEY = `data:image/svg+xml;utf8,${SVG_XML.replace(/#/g, '%23')}`;
 
 function createBaseTrial(id: string): Trial {
   return {
@@ -62,6 +71,13 @@ function makeRef(id: string, trialId: string, storageKey: string, overrides?: Pa
 
 export async function runGate59IdbIntegrationTests(): Promise<GateTestSuite> {
   const res: GateTestResult[] = [];
+
+  function toBase64(text: string): string {
+    const bytes = new TextEncoder().encode(text);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  }
 
   // -----------------------------------------------------------------
   // IDB-INT-01 : CRUD réel — MediaStorageService → idb → fake-indexeddb
@@ -217,6 +233,101 @@ export async function runGate59IdbIntegrationTests(): Promise<GateTestSuite> {
       res.push({
         id: 'IDB-INT-03',
         name: 'Reprise/idempotence réelle',
+        passed: false,
+        expected: 'aucune exception',
+        actual: `exception: ${err?.message}`
+      });
+    } finally {
+      await svc.close();
+    }
+  }
+
+  // -----------------------------------------------------------------
+  // IDB-INT-04 : Migration réelle d'un SVG production legacy
+  //              (0%, 100%, %23, é) — full chain fake-indexeddb
+  // -----------------------------------------------------------------
+  {
+    const svc = new MediaStorageService('quv_idb_svg_real_04');
+    const trial = createBaseTrial('svg04');
+    trial.mediaReferences.push(makeRef('r1', trial.id, SVG_KEY));
+
+    try {
+      const summary = await runMediaMigration({ backend: svc, trials: [trial], saveTrial: () => {} });
+      const ref = trial.mediaReferences[0];
+      const expectedKey = createMigratedStorageKey(SVG_KEY);
+      const record = await svc.get(ref.storageKey) ?? await svc.get(expectedKey);
+
+      let contentOk = false;
+      if (record) {
+        const text = await record.blob.text();
+        contentOk = text === SVG_XML;
+      }
+
+      const keys = await svc.keys();
+      const s2 = await runMediaMigration({ backend: svc, trials: [trial], saveTrial: () => {} });
+      const keysAfter = await svc.keys();
+
+      const pass = summary.migrated === 1 && summary.errors === 0 && summary.remainingLegacy === 0 &&
+        !isLegacyStorageKey(ref.storageKey) && record !== null && record.mimeType === 'image/svg+xml' &&
+        contentOk && keys.length === 1 && s2.migrated === 0 && s2.errors === 0 && keysAfter.length === 1;
+
+      res.push({
+        id: 'IDB-INT-04',
+        name: 'Migration réelle SVG production: blob idb = SVG_XML, mime svg, idempotent, 0 doublon',
+        passed: pass,
+        expected: 'migrated=1, mime=image/svg+xml, content==SVG_XML, keys=1, run2=0, keysAfter=1',
+        actual: `migrated=${summary.migrated}/${summary.errors}, mime=${record?.mimeType}, content=${contentOk}, keys=${keys.length}/${keysAfter.length}, s2=${s2.migrated}`
+      });
+    } catch (err: any) {
+      res.push({
+        id: 'IDB-INT-04',
+        name: 'Migration réelle SVG production',
+        passed: false,
+        expected: 'aucune exception',
+        actual: `exception: ${err?.message}`
+      });
+    } finally {
+      await svc.close();
+    }
+  }
+
+  // -----------------------------------------------------------------
+  // IDB-INT-05 : Grand volume réel — 100 refs
+  //              (50 legacy SVG + 30 JPEG base64 + 20 SVG encodés)
+  // -----------------------------------------------------------------
+  {
+    const svc = new MediaStorageService('quv_idb_vol_real_05');
+    const trial = createBaseTrial('vol05');
+    for (let i = 0; i < 50; i++) {
+      const xml =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><linearGradient id="v${i}" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23d97706"/></linearGradient><text>Éprouvette vol ${i} — ${i}%</text></svg>`;
+      trial.mediaReferences.push(makeRef(`l${i}`, trial.id, `data:image/svg+xml;utf8,${xml}`));
+    }
+    for (let i = 0; i < 30; i++) {
+      trial.mediaReferences.push(makeRef(`j${i}`, trial.id, 'data:image/jpeg;base64,' + toBase64(`JPEG real ${i}`)));
+    }
+    for (let i = 0; i < 20; i++) {
+      const xml = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><text>Cible ${i} — valid</text></svg>`;
+      trial.mediaReferences.push(makeRef(`p${i}`, trial.id, `data:image/svg+xml;utf8,${encodeURIComponent(xml)}`));
+    }
+
+    try {
+      const s1 = await runMediaMigration({ backend: svc, trials: [trial], saveTrial: () => {} });
+      const keys = await svc.keys();
+      const s2 = await runMediaMigration({ backend: svc, trials: [trial], saveTrial: () => {} });
+      const pass = s1.examined === 100 && s1.migrated === 100 && s1.errors === 0 && s1.remainingLegacy === 0 &&
+        keys.length === 100 && s2.migrated === 0 && s2.errors === 0 && s2.remainingLegacy === 0;
+      res.push({
+        id: 'IDB-INT-05',
+        name: 'Grand volume réel 100 refs: 100 migrés, 100 blobs, run2 idempotent',
+        passed: pass,
+        expected: 's1: 100/0/0, keys=100, s2: 0/0/0',
+        actual: `s1: ${s1.migrated}/${s1.errors}/${s1.remainingLegacy}, keys=${keys.length}, s2: ${s2.migrated}/${s2.errors}/${s2.remainingLegacy}`
+      });
+    } catch (err: any) {
+      res.push({
+        id: 'IDB-INT-05',
+        name: 'Grand volume réel 100 refs',
         passed: false,
         expected: 'aucune exception',
         actual: `exception: ${err?.message}`

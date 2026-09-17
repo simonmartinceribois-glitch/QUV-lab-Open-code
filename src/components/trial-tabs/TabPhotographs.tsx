@@ -301,7 +301,22 @@ export function TabPhotographs({ trial, onTrialUpdated }: Props) {
       blob = newPhotoFile;
       mimeType = newPhotoFile.type || 'image/jpeg';
     } else {
-      const defaultDataUrl = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400"><defs><linearGradient id="bgnew" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%23d97706"/><stop offset="100%" stop-color="%2378350f"/></linearGradient><pattern id="woodpat" width="40" height="10" patternUnits="userSpaceOnUse"><path d="M 0 5 Q 20 0 40 5" stroke="%23ffffff" stroke-width="0.5" stroke-opacity="0.15" fill="none"/></pattern></defs><rect width="600" height="400" fill="url(%23bgnew)"/><rect width="600" height="400" fill="url(%23woodpat)"/><rect x="20" y="20" width="560" height="360" rx="14" fill="none" stroke="%23ffffff" stroke-width="1.5" stroke-opacity="0.35"/><rect x="35" y="35" width="220" height="32" rx="8" fill="%230f172a" fill-opacity="0.85"/><text x="45" y="56" font-family="monospace" font-size="13" font-weight="bold" fill="%2338bdf8">${label}</text><rect x="420" y="35" width="145" height="32" rx="8" fill="%231e293b" fill-opacity="0.85"/><text x="492" y="56" font-family="monospace" font-size="13" font-weight="bold" fill="%23fbbf24" text-anchor="middle">${stage?.name || 'Jalon'}</text><rect x="35" y="295" width="530" height="70" rx="10" fill="%23020617" fill-opacity="0.8"/><text x="50" y="322" font-family="sans-serif" font-size="13" font-weight="bold" fill="%23f8fafc">${newPhotoCaption.trim() || `Cliché documentaire ${label}`}</text><text x="50" y="346" font-family="monospace" font-size="11" fill="%2394a3b8">NF EN 927-6 • ${newPhotoOperator} • ${new Date().toLocaleDateString('fr-FR')}</text></svg>`;
+      const defaultSvg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400">` +
+        `<defs><linearGradient id="bgnew" x1="0%" y1="0%" x2="100%" y2="100%">` +
+        `<stop offset="0%" stop-color="#d97706"/><stop offset="100%" stop-color="#78350f"/></linearGradient>` +
+        `<pattern id="woodpat" width="40" height="10" patternUnits="userSpaceOnUse">` +
+        `<path d="M 0 5 Q 20 0 40 5" stroke="#ffffff" stroke-width="0.5" stroke-opacity="0.15" fill="none"/></pattern></defs>` +
+        `<rect width="600" height="400" fill="url(#bgnew)"/><rect width="600" height="400" fill="url(#woodpat)"/>` +
+        `<rect x="20" y="20" width="560" height="360" rx="14" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-opacity="0.35"/>` +
+        `<rect x="35" y="35" width="220" height="32" rx="8" fill="#0f172a" fill-opacity="0.85"/>` +
+        `<text x="45" y="56" font-family="monospace" font-size="13" font-weight="bold" fill="#38bdf8">${label}</text>` +
+        `<rect x="420" y="35" width="145" height="32" rx="8" fill="#1e293b" fill-opacity="0.85"/>` +
+        `<text x="492" y="56" font-family="monospace" font-size="13" font-weight="bold" fill="#fbbf24" text-anchor="middle">${stage?.name || 'Jalon'}</text>` +
+        `<rect x="35" y="295" width="530" height="70" rx="10" fill="#020617" fill-opacity="0.8"/>` +
+        `<text x="50" y="322" font-family="sans-serif" font-size="13" font-weight="bold" fill="#f8fafc">${newPhotoCaption.trim() || `Cliché documentaire ${label}`}</text>` +
+        `<text x="50" y="346" font-family="monospace" font-size="11" fill="#94a3b8">NF EN 927-6 • ${newPhotoOperator} • ${new Date().toLocaleDateString('fr-FR')}</text></svg>`;
+      const defaultDataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(defaultSvg)}`;
       const converted = convertDataUriToBlob(defaultDataUrl);
       blob = converted.blob;
       mimeType = converted.mimeType;

@@ -730,10 +730,10 @@ suite52.results.forEach((r) => {
 });
 
 console.log('================================================================');
-console.log('53. EXÉCUTION MEDIA STORAGE (IDB-01 → IDB-12, 12 TESTS)');
+console.log('53. EXÉCUTION MEDIA STORAGE (IDB)');
 console.log('================================================================');
 const suite53 = await runGate55MediaStorageTests();
-console.log(`Résultats Media Storage : ${suite53.summary.passed} / ${suite53.summary.total} réussis.`);
+console.log(`   Suite 53 — IDB-01 → IDB-${String(suite53.summary.total).padStart(2, '0')} : ${suite53.summary.total} TESTS, ${suite53.summary.passed} réussis.`);
 suite53.results.forEach((r) => {
   console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Media Storage] ${r.id} - ${r.name}`);
   if (!r.passed) {
@@ -743,10 +743,10 @@ suite53.results.forEach((r) => {
 });
 
 console.log('================================================================');
-console.log('54. EXÉCUTION INTÉGRATION IndexedDB RÉEL (IDB-INT-01 → 03, 3 TESTS)');
+console.log('54. EXÉCUTION INTÉGRATION IndexedDB RÉEL');
 console.log('================================================================');
 const suite54 = await runGate59IdbIntegrationTests();
-console.log(`Résultats Intégration IDB : ${suite54.summary.passed} / ${suite54.summary.total} réussis.`);
+console.log(`   Suite 54 — IDB-INT-01 → IDB-INT-${String(suite54.summary.total).padStart(2, '0')} : ${suite54.summary.total} TESTS, ${suite54.summary.passed} réussis.`);
 suite54.results.forEach((r) => {
   console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [IDB Integration] ${r.id} - ${r.name}`);
   if (!r.passed) {
