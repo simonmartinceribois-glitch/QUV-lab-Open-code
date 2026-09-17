@@ -18,6 +18,14 @@
  *        DEFAVORABLE au seuil, NOT_APPLICABLE sans seuil, INSUFFICIENT_DATA
  *        sans données. Indépendance NF/INFIPERF : FAVORABLE + DEFAVORABLE.
  *   T8  — Notice COMPLEMENTARY obligatoire sur les deux évaluateurs.
+ *   T9  — INFIPERF Persoz : indicateur de vigilance (jamais PASS/FAIL) ;
+ *        initial > 70 s ; vieillissement ≥ 100 s ; pas de seuil NF.
+ *   T10 — INFIPERF Couleur : analyse descriptive ΔL/Δa/Δb/ΔE à 3 décimales,
+ *         cycles réellement mesurés, aucune interpolation, aucun verdict.
+ *   T11 — INFIPERF Aspect général : alerte ≥ 2,5 (échelle 0..5), aucun
+ *         verdict de conformité NF.
+ *   T12 — Orchestration multicritères INFIPERF : statuts simultanés
+ *         (FAVORABLE + DEFAVORABLE + VIGILANCE + ANALYSIS), aucun score global.
  *
  * Aucun accès à RAW/COMPUTED : évaluations en lecture seule.
  * Aucun pixel des moteurs (gloss/adhesion/observations) modifié.
@@ -33,10 +41,21 @@ import { defectMean, specimenAdhesionMean, systemAdhesionMean } from '../criteri
 import { getNf9272CategoryRequirements } from '../criteria/en927/en9272Requirements';
 import {
   evaluateInfiperfGlossRetention,
-  compareInfiperfRetention
+  compareInfiperfRetention,
+  evaluateInfiperfPersoz,
+  evaluateInfiperfColor,
+  evaluateInfiperfGeneralAppearance,
+  evaluateInfiperfCriteria,
+  compareInfiperfPersoz,
+  compareInfiperfAspect
 } from '../criteria/infiperf/infiperfEvaluator';
-import { meanRetentionRate } from '../criteria/infiperf/infiperfCalculations';
-import { getInfiperfGlossRetentionThreshold } from '../criteria/infiperf/infiperfRequirements';
+import { meanRetentionRate, meanDampingTime, meanColorComponent, meanAspectRating } from '../criteria/infiperf/infiperfCalculations';
+import {
+  getInfiperfGlossRetentionThreshold,
+  INFIPERF_PERSOZ_INITIAL_HARDNESS_INDICATOR_SECONDS,
+  INFIPERF_PERSOZ_AGEING_HARDNESS_INDICATOR_SECONDS,
+  INFIPERF_ASPECT_ALERT_RATING
+} from '../criteria/infiperf/infiperfRequirements';
 
 export interface NfEn9272InfiperfTestResult {
   id: number;
@@ -158,6 +177,42 @@ export function runNfEn9272InfiperfTests(): {
     };
   };
 
+  const seedPersoz = (trial: Trial, stageId: string, panelId: string, meanDampingTime: number) => {
+    const key = `${stageId}__${panelId}__PERSOZ`;
+    trial.acquisitions[key] = {
+      id: `acq-${key}`,
+      trialId: trial.id,
+      stageId,
+      batchId: 'b1',
+      panelId,
+      familyId: 'PERSOZ',
+      raw: {},
+      computed: { meanDampingTime },
+      status: 'COMPLETE',
+      alerts: [],
+      trace: { createdBy: 'Tester', createdAt: new Date().toISOString(), source: 'MANUAL_KEYPAD' },
+      mediaIds: []
+    };
+  };
+
+  const seedColor = (trial: Trial, stageId: string, panelId: string, color: { deltaL: number; deltaA: number; deltaB: number; deltaE: number }) => {
+    const key = `${stageId}__${panelId}__COLOR`;
+    trial.acquisitions[key] = {
+      id: `acq-${key}`,
+      trialId: trial.id,
+      stageId,
+      batchId: 'b1',
+      panelId,
+      familyId: 'COLOR',
+      raw: {},
+      computed: color,
+      status: 'COMPLETE',
+      alerts: [],
+      trace: { createdBy: 'Tester', createdAt: new Date().toISOString(), source: 'MANUAL_KEYPAD' },
+      mediaIds: []
+    };
+  };
+
   const seedFullDefects = (trial: Trial, ratings: { blistering?: number; cracking?: number; flaking?: number }) => {
     for (const panel of [P_E1, P_E2, P_E3]) {
       seedObservation(trial, C12_STAGE_ID, panel.id, {
@@ -261,15 +316,16 @@ export function runNfEn9272InfiperfTests(): {
     );
 
     // Fonctions pures de calcul.
-    const meanB = defectMean([0.2, 0.3, 0.4]);
+    const meanB = defectMean([0.2, 0.3, 0.5]); // 0.333… → arrondi 1 décimale → 0.3
+    const meanBNull = defectMean([]); // aucune valeur → null (aucune donnée fabriquée)
     const oneDecimal = specimenAdhesionMean([1.4, 1.5]); // 1.45 → arrondi 1 décimale → 1.5
     record(
       6,
-      'T3 Calculs : moyenne défauts 0,3 ; moyenne éprouvette adhérence arrondie à 1 décimale',
+      'T3 Calculs : moyenne défauts arrondie à 1 décimale (0,333→0,3) ; moyenne éprouvette adhérence arrondie ; null sans données',
       'CALCULS',
-      meanB === 0.3 && oneDecimal === 1.5,
-      'defectMean([0.2,0.3,0.4])=0.3 ; specimenAdhesionMean([1.4,1.5])=1.45→1.5',
-      `meanB=${String(meanB)}, oneDecimal=${String(oneDecimal)}`
+      meanB === 0.3 && meanBNull === null && oneDecimal === 1.5,
+      'defectMean([0.2,0.3,0.5])=0.333→0.3 ; defectMean([])=null ; specimenAdhesionMean([1.4,1.5])=1.45→1.5',
+      `meanB=${String(meanB)}, meanBNull=${String(meanBNull)}, oneDecimal=${String(oneDecimal)}`
     );
   }
 
@@ -473,10 +529,56 @@ export function runNfEn9272InfiperfTests(): {
       `status=${String(noData.result?.status)}`
     );
 
+    // Non-régression du seuil : le seuil provient EXCLUSIVEMENT du ScientificRuleSet.
+    // À données identiques (rétention 55 %), le verdict change selon le RuleSet utilisé.
+    const ruleSetA = ruleSet; // seuil par défaut : 50 %
+    const ruleSetB = {
+      ...ruleSet,
+      statisticalRules: { ...ruleSet.statisticalRules, retentionThresholdPercent: 60 }
+    } as ReturnType<typeof getDefaultScientificRuleSet>;
+
+    const trialSame = createTrial();
+    seedGloss(trialSame, C12_STAGE_ID, P_E1.id, 55);
+    seedGloss(trialSame, C12_STAGE_ID, P_E2.id, 55);
+    seedGloss(trialSame, C12_STAGE_ID, P_E3.id, 55);
+
+    const withA = evaluateInfiperfGlossRetention(trialSame, ruleSetA, { stageId: C12_STAGE_ID });
+    const withB = evaluateInfiperfGlossRetention(trialSame, ruleSetB, { stageId: C12_STAGE_ID });
+    record(
+      20,
+      'T7 INFIPERF : seuil exclusivement depuis le RuleSet (A=50 % → FAVORABLE, B=60 % → DEFAVORABLE, données 55 % identiques)',
+      'INFIPERF_SEUIL_RULESET',
+      withA.result?.status === 'FAVORABLE' &&
+        withB.result?.status === 'DEFAVORABLE' &&
+        withA.result?.threshold === 50 &&
+        withB.result?.threshold === 60,
+      'rétention 55 % : RuleSet A (50) → FAVORABLE (55≥50) ; RuleSet B (60) → DEFAVORABLE (55<60)',
+      `A=${String(withA.result?.status)}@${String(withA.result?.threshold)}, B=${String(withB.result?.status)}@${String(withB.result?.threshold)}`
+    );
+
+    // Seuil non fini / invalide → NOT_APPLICABLE (aucun fallback numérique).
+    const ruleSetInvalid = {
+      ...ruleSet,
+      statisticalRules: { ...ruleSet.statisticalRules, retentionThresholdPercent: Number.NaN }
+    } as unknown as ReturnType<typeof getDefaultScientificRuleSet>;
+    const trialInvalid = createTrial();
+    seedGloss(trialInvalid, C12_STAGE_ID, P_E1.id, 100);
+    seedGloss(trialInvalid, C12_STAGE_ID, P_E2.id, 100);
+    seedGloss(trialInvalid, C12_STAGE_ID, P_E3.id, 100);
+    const invalidThreshold = evaluateInfiperfGlossRetention(trialInvalid, ruleSetInvalid, { stageId: C12_STAGE_ID });
+    record(
+      21,
+      'T7 INFIPERF : seuil invalide (NaN) dans le RuleSet → NOT_APPLICABLE, aucun seuil fabriqué',
+      'INFIPERF_SEUIL_RULESET',
+      invalidThreshold.result?.status === 'NOT_APPLICABLE' && invalidThreshold.result?.threshold === null,
+      'seuil NaN → NOT_APPLICABLE, threshold=null',
+      `status=${String(invalidThreshold.result?.status)}, threshold=${String(invalidThreshold.result?.threshold)}`
+    );
+
     // Moyenne calculée.
     const mean = meanRetentionRate([63.3, 63.3, 63.3]);
     record(
-      20,
+      22,
       'T7 INFIPERF : moyenne rétention 63,3 % calculée à 1 décimale',
       'INFIPERF',
       mean === 63.3,
@@ -496,7 +598,7 @@ export function runNfEn9272InfiperfTests(): {
       const nfFavorable = nf.results.BLISTERING.status === 'FAVORABLE';
       const infDefavorable = inf.result?.status === 'DEFAVORABLE';
       record(
-        21,
+        23,
         'T7 Indépendance : NF EN 927-2 FAVORABLE (cloquage) ET INFIPERF DEFAVORABLE (rétention 40 %)',
         'INFIPERF',
         nfFavorable && infDefavorable,
@@ -521,12 +623,288 @@ export function runNfEn9272InfiperfTests(): {
       inf.complementaryNotice.length > 0;
 
     record(
-      22,
+      24,
       'T8 Notice COMPLEMENTARY présente sur l’évaluation NF EN 927-2 et INFIPERF',
       'NOTICE_COMPLEMENTARY',
       bothNotices,
       'evaluationMode=COMPLEMENTARY + notice texte non vide des deux côtés',
       `NF.mode=${nf.evaluationMode}, NF.notice=${nf.complementaryNotice.length}ch, INF.mode=${inf.evaluationMode}, INF.notice=${inf.complementaryNotice.length}ch`
+    );
+  }
+
+  // ----------------------------------------------------------------------------
+  // T9 — INFIPERF PERSOZ : INDICATEUR DE VIGILANCE (JAMAIS PASS/FAIL)
+  // ----------------------------------------------------------------------------
+  {
+    // Lemme pur : seuil initial > 70 s (T0, cycleIndex 0).
+    const pureNoSignal = compareInfiperfPersoz(70, 'INITIAL_HARDNESS');
+    const pureVigilance = compareInfiperfPersoz(71, 'INITIAL_HARDNESS');
+    const pureUnder = compareInfiperfPersoz(69, 'INITIAL_HARDNESS');
+    record(
+      25,
+      'T9 Lemme Persoz initial : 70 → NO_SIGNAL (strict >), 71 → VIGILANCE, 69 → NO_SIGNAL',
+      'INFIPERF_PERSOZ',
+      pureNoSignal === 'NO_SIGNAL' && pureVigilance === 'VIGILANCE' && pureUnder === 'NO_SIGNAL',
+      `69→NO_SIGNAL, 70→NO_SIGNAL, 71→VIGILANCE`,
+      `69→${pureUnder}, 70→${pureNoSignal}, 71→${pureVigilance}`
+    );
+
+    // Lemme pur : seuil vieillissement ≥ 100 s (cycleIndex ≥ 1).
+    const agingNoSignal = compareInfiperfPersoz(99, 'AGEING_HARDNESS');
+    const agingVigEq = compareInfiperfPersoz(100, 'AGEING_HARDNESS');
+    const agingVigOver = compareInfiperfPersoz(101, 'AGEING_HARDNESS');
+    record(
+      26,
+      'T9 Lemme Persoz vieillissement : 99 → NO_SIGNAL, 100 → VIGILANCE (≥), 101 → VIGILANCE',
+      'INFIPERF_PERSOZ',
+      agingNoSignal === 'NO_SIGNAL' && agingVigEq === 'VIGILANCE' && agingVigOver === 'VIGILANCE',
+      `99→NO_SIGNAL, 100→VIGILANCE, 101→VIGILANCE`,
+      `99→${agingNoSignal}, 100→${agingVigEq}, 101→${agingVigOver}`
+    );
+
+    // Évaluateur Persoz initial (T0, cycleIndex 0) avec données.
+    {
+      const trialT0 = createTrial({
+        stages: [
+          { id: 'st-t0', trialId: 'trial-nf9272', cycleIndex: 0, stageType: 'INITIAL_PRE_EXPOSURE', name: 'T0', scheduledExposureHours: 0, status: 'VALIDATED' }
+        ]
+      });
+      seedPersoz(trialT0, 'st-t0', P_E1.id, 71);
+      seedPersoz(trialT0, 'st-t0', P_E2.id, 71);
+      seedPersoz(trialT0, 'st-t0', P_E3.id, 71);
+      const evalT0 = evaluateInfiperfPersoz(trialT0, { stageId: 'st-t0' });
+      record(
+        27,
+        'T9 Persoz T0 initial : 71 s > 70 → VIGILANCE (cycleIndex 0 = INITIAL_HARDNESS)',
+        'INFIPERF_PERSOZ',
+        evalT0.status === 'VIGILANCE' &&
+          evalT0.value === 71 &&
+          evalT0.threshold === INFIPERF_PERSOZ_INITIAL_HARDNESS_INDICATOR_SECONDS &&
+          evalT0.rule === 'INITIAL_HARDNESS',
+        'status=VIGILANCE, value=71, threshold=70, rule=INITIAL_HARDNESS',
+        `status=${evalT0.status}, value=${String(evalT0.value)}, threshold=${String(evalT0.threshold)}, rule=${String(evalT0.rule)}`
+      );
+    }
+
+    // Évaluateur Persoz vieillissement (C12, cycleIndex 12) avec données.
+    {
+      const evalC12 = evaluateInfiperfPersoz(createTrial(), { stageId: C12_STAGE_ID });
+      // Aucune donnée Persoz sur C12 par défaut → INSUFFICIENT_DATA.
+      record(
+        28,
+        'T9 Persoz C12 sans données → INSUFFICIENT_DATA',
+        'INFIPERF_PERSOZ',
+        evalC12.status === 'INSUFFICIENT_DATA' && evalC12.rule === null,
+        'status=INSUFFICIENT_DATA, rule=null',
+        `status=${evalC12.status}, rule=${String(evalC12.rule)}`
+      );
+    }
+
+    // Évaluateur Persoz vieillissement (C12, cycleIndex 12) avec données ≥ 100 s.
+    {
+      const trial = createTrial();
+      seedPersoz(trial, C12_STAGE_ID, P_E1.id, 100);
+      seedPersoz(trial, C12_STAGE_ID, P_E2.id, 101);
+      seedPersoz(trial, C12_STAGE_ID, P_E3.id, 100);
+      const eval_ = evaluateInfiperfPersoz(trial, { stageId: C12_STAGE_ID });
+      // mean = (100+101+100)/3 = 100.333 → 100.3 → ≥ 100 → VIGILANCE.
+      record(
+        29,
+        'T9 Persoz C12 vieillissement : (100+101+100)/3=100,3 ≥ 100 → VIGILANCE (rule=AGEING_HARDNESS)',
+        'INFIPERF_PERSOZ',
+        eval_.status === 'VIGILANCE' &&
+          eval_.value === 100.3 &&
+          eval_.rule === 'AGEING_HARDNESS' &&
+          eval_.threshold === INFIPERF_PERSOZ_AGEING_HARDNESS_INDICATOR_SECONDS,
+        'status=VIGILANCE, value=100.3, threshold=100, rule=AGEING_HARDNESS',
+        `status=${eval_.status}, value=${String(eval_.value)}, rule=${String(eval_.rule)}, threshold=${String(eval_.threshold)}`
+      );
+    }
+  }
+
+  // ----------------------------------------------------------------------------
+  // T10 — INFIPERF COULEUR : ANALYSE DESCRIPTIVE (AUCUN VERDICT)
+  // ----------------------------------------------------------------------------
+  {
+    // Analyse descriptive : moyennes ΔL/Δa/Δb/ΔE à 3 décimales, status ANALYSIS.
+    {
+      const trial = createTrial();
+      seedColor(trial, C12_STAGE_ID, P_E1.id, { deltaL: 0.5, deltaA: -0.1234, deltaB: 0.001, deltaE: 0.5678 });
+      seedColor(trial, C12_STAGE_ID, P_E2.id, { deltaL: 0.7, deltaA: -0.1236, deltaB: 0.002, deltaE: 0.5682 });
+      seedColor(trial, C12_STAGE_ID, P_E3.id, { deltaL: 0.6, deltaA: -0.1235, deltaB: 0.003, deltaE: 0.5680 });
+      const eval_ = evaluateInfiperfColor(trial);
+      // Moyennes à 3 décimales : ΔL=(0.5+0.7+0.6)/3=0.6 → 0.6 ; ΔA=(-0.1234-0.1236-0.1235)/3=-0.1235 → -0.124 ; ΔB=(0.001+0.002+0.003)/3=0.002 ; ΔE=(0.5678+0.5682+0.568)/3=0.568 → 0.568.
+      const meanL = meanColorComponent([0.5, 0.7, 0.6]); // 0.6
+      const meanA = meanColorComponent([-0.1234, -0.1236, -0.1235]); // -0.1235 → -0.124
+      const meanB = meanColorComponent([0.001, 0.002, 0.003]); // 0.002
+      const meanE = meanColorComponent([0.5678, 0.5682, 0.5680]); // 0.568
+
+      record(
+        30,
+        'T10 Couleur : moyennes ΔL/Δa/Δb/ΔE à 3 décimales, status ANALYSIS, pas de seuil',
+        'INFIPERF_COULEUR',
+        eval_.status === 'ANALYSIS' &&
+          eval_.cycles.length === 1 &&
+          eval_.cycles[0].deltaL === meanL &&
+          eval_.cycles[0].deltaA === meanA &&
+          eval_.cycles[0].deltaB === meanB &&
+          eval_.cycles[0].deltaE === meanE,
+        `ANALYSIS, ΔL=${meanL}, ΔA=${meanA}, ΔB=${meanB}, ΔE=${meanE}`,
+        `status=${eval_.status}, cycles=${eval_.cycles.length}, ΔL=${String(eval_.cycles[0]?.deltaL)}, ΔA=${String(eval_.cycles[0]?.deltaA)}, ΔB=${String(eval_.cycles[0]?.deltaB)}, ΔE=${String(eval_.cycles[0]?.deltaE)}`
+      );
+    }
+
+    // Cycles non consécutifs sans interpolation : T0 + C12 uniquement → 2 cycles listés.
+    {
+      const trial = createTrial({
+        stages: [
+          { id: 'st-t0', trialId: 'trial-nf9272', cycleIndex: 0, stageType: 'INITIAL_PRE_EXPOSURE', name: 'T0', scheduledExposureHours: 0, status: 'VALIDATED' },
+          { id: C12_STAGE_ID, trialId: 'trial-nf9272', cycleIndex: 12, stageType: 'FINAL_POST_EXPOSURE', name: '2016 h', scheduledExposureHours: 2016, status: 'VALIDATED' }
+        ]
+      });
+      seedColor(trial, 'st-t0', P_E1.id, { deltaL: 0, deltaA: 0, deltaB: 0, deltaE: 0 });
+      seedColor(trial, 'st-t0', P_E2.id, { deltaL: 0, deltaA: 0, deltaB: 0, deltaE: 0 });
+      seedColor(trial, 'st-t0', P_E3.id, { deltaL: 0, deltaA: 0, deltaB: 0, deltaE: 0 });
+      seedColor(trial, C12_STAGE_ID, P_E1.id, { deltaL: 0.4, deltaA: 0.1, deltaB: -0.2, deltaE: 0.5 });
+      seedColor(trial, C12_STAGE_ID, P_E2.id, { deltaL: 0.4, deltaA: 0.1, deltaB: -0.2, deltaE: 0.5 });
+      seedColor(trial, C12_STAGE_ID, P_E3.id, { deltaL: 0.4, deltaA: 0.1, deltaB: -0.2, deltaE: 0.5 });
+      const eval_ = evaluateInfiperfColor(trial);
+      const displays = eval_.cycles.map((c) => c.display);
+      // T0 et C12 seulement : aucune interpolation des cycles intermédiaires.
+      record(
+        31,
+        'T10 Couleur cycles non consécutifs (T0+C12) : 2 cycles réellement mesurés, aucune interpolation intermédiaire',
+        'INFIPERF_COULEUR',
+        eval_.status === 'ANALYSIS' &&
+          eval_.cycles.length === 2 &&
+          displays.includes('C0 (0 h)') &&
+          displays.includes('C12 (2016 h)'),
+        'cycles=[C0, C12], status=ANALYSIS',
+        `cycles=${eval_.cycles.length}, displays=${displays.join(', ')}`
+      );
+    }
+
+    // Pas de données → INSUFFICIENT_DATA.
+    {
+      const eval_ = evaluateInfiperfColor(createTrial());
+      record(
+        32,
+        'T10 Couleur sans données → INSUFFICIENT_DATA',
+        'INFIPERF_COULEUR',
+        eval_.status === 'INSUFFICIENT_DATA' && eval_.cycles.length === 0,
+        'status=INSUFFICIENT_DATA, cycles=[]',
+        `status=${eval_.status}, cycles=${eval_.cycles.length}`
+      );
+    }
+  }
+
+  // ----------------------------------------------------------------------------
+  // T11 — INFIPERF ASPECT GÉNÉRAL : ALERTE ≥ 2,5 (ÉCHELLE 0..5)
+  // ----------------------------------------------------------------------------
+  {
+    // Lemme pur : seuil d'alerte.
+    const a24 = compareInfiperfAspect(2.4);
+    const a25 = compareInfiperfAspect(2.5);
+    const a26 = compareInfiperfAspect(2.6);
+    record(
+      33,
+      'T11 Lemme aspect : 2,4 → NO_SIGNAL, 2,5 → VIGILANCE (≥), 2,6 → VIGILANCE',
+      'INFIPERF_ASPECT',
+      a24 === 'NO_SIGNAL' && a25 === 'VIGILANCE' && a26 === 'VIGILANCE',
+      `2,4→NO_SIGNAL, 2,5→VIGILANCE, 2,6→VIGILANCE`,
+      `2,4→${a24}, 2,5→${a25}, 2,6→${a26}`
+    );
+
+    // Constante seuil d'alerte : 2,5.
+    record(
+      34,
+      'T11 Constante INFIPERF_ASPECT_ALERT_RATING = 2,5',
+      'INFIPERF_ASPECT',
+      INFIPERF_ASPECT_ALERT_RATING === 2.5,
+      'INFIPERF_ASPECT_ALERT_RATING=2.5',
+      String(INFIPERF_ASPECT_ALERT_RATING)
+    );
+
+    // Évaluateur aspect avec cotations fournies (échelle 0..5).
+    {
+      const trial = createTrial();
+      seedObservation(trial, C12_STAGE_ID, P_E1.id, { GENERAL_APPEARANCE: 2.6, BLISTERING: 0 });
+      seedObservation(trial, C12_STAGE_ID, P_E2.id, { GENERAL_APPEARANCE: 2.4, BLISTERING: 0 });
+      seedObservation(trial, C12_STAGE_ID, P_E3.id, { GENERAL_APPEARANCE: 2.5, BLISTERING: 0 });
+      const eval_ = evaluateInfiperfGeneralAppearance(trial, { stageId: C12_STAGE_ID });
+      // moyenne = (2.6+2.4+2.5)/3 = 2.5 → VIGILANCE (≥ 2.5).
+      record(
+        35,
+        'T11 Aspect C12 : (2,6+2,4+2,5)/3=2,5 ≥ 2,5 → VIGILANCE, seuil=2,5',
+        'INFIPERF_ASPECT',
+        eval_.status === 'VIGILANCE' &&
+          eval_.value === 2.5 &&
+          eval_.alertThreshold === 2.5,
+        'status=VIGILANCE, value=2.5, alertThreshold=2.5',
+        `status=${eval_.status}, value=${String(eval_.value)}, alertThreshold=${String(eval_.alertThreshold)}`
+      );
+    }
+
+    // Aspect sans données → INSUFFICIENT_DATA.
+    {
+      const eval_ = evaluateInfiperfGeneralAppearance(createTrial(), { stageId: C12_STAGE_ID });
+      record(
+        36,
+        'T11 Aspect sans données → INSUFFICIENT_DATA',
+        'INFIPERF_ASPECT',
+        eval_.status === 'INSUFFICIENT_DATA' && eval_.value === null,
+        'status=INSUFFICIENT_DATA, value=null',
+        `status=${eval_.status}, value=${String(eval_.value)}`
+      );
+    }
+  }
+
+  // ----------------------------------------------------------------------------
+  // T12 — ORCHESTRATION MULTICRITÈRES : STATUTS SIMULTANÉS, AUCUN SCORE GLOBAL
+  // ----------------------------------------------------------------------------
+  {
+    // Un seul jalon, toutes les données, statuts différents simultanés.
+    const trial = createTrial();
+    seedFullDefects(trial, { blistering: 0.1, cracking: 0.1, flaking: 0.1 }); // NF FAVORABLE.
+    seedGloss(trial, C12_STAGE_ID, P_E1.id, 40);
+    seedGloss(trial, C12_STAGE_ID, P_E2.id, 40);
+    seedGloss(trial, C12_STAGE_ID, P_E3.id, 40); // Gloss 40 % < 50 → DEFAVORABLE.
+    seedPersoz(trial, C12_STAGE_ID, P_E1.id, 101);
+    seedPersoz(trial, C12_STAGE_ID, P_E2.id, 100);
+    seedPersoz(trial, C12_STAGE_ID, P_E3.id, 100); // Persoz ≥ 100 → VIGILANCE.
+    seedColor(trial, C12_STAGE_ID, P_E1.id, { deltaL: 1.2, deltaA: 0.3, deltaB: -0.5, deltaE: 1.4 });
+    seedColor(trial, C12_STAGE_ID, P_E2.id, { deltaL: 1.2, deltaA: 0.3, deltaB: -0.5, deltaE: 1.4 });
+    seedColor(trial, C12_STAGE_ID, P_E3.id, { deltaL: 1.2, deltaA: 0.3, deltaB: -0.5, deltaE: 1.4 }); // Couleur → ANALYSIS.
+    seedObservation(trial, C12_STAGE_ID, P_E1.id, { GENERAL_APPEARANCE: 2.0, BLISTERING: 0 });
+    seedObservation(trial, C12_STAGE_ID, P_E2.id, { GENERAL_APPEARANCE: 2.0, BLISTERING: 0 });
+    seedObservation(trial, C12_STAGE_ID, P_E3.id, { GENERAL_APPEARANCE: 2.0, BLISTERING: 0 }); // Aspect 2,0 < 2,5 → NO_SIGNAL.
+
+    const nf = evaluateNf9272Criteria(trial);
+    const inf = evaluateInfiperfCriteria(trial, ruleSet, { stageId: C12_STAGE_ID });
+
+    const nfFavorable = nf.results.BLISTERING.status === 'FAVORABLE';
+    const glossDefavorable = inf.results.GLOSS_RETENTION.status === 'DEFAVORABLE';
+    const persozVigilance = inf.results.PERSOZ.status === 'VIGILANCE';
+    const couleurAnalysis = inf.results.COLOR.status === 'ANALYSIS';
+    const aspectNoSignal = inf.results.GENERAL_APPEARANCE.status === 'NO_SIGNAL';
+
+    record(
+      37,
+      'T12 Orchestration : statuts simultanés — NF FAVORABLE + gloss DEFAVORABLE + Persoz VIGILANCE + couleur ANALYSIS + aspect NO_SIGNAL',
+      'INFIPERF_ORCHESTRATION',
+      nfFavorable && glossDefavorable && persozVigilance && couleurAnalysis && aspectNoSignal,
+      'NF=FAVORABLE, gloss=DEFAVORABLE, Persoz=VIGILANCE, couleur=ANALYSIS, aspect=NO_SIGNAL',
+      `NF=${nf.results.BLISTERING.status}, gloss=${inf.results.GLOSS_RETENTION.status}, Persoz=${inf.results.PERSOZ.status}, couleur=${inf.results.COLOR.status}, aspect=${inf.results.GENERAL_APPEARANCE.status}`
+    );
+
+    // Aucun score global ni verdict combiné.
+    record(
+      38,
+      'T12 Orchestration : hasGlobalVerdict=false, aucune note/verdict global',
+      'INFIPERF_ORCHESTRATION',
+      inf.hasGlobalVerdict === false,
+      'hasGlobalVerdict=false',
+      `hasGlobalVerdict=${String(inf.hasGlobalVerdict)}`
     );
   }
 

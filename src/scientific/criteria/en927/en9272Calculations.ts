@@ -12,7 +12,7 @@
  *  - moyenne système : moyenne arithmétique des moyennes éprouvettes exposées
  *    (E1/E2/E3), arrondie à 1 décimale ;
  *  - défauts (Blistering/Cracking/Flaking) : moyenne arithmétique des cotations
- *    éprouvette (0..5) ;
+ *    éprouvette (0..5), arrondie à 1 décimale ;
  *  - jamais de donnée fabriquée : toute entrée non finie est exclue ; si le
  *    minimum requis n'est pas atteint, le résultat est `null`.
  */
@@ -61,9 +61,11 @@ export function systemAdhesionMean(specimenMeans: (number | null)[]): number | n
 
 /**
  * Moyenne arithmétique des éprouvettes exposées pour un DÉFAUT
- * (Blistering/Cracking/Flaking) au jalon C12. Retourne `null` si aucune cotation
- * valide ; l'évaluateur gère le minimum de 3 éprouvettes.
+ * (Blistering/Cracking/Flaking) au jalon C12, arrondie à 1 décimale.
+ * Retourne `null` si aucune cotation valide (aucune donnée fabriquée) ;
+ * l'évaluateur gère le minimum de 3 éprouvettes.
  */
 export function defectMean(specimenRatings: number[]): number | null {
-  return arithmeticMean(specimenRatings);
+  const mean = arithmeticMean(specimenRatings);
+  return mean === null ? null : roundTo1Decimal(mean);
 }
