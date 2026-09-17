@@ -52,6 +52,7 @@ import { runGlossOrientationTests } from './src/scientific/tests/gloss_orientati
 import { runGate55MediaStorageTests } from './src/scientific/tests/gate55_media_storage.test';
 import { runGate59IdbIntegrationTests } from './src/scientific/tests/gate59_idb_integration.test';
 import { runStorageErrorNotificationTests } from './src/scientific/tests/storage_error_notification.test';
+import { runArchivedComparisonExclusionTests } from './src/scientific/tests/a1_archived_comparison.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -768,6 +769,19 @@ suite55.results.forEach((r) => {
   }
 });
 
+console.log('================================================================');
+console.log('56. EXÉCUTION DU CORRECTIF A1 — EXCLUSION DES PHOTOGRAPHIES ARCHIVED DE LA COMPARAISON');
+console.log('================================================================');
+const suite56 = runArchivedComparisonExclusionTests();
+console.log(`Résultats Correctif A1 : ${suite56.summary.passed} / ${suite56.summary.total} réussis.`);
+suite56.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [A1 Compare] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -823,7 +837,8 @@ const totalFailed =
   suite52.summary.failed +
   suite53.summary.failed +
   suite54.summary.failed +
-  suite55.summary.failed;
+  suite55.summary.failed +
+  suite56.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -879,7 +894,8 @@ const totalCount =
   suite52.summary.total +
   suite53.summary.total +
   suite54.summary.total +
-  suite55.summary.total;
+  suite55.summary.total +
+  suite56.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
