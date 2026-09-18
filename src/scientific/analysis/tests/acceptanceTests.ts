@@ -816,6 +816,36 @@ export function runAllAcceptanceTests(): {
     });
   }
 
+  // --------------------------------------------------------------------------
+  // TEST 31 : Les adaptations scalaires sont détectées pour toutes les familles
+  // --------------------------------------------------------------------------
+  {
+    const trial = createMockTrial('T31');
+    trial.config.familyConfigs.PERSOZ = {
+      familyId: 'PERSOZ',
+      enabled: true,
+      countConfig: createCountConfiguration('PERSOZ', 4, ruleSet, { justification: 'Série complémentaire Persoz' })
+    };
+    trial.config.familyConfigs.ADHESION = {
+      familyId: 'ADHESION',
+      enabled: true,
+      countConfig: createCountConfiguration('ADHESION', 3, ruleSet, { justification: 'Adaptation labo 3 mesures' })
+    };
+    const anomalies = detectTrialAnomalies(trial, ruleSet);
+    const persoz = anomalies.find((a) => a.code === 'PERSOZ_ADAPTATION_JUSTIFIED');
+    const adhesion = anomalies.find((a) => a.code === 'ADHESION_ADAPTATION_JUSTIFIED');
+    const passed = persoz?.severity === 'INFO' && adhesion?.severity === 'INFO';
+    results.push({
+      id: 31,
+      code: 'TEST_31_ALL_SCALAR_ADAPTATIONS_DETECTED',
+      title: 'Adaptations Persoz et adhérence détectées par le moteur d’anomalies',
+      category: 'ANOMALIES',
+      passed,
+      expected: 'PERSOZ_ADAPTATION_JUSTIFIED et ADHESION_ADAPTATION_JUSTIFIED en INFO',
+      actual: `Persoz: ${persoz?.severity ?? 'absente'} | Adhérence: ${adhesion?.severity ?? 'absente'}`
+    });
+  }
+
   const passedCount = results.filter((r) => r.passed).length;
   const totalCount = results.length;
 
