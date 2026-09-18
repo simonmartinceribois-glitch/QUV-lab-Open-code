@@ -56,6 +56,13 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
       retentionThresholdPercent: 50
     },
 
+    preExposureConditioning: {
+      requiredHours: 168,
+      standardReference: 'NF EN 927-6:2018',
+      clause: '§6.3.3',
+      rationale: 'Après application du système de peinture, vieillissement des panneaux pendant environ 7 jours à (20 ± 2) °C et (65 ± 5) % HR avant les examens initiaux.'
+    },
+
     measurementConfigurations: {
       COLOR: {
         familyId: 'COLOR',
