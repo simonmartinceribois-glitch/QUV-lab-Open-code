@@ -91,7 +91,7 @@ export function getApplicableGridSpacing(
   coatingThicknessMicrons?: number | null,
   isWoodOrSoftSubstrate: boolean = true
 ): {
-  gridSpacingMm: number;
+  gridSpacingMm: number | null;
   cutsCount: number;
   thicknessCategory: string;
   rationale: string;
