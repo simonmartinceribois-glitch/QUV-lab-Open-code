@@ -1,19 +1,23 @@
 /**
- * QUV-Lab — ÉVALUATEURS DE CRITÈRES NF EN 927-2:2022 & INFIPERF / FCBA (P5)
+ * QUV-Lab — ÉVALUATEURS DE CRITÈRES NF EN 927-2 (référentiel de calcul 2014,
+ * HISTORICAL_TRANSITIONAL) & INFIPERF / FCBA (P5)
  *
  * Vérifie :
- *   T1  — Séparation des couches : preparation sans calcul, calculations sans
- *        seuil, evaluator qui orchestre.
+ *   T1  — Séparation des couches : preparation (mapping cotation adhérence) sans
+ *        calcul, calculations sans seuil, evaluator qui orchestre, seuils
+ *        portés par la couche requirements.
  *   T2  — Jalon C12 : cycle 12 / 2016 h ; C1..C11 et T0 exclus.
- *   T3  — Catégorie Stable : seuils NF EN 927-2:2022 (Blistering 0,3 |
- *        Cracking 0,7 | Flaking 0,3 | Adhesion 1,0).
- *   T4  — Adhérence : BLOCAGE Cas B documenté → INSUFFICIENT_DATA (aucune force
- *        en MPa inventée, aucune conversion de classe ISO 2409).
- *   T5  — Statuts : NOT_APPLICABLE pour catégorie non documentée
- *        (Semi-stable / Non-stable) ; INSUFFICIENT_DATA pour données
- *        manquantes (jalon absent, éprouvette absente).
- *   T6  — totalValueCheck : NOT_APPLICABLE (règles 7/12/19 et 2/3/4 jamais
- *        réintroduites) ; aucun verdict combiné (hasGlobalVerdict: false).
+ *   T3  — Référentiel de calcul 2014 : les TROIS catégories sont documentées
+ *        (STABLE / SEMI_STABLE / NON_STABLE) avec seuils ≤ par critère, sum12
+ *        max (7/12/19) et écart max (2/3/4) ; opérateur ≤ partout.
+ *   T4  — Adhérence : cotation OBSERVATIONS visuelles (perCategoryMaxRating
+ *        CROSS_CUT_ADHESION, repli ADHESION), échelle 0..5, comparaison ≤ ;
+ *        aucune force en MPa inventée, aucune conversion de classe ISO 2409.
+ *   T5  — Statuts : INSUFFICIENT_DATA (jalon absent, éprouvette manquante,
+ *        portée bloquée) ; INVALID_TEST si écart > 4 ; comparaisons pures.
+ *   T6  — totalValueCheck = APPLIED_SEQUENTIAL_2014 (règles riches 7/12/19 +
+ *        2/3/4 réintroduites EXCLUSIVEMENT sous statut HISTORICAL_TRANSITIONAL),
+ *        classification portée, aucun verdict combiné (hasGlobalVerdict: false).
  *   T7  — INFIPERF indépendant : seuil lu depuis le RuleSet, FAVORABLE /
  *        DEFAVORABLE au seuil, NOT_APPLICABLE sans seuil, INSUFFICIENT_DATA
  *        sans données. Indépendance NF/INFIPERF : FAVORABLE + DEFAVORABLE.
@@ -28,27 +32,59 @@
  *         (FAVORABLE + DEFAVORABLE + VIGILANCE + ANALYSIS), aucun score global.
  *   T13 — Verrou jalon C12 (correctif audit, P2) : cycle 12 + 2016 h + actif ;
  *         jalon absent / INACTIVE / mauvais cycle / mauvaise durée exclus.
- *   T14 — Traçabilité P1/P3 : statut « À DÉFINIR / À VALIDER SCIENTIFIQUEMENT »
- *         partagé, emplacements null jamais inventés, document INFIPERF null.
+ *   T14 — Traçabilité P1/P3 : référence de calcul 2014 en statut
+ *         HISTORICAL_TRANSITIONAL, traçabilité documentaire 2022 CONSERVÉE
+ *         (non utilisée pour le calcul), emplacements null jamais inventés,
+ *         document INFIPERF null.
  *   T15 — Agrégation par système : multi-lots sans sélection refusés, aucun
  *         mélange inter-systèmes, batchId requis pour cibler un système.
  *   T16 — Données incomplètes INFIPERF : une seule valeur valide → moyenne
  *         calculée (règle S0 §10), valeur nulle traitée comme absente.
  *   T17 — Architecture (§15) : criteriaAdhesion (délai ISO 2409) indépendant
- *         de l'adhérence NF EN 927-2 (force MPa), aucun import croisé.
+ *         de l'adhérence NF EN 927-2 (cotation observations), aucun import croisé.
+ *   T18 — Classification séquentielle 2014 (5 jeux d'intégration) : Stable,
+ *         Semi-stable, Semi-stable limite (somme 12,0), Non-stable, Aucune
+ *         catégorie ; validation des sum12/écarts et bornes 4,0 → VALID,
+ *         4,1 → INVALID_TEST.
+ *   T19 — Bornes numériques : sommes 7/12/19 (7,0 PASS / 7,1 FAIL…), écarts
+ *         2/3/4 (4,0 PASS / 4,1 FAIL…), égalité aux seuils par critère (≤).
+ *   T20 — VERROU CONTRAT (§16/§24) : immutabilité des exigences 2014 — les
+ *         TROIS catégories détaillées champ à champ (4 seuils + maxSum +
+ *         maxDifference + operator + documented), ordre de classification
+ *         exact, limite de validité dérivée de NON_STABLE, et frontières
+ *         seuil−ε / seuil / seuil+ε pour chaque seuil (0,3 ; 0,7 ; 1,0 ;
+ *         1,7 ; 3,0 ; 1,3). Échoue si une valeur du contrat est modifiée,
+ *         même si les autres tests passent.
  *
  * Aucun accès à RAW/COMPUTED : évaluations en lecture seule.
  * Aucun pixel des moteurs (gloss/adhesion/observations) modifié.
+ * Aucun résultat NF produit n'est une déclaration de conformité à la NF EN 927-2.
  */
 
 import {
   getDefaultScientificRuleSet
 } from '../ruleSet';
 import { Trial } from '../../types/trial';
-import { evaluateNf9272Criteria, compareNf9272Mean } from '../criteria/en927/en9272Evaluator';
+import {
+  evaluateNf9272Criteria,
+  compareNf9272Mean,
+  compareNf9272Sum,
+  compareNf9272Difference,
+  classifyNf9272Sequence
+} from '../criteria/en927/en9272Evaluator';
 import { findNf9272Jalon, prepareNf9272DefectData, prepareNf9272AdhesionData } from '../criteria/en927/en9272Preparation';
 import { defectMean, specimenAdhesionMean, systemAdhesionMean } from '../criteria/en927/en9272Calculations';
-import { getNf9272CategoryRequirements } from '../criteria/en927/en9272Requirements';
+import {
+  getNf9272CategoryRequirements,
+  NF9272_STABLE_REQUIREMENTS,
+  NF9272_SEMI_STABLE_REQUIREMENTS,
+  NF9272_NON_STABLE_REQUIREMENTS,
+  NF9272_CLASSIFICATION_ORDER,
+  NF9272_CALCULATION_STATUS,
+  NF9272_EDITION_2022,
+  NF9272_DOCUMENT_2022,
+  NF9272_TEST_VALIDITY_MAX_DIFFERENCE
+} from '../criteria/en927/en9272Requirements';
 import {
   evaluateInfiperfGlossRetention,
   compareInfiperfRetention,
@@ -239,12 +275,32 @@ export function runNfEn9272InfiperfTests(): {
     };
   };
 
-  const seedFullDefects = (trial: Trial, ratings: { blistering?: number; cracking?: number; flaking?: number }) => {
+  const seedFullDefects = (trial: Trial, ratings: { blistering?: number; cracking?: number; flaking?: number; adhesion?: number }) => {
     for (const panel of [P_E1, P_E2, P_E3]) {
       seedObservation(trial, C12_STAGE_ID, panel.id, {
         BLISTERING: ratings.blistering ?? 0,
         CRACKING: ratings.cracking ?? 0,
-        FLAKING: ratings.flaking ?? 0
+        FLAKING: ratings.flaking ?? 0,
+        CROSS_CUT_ADHESION: ratings.adhesion ?? 0
+      });
+    }
+  };
+
+  /**
+   * Sème un jeu de 12 COTATIONS INDIVIDUELLES (4 critères × 3 éprouvettes E1/E2/E3)
+   * directement exploitables par le classement séquentiel 2014 (sum12, écart).
+   */
+  const seedDataset = (
+    trial: Trial,
+    data: { BLISTERING: number[]; CRACKING: number[]; FLAKING: number[]; CROSS_CUT_ADHESION: number[] }
+  ) => {
+    for (let i = 0; i < 3; i += 1) {
+      const panel = [P_E1, P_E2, P_E3][i];
+      seedObservation(trial, C12_STAGE_ID, panel.id, {
+        BLISTERING: data.BLISTERING[i],
+        CRACKING: data.CRACKING[i],
+        FLAKING: data.FLAKING[i],
+        CROSS_CUT_ADHESION: data.CROSS_CUT_ADHESION[i]
       });
     }
   };
@@ -253,20 +309,31 @@ export function runNfEn9272InfiperfTests(): {
   // T1 — SÉPARATION DES COUCHES
   // ----------------------------------------------------------------------------
   {
-    // Preparation : aucun calcul présent dans les fonctions de préparation.
-    const adhesionPrepared = prepareNf9272AdhesionData(createTrial(), { id: C12_STAGE_ID, cycleIndex: 12, scheduledExposureHours: 2016 } as unknown as Trial['stages'][number]);
+    // Preparation : mapping pur de la cotation d'adhérence depuis les observations
+    // visuelles (perCategoryMaxRating CROSS_CUT_ADHESION) — AUCUN calcul ici.
+    const trialPrep = createTrial();
+    seedObservation(trialPrep, C12_STAGE_ID, P_E1.id, { CROSS_CUT_ADHESION: 1.2, BLISTERING: 0 });
+    seedObservation(trialPrep, C12_STAGE_ID, P_E2.id, { CROSS_CUT_ADHESION: 0.8, BLISTERING: 0 });
+    seedObservation(trialPrep, C12_STAGE_ID, P_E3.id, { CROSS_CUT_ADHESION: 1.0, BLISTERING: 0 });
+    const adhesionPrepared = prepareNf9272AdhesionData(trialPrep, {
+      id: C12_STAGE_ID,
+      cycleIndex: 12,
+      scheduledExposureHours: 2016
+    } as unknown as Trial['stages'][number]);
     const prepIsPure =
-      typeof adhesionPrepared.available === 'boolean' &&
-      adhesionPrepared.available === false &&
-      adhesionPrepared.reason === 'FORCE_MEASURES_ABSENT';
+      adhesionPrepared.available === true &&
+      adhesionPrepared.source === 'OBSERVATIONS_RATING' &&
+      adhesionPrepared.specimens.length === 3 &&
+      adhesionPrepared.specimens.every((s) => typeof s.value === 'number' && s.value >= 0 && s.value <= 5) &&
+      adhesionPrepared.stageId === C12_STAGE_ID;
 
     record(
       1,
-      'T1 Adaptation adhérence : préparation signale le BLOCAGE Cas B sans fabriquer de donnée',
+      'T1 Adaptation adhérence : la préparation recopie la cotation observations (CROSS_CUT_ADHESION) sans calculer',
       'CRITERE_SEPARATION',
       prepIsPure,
-      'available=false, reason=FORCE_MEASURES_ABSENT',
-      `available=${String(adhesionPrepared.available)}, reason=${adhesionPrepared.reason}`
+      'available=true, source=OBSERVATIONS_RATING, 3 éprouvettes, valeurs 0..5',
+      `available=${String(adhesionPrepared.available)}, source=${adhesionPrepared.source}, spec=${adhesionPrepared.specimens.length}, values=${adhesionPrepared.specimens.map((s) => s.value).join(',')}`
     );
   }
 
@@ -307,41 +374,59 @@ export function runNfEn9272InfiperfTests(): {
   }
 
   // ----------------------------------------------------------------------------
-  // T3 — CATÉGORIE STABLE : SEUILS DOCUMENTÉS
+  // T3 — RÉFÉRENTIEL DE CALCUL 2014 : TROIS CATÉGORIES DOCUMENTÉES + SEUILS
   // ----------------------------------------------------------------------------
   {
     const stable = getNf9272CategoryRequirements('STABLE');
+    const semi = getNf9272CategoryRequirements('SEMI_STABLE');
+    const non = getNf9272CategoryRequirements('NON_STABLE');
     const ok =
       stable.documented &&
+      semi.documented &&
+      non.documented &&
       stable.criteria.BLISTERING?.threshold === 0.3 &&
       stable.criteria.CRACKING?.threshold === 0.7 &&
       stable.criteria.FLAKING?.threshold === 0.3 &&
-      stable.criteria.ADHESION?.threshold === 1.0;
+      stable.criteria.ADHESION?.threshold === 1.0 &&
+      stable.maxSum === 7 &&
+      stable.maxDifference === 2;
 
     record(
       4,
-      'T3 Seuils catégorie Stable (NF EN 927-2:2022) : 0,3 / 0,7 / 0,3 / 1,0',
-      'EXIGENCES_STABLE',
+      'T3 Référentiel 2014 : 3 catégories documentées, Stable 0,3/0,7/0,3/1,0, somme 12 ≤ 7, écart ≤ 2',
+      'EXIGENCES_2014',
       ok,
-      'BLISTERING 0,3 | CRACKING 0,7 | FLAKING 0,3 | ADHESION 1,0',
-      `B=${stable.criteria.BLISTERING?.threshold}, C=${stable.criteria.CRACKING?.threshold}, F=${stable.criteria.FLAKING?.threshold}, A=${stable.criteria.ADHESION?.threshold}`
+      'B 0,3 | C 0,7 | F 0,3 | A 1,0 ; maxSum=7 ; maxDiff=2',
+      `B=${stable.criteria.BLISTERING?.threshold}, C=${stable.criteria.CRACKING?.threshold}, F=${stable.criteria.FLAKING?.threshold}, A=${stable.criteria.ADHESION?.threshold}, maxSum=${stable.maxSum}, maxDiff=${stable.maxDifference}`
     );
 
-    const stableDirectionOk =
+    // Sens de comparaison : exclusivement ≤ (défauts ET adhérence cotée).
+    const comparisonsOk =
       stable.criteria.BLISTERING?.comparison === 'LESS_OR_EQUAL' &&
       stable.criteria.CRACKING?.comparison === 'LESS_OR_EQUAL' &&
       stable.criteria.FLAKING?.comparison === 'LESS_OR_EQUAL' &&
-      stable.criteria.ADHESION?.comparison === 'GREATER_OR_EQUAL';
+      stable.criteria.ADHESION?.comparison === 'LESS_OR_EQUAL';
+    const categories2014Ok =
+      semi.maxSum === 12 &&
+      semi.maxDifference === 3 &&
+      semi.criteria.CRACKING?.threshold === 1.7 &&
+      semi.criteria.FLAKING?.threshold === 0.7 &&
+      non.maxSum === 19 &&
+      non.maxDifference === 4 &&
+      non.criteria.CRACKING?.threshold === 3.0 &&
+      non.criteria.FLAKING?.threshold === 1.3 &&
+      comparisonsOk;
     record(
       5,
-      'T3 Sens de comparaison Stable : défauts ≤ seuil, adhérence ≥ seuil',
-      'EXIGENCES_STABLE',
-      stableDirectionOk,
-      'défauts LES_OR_EQUAL, adhérence GREATER_OR_EQUAL',
-      `B=${stable.criteria.BLISTERING?.comparison}, A=${stable.criteria.ADHESION?.comparison}`
+      'T3 Référentiel 2014 : Semi-stable (0,7/1,7/0,7/1,0 ; ≤12 ; ≤3) et Non-stable (1,0/3,0/1,3/1,0 ; ≤19 ; ≤4), opérateur ≤ partout',
+      'EXIGENCES_2014',
+      categories2014Ok,
+      'SEMI maxSum=12/maxDiff=3 ; NON maxSum=19/maxDiff=4 ; 4 × LESS_OR_EQUAL',
+      `SEMI=${semi.maxSum}/${semi.maxDifference}, NON=${non.maxSum}/${non.maxDifference}, B=${stable.criteria.BLISTERING?.comparison}, A=${stable.criteria.ADHESION?.comparison}`
     );
 
-    // Fonctions pures de calcul.
+    // Fonctions pures de calcul (conservées pour compatibilité, non utilisées
+    // par le classement 2014 pour la somme/écart).
     const meanB = defectMean([0.2, 0.3, 0.5]); // 0.333… → arrondi 1 décimale → 0.3
     const meanBNull = defectMean([]); // aucune valeur → null (aucune donnée fabriquée)
     const oneDecimal = specimenAdhesionMean([1.4, 1.5]); // 1.45 → arrondi 1 décimale → 1.5
@@ -356,105 +441,139 @@ export function runNfEn9272InfiperfTests(): {
   }
 
   // ----------------------------------------------------------------------------
-  // T4 — ADHÉRENCE : BLOCAGE CAS B
+  // T4 — ADHÉRENCE : COTATION OBSERVATIONS (CROSS_CUT_ADHESION), COMPARAISON ≤
   // ----------------------------------------------------------------------------
   {
+    // Adhérence cotée via les observations visuelles (0,5 ≤ 1,0) → FAVORABLE.
     const trial = createTrial();
-    seedFullDefects(trial, {});
+    seedFullDefects(trial, { adhesion: 0.5 });
     const evaluated = evaluateNf9272Criteria(trial);
     const adhesion = evaluated.results.ADHESION;
 
     record(
       7,
-      'T4 Adhérence NF EN 927-2 : INSUFFICIENT_DATA documenté (BLOCAGE Cas B, aucune force MPa)',
-      'ADHERENCE_BLOCKER',
-      adhesion.status === 'INSUFFICIENT_DATA' &&
+      'T4 Adhérence cotée observations (CROSS_CUT_ADHESION 0,5 ≤ 1,0) : FAVORABLE, source OBSERVATIONS_RATING, aucune force MPa',
+      'ADHERENCE_COTATION',
+      adhesion.status === 'FAVORABLE' &&
         adhesion.threshold === 1.0 &&
-        adhesion.value === null &&
-        adhesion.message.includes('BLOCAGE'),
-      'status=INSUFFICIENT_DATA, threshold=1.0, value=null, message BLOCAGE documenté',
-      `status=${adhesion.status}, threshold=${String(adhesion.threshold)}, value=${String(adhesion.value)}, msg=${adhesion.message.slice(0, 60)}`
+        adhesion.operator === 'LESS_OR_EQUAL' &&
+        adhesion.value !== null &&
+        adhesion.value <= 1.0 &&
+        evaluated.testValidity === 'VALID',
+      'status=FAVORABLE, threshold=1,0, value=0,5, opérateur ≤, source=cotation observations',
+      `status=${adhesion.status}, threshold=${String(adhesion.threshold)}, value=${String(adhesion.value)}, testValidity=${evaluated.testValidity}`
     );
 
-    const noConversion = !adhesion.message.toLowerCase().includes('mpa')
-      ? true
-      : adhesion.message.includes('en MPa n’)est réalisée') || adhesion.message.includes('aucune conversion');
+    // Aucune conversion : le pipeline reste qualitatif (échelle 0..5).
+    const trialHigh = createTrial();
+    seedFullDefects(trialHigh, { adhesion: 1.2 }); // cotée 1,2 > seuil 1,0
+    const adhesionHigh = evaluateNf9272Criteria(trialHigh).results.ADHESION;
     record(
       8,
-      'T4 Adhérence : aucune conversion de classe ISO 2409 vers une force en MPa',
-      'ADHERENCE_BLOCKER',
-      noConversion && adhesion.message.includes('ISO 2409'),
-      'message explicite : quadrillages ISO 2409 sans force; pas de conversion',
-      adhesion.message.slice(0, 100)
+      'T4 Adhérence cotée 1,2 > seuil 1,0 : DEFAVORABLE (échelle 0..5, pas de force, pas de conversion)',
+      'ADHERENCE_COTATION',
+      adhesionHigh.status === 'DEFAVORABLE' &&
+        adhesionHigh.pass === false &&
+        adhesionHigh.operator === 'LESS_OR_EQUAL',
+      'status=DEFAVORABLE, value=1,2 > 1,0, opérateur ≤',
+      `status=${adhesionHigh.status}, pass=${String(adhesionHigh.pass)}, value=${String(adhesionHigh.value)}`
     );
   }
 
   // ----------------------------------------------------------------------------
-  // T5 — STATUTS NOT_APPLICABLE / INSUFFICIENT_DATA
+  // T5 — STATUTS & CLASSIFICATION : LA CATÉGORIE EST UN RÉSULTAT, PLUS UN PARAMÈTRE
   // ----------------------------------------------------------------------------
   {
-    // Semi-stable / Non-stable : non documentées → NOT_APPLICABLE.
-    for (const category of ['SEMI_STABLE', 'NON_STABLE'] as const) {
-      const trial = createTrial();
-      seedFullDefects(trial, {});
-      const evaluated = evaluateNf9272Criteria(trial, { category });
-      const allNotApplicable =
-        evaluated.results.BLISTERING.status === 'NOT_APPLICABLE' &&
-        evaluated.results.CRACKING.status === 'NOT_APPLICABLE' &&
-        evaluated.results.FLAKING.status === 'NOT_APPLICABLE' &&
-        evaluated.results.ADHESION.status === 'NOT_APPLICABLE';
+    // La catégorie n'est plus un paramètre d'entrée : elle est le RÉSULTAT de la
+    // classification. Une évaluation complète produit une classification et un
+    // statut de calcul HISTORICAL_TRANSITIONAL.
+    const trial = createTrial();
+    seedFullDefects(trial, {});
+    const evaluated = evaluateNf9272Criteria(trial);
+    const classificationOk =
+      evaluated.classification === 'STABLE' &&
+      evaluated.testValidity === 'VALID' &&
+      evaluated.status === NF9272_CALCULATION_STATUS &&
+      evaluated.edition === '2014' &&
+      evaluated.hasGlobalVerdict === false &&
+      evaluated.results.BLISTERING.status === 'FAVORABLE' &&
+      evaluated.results.CRACKING.status === 'FAVORABLE' &&
+      evaluated.results.FLAKING.status === 'FAVORABLE' &&
+      evaluated.results.ADHESION.status === 'FAVORABLE';
+    record(
+      9,
+      'T5 Classification produite : données nulles → STABLE, testValidity=VALID, statut HISTORICAL_TRANSITIONAL, 4 critères FAVORABLE',
+      'STATUTS',
+      classificationOk,
+      'classification=STABLE, testValidity=VALID, status=HISTORICAL_TRANSITIONAL, hasGlobalVerdict=false',
+      `classification=${String(evaluated.classification)}, testValidity=${evaluated.testValidity}, status=${evaluated.status}, B=${evaluated.results.BLISTERING.status}, A=${evaluated.results.ADHESION.status}`
+    );
 
-      results.push({
-        id: 9 + (category === 'SEMI_STABLE' ? 0 : 1),
-        name: `T5 Catégorie ${category} (non documentée) : tous critères NOT_APPLICABLE`,
-        category: 'STATUTS',
-        passed: allNotApplicable,
-        expected: '4 × NOT_APPLICABLE (critère 2022 non documenté)',
-        actual: `B=${evaluated.results.BLISTERING.status}, C=${evaluated.results.CRACKING.status}, F=${evaluated.results.FLAKING.status}, A=${evaluated.results.ADHESION.status}`
-      });
-    }
+    // NO_CATEGORY_MET est un résultat normal d'essai VALID, jamais un échec global.
+    const trialNoCat = createTrial();
+    seedDataset(trialNoCat, {
+      BLISTERING: [0.7, 0.7, 0.7],
+      CRACKING: [0.0, 1.5, 1.5],
+      FLAKING: [0.7, 0.7, 0.8],
+      CROSS_CUT_ADHESION: [3.0, 3.0, 2.9]
+    });
+    const noCat = evaluateNf9272Criteria(trialNoCat);
+    record(
+      10,
+      'T5 NO_CATEGORY_MET : essai VALID sans catégorie satisfaite (résultat normal, pas un échec global)',
+      'STATUTS',
+      noCat.testValidity === 'VALID' &&
+        noCat.classification === 'NO_CATEGORY_MET' &&
+        noCat.hasGlobalVerdict === false &&
+        noCat.results.ADHESION.threshold !== null,
+      'testValidity=VALID, classification=NO_CATEGORY_MET, hasGlobalVerdict=false',
+      `testValidity=${noCat.testValidity}, classification=${String(noCat.classification)}, A=${noCat.results.ADHESION.status}`
+    );
 
-    // Éprouvette manquante → INSUFFICIENT_DATA.
+    // Éprouvette manquante → INSUFFICIENT_DATA (testValidity) + classification null.
     {
       const trial = createTrial();
-      seedObservation(trial, C12_STAGE_ID, P_E1.id, { BLISTERING: 0.2, CRACKING: 0.1, FLAKING: 0.1 });
-      seedObservation(trial, C12_STAGE_ID, P_E2.id, { BLISTERING: 0.3, CRACKING: 0.2, FLAKING: 0.2 });
+      seedObservation(trial, C12_STAGE_ID, P_E1.id, { BLISTERING: 0.2, CRACKING: 0.1, FLAKING: 0.1, CROSS_CUT_ADHESION: 0 });
+      seedObservation(trial, C12_STAGE_ID, P_E2.id, { BLISTERING: 0.3, CRACKING: 0.2, FLAKING: 0.2, CROSS_CUT_ADHESION: 0 });
       // E3 absente.
       const evaluated = evaluateNf9272Criteria(trial);
       const insufficient =
+        evaluated.testValidity === 'INSUFFICIENT_DATA' &&
+        evaluated.classification === null &&
         evaluated.results.BLISTERING.status === 'INSUFFICIENT_DATA' &&
         evaluated.results.CRACKING.status === 'INSUFFICIENT_DATA' &&
-        evaluated.results.FLAKING.status === 'INSUFFICIENT_DATA';
+        evaluated.results.FLAKING.status === 'INSUFFICIENT_DATA' &&
+        evaluated.results.ADHESION.status === 'INSUFFICIENT_DATA';
 
       record(
         11,
-        'T5 Éprouvette exposée E3 absente : critères défauts INSUFFICIENT_DATA (3 éprouvettes requises)',
+        'T5 Éprouvette exposée E3 absente : testValidity=INSUFFICIENT_DATA, classification null, 4 critères INSUFFICIENT_DATA',
         'STATUTS',
         insufficient,
-        '3 × INSUFFICIENT_DATA',
-        `B=${evaluated.results.BLISTERING.status}, C=${evaluated.results.CRACKING.status}, F=${evaluated.results.FLAKING.status}`
+        'testValidity=INSUFFICIENT_DATA, classification=null, 4 × INSUFFICIENT_DATA',
+        `testValidity=${evaluated.testValidity}, classification=${String(evaluated.classification)}, B=${evaluated.results.BLISTERING.status}, C=${evaluated.results.CRACKING.status}, F=${evaluated.results.FLAKING.status}, A=${evaluated.results.ADHESION.status}`
       );
     }
 
-    // Lemme : compareNf9272Mean (égalité au seuil → FAVORABLE, dépassement → DEFAVORABLE).
+    // Lemmes purs : comparaisons ≤ (égalité → PASS, dépassement infime → FAIL).
     {
-      const eqB = compareNf9272Mean('LESS_OR_EQUAL', 0.3, 0.3);
-      const overB = compareNf9272Mean('LESS_OR_EQUAL', 0.4, 0.3);
-      const eqA = compareNf9272Mean('GREATER_OR_EQUAL', 1.0, 1.0);
-      const underA = compareNf9272Mean('GREATER_OR_EQUAL', 0.9, 1.0);
+      const eqB = compareNf9272Mean('LESS_OR_EQUAL', 0.7, 0.7);
+      const overB = compareNf9272Mean('LESS_OR_EQUAL', 0.7001, 0.7);
+      const eqA = compareNf9272Mean('LESS_OR_EQUAL', 1.0, 1.0);
+      const underA = compareNf9272Mean('LESS_OR_EQUAL', 1.1, 1.0);
       record(
         12,
-        'T3 Égalité seuil → FAVORABLE ; dépassement → DEFAVORABLE ; adhérence sous seuil → DEFAVORABLE',
+        'T5 Lemmes comparaison ≤ : égalité → FAVORABLE, dépassement (même infime) → DEFAVORABLE',
         'STATUTS',
         eqB === 'FAVORABLE' && overB === 'DEFAVORABLE' && eqA === 'FAVORABLE' && underA === 'DEFAVORABLE',
-        'B=0.3→FAV, B=0.4→DEFA, A=1.0→FAV, A=0.9→DEFA',
-        `eqB=${eqB}, overB=${overB}, eqA=${eqA}, underA=${underA}`
+        '0,7≤0,7→FAV ; 0,7001>0,7→DEFA ; 1,0≤1,0→FAV ; 1,1>1,0→DEFA',
+        `0.7/0.7→${eqB}, 0.7001/0.7→${overB}, 1.0/1.0→${eqA}, 1.1/1.0→${underA}`
       );
     }
   }
 
   // ----------------------------------------------------------------------------
-  // T6 — PAS DE VERDICT COMBINÉ, totalValueCheck NOT_APPLICABLE
+  // T6 — PAS DE VERDICT COMBINÉ ; totalValueCheck APPLIQUÉ (SEQUENTIAL_2014)
   // ----------------------------------------------------------------------------
   {
     const trial = createTrial();
@@ -463,13 +582,16 @@ export function runNfEn9272InfiperfTests(): {
     const statuses = Object.values(evaluated.results).map((r) => r.status).join(',');
     record(
       13,
-      'T6 Évaluation NF EN 927-2 : résultats par critère, sans verdict global, totalValueCheck=NOT_APPLICABLE',
+      'T6 Évaluation NF : sum12/écart calculés, totalValueCheck=APPLIED_SEQUENTIAL_2014, pas de verdict global',
       'VERDICT_COMBINE',
       evaluated.hasGlobalVerdict === false &&
-        evaluated.totalValueCheck === 'NOT_APPLICABLE' &&
+        evaluated.totalValueCheck === 'APPLIED_SEQUENTIAL_2014' &&
+        evaluated.sum12 === 0 &&
+        evaluated.maxDifference === 0 &&
+        evaluated.classification === 'STABLE' &&
         evaluated.complementaryNotice.length > 0,
-      'hasGlobalVerdict=false, totalValueCheck=NOT_APPLICABLE, notice COMPLEMENTARY présente',
-      `hasGlobalVerdict=${String(evaluated.hasGlobalVerdict)}, totalValueCheck=${evaluated.totalValueCheck}, statuses=${statuses}`
+      'hasGlobalVerdict=false, totalValueCheck=APPLIED_SEQUENTIAL_2014, sum12=0, maxDiff=0, classification=STABLE',
+      `hasGlobalVerdict=${String(evaluated.hasGlobalVerdict)}, totalValueCheck=${evaluated.totalValueCheck}, sum12=${String(evaluated.sum12)}, maxDiff=${String(evaluated.maxDifference)}, classification=${String(evaluated.classification)}, statuses=${statuses}`
     );
 
     const allStatusesValid = statuses.split(',').every((s) =>
@@ -901,9 +1023,9 @@ export function runNfEn9272InfiperfTests(): {
     seedColor(trial, C12_STAGE_ID, P_E1.id, { deltaL: 1.2, deltaA: 0.3, deltaB: -0.5, deltaE: 1.4 });
     seedColor(trial, C12_STAGE_ID, P_E2.id, { deltaL: 1.2, deltaA: 0.3, deltaB: -0.5, deltaE: 1.4 });
     seedColor(trial, C12_STAGE_ID, P_E3.id, { deltaL: 1.2, deltaA: 0.3, deltaB: -0.5, deltaE: 1.4 }); // Couleur → ANALYSIS.
-    seedObservation(trial, C12_STAGE_ID, P_E1.id, { GENERAL_APPEARANCE: 2.0, BLISTERING: 0 });
-    seedObservation(trial, C12_STAGE_ID, P_E2.id, { GENERAL_APPEARANCE: 2.0, BLISTERING: 0 });
-    seedObservation(trial, C12_STAGE_ID, P_E3.id, { GENERAL_APPEARANCE: 2.0, BLISTERING: 0 }); // Aspect 2,0 < 2,5 → NO_SIGNAL.
+    seedObservation(trial, C12_STAGE_ID, P_E1.id, { GENERAL_APPEARANCE: 2.0, BLISTERING: 0.1, CRACKING: 0.1, FLAKING: 0.1, CROSS_CUT_ADHESION: 0 });
+    seedObservation(trial, C12_STAGE_ID, P_E2.id, { GENERAL_APPEARANCE: 2.0, BLISTERING: 0.1, CRACKING: 0.1, FLAKING: 0.1, CROSS_CUT_ADHESION: 0 });
+    seedObservation(trial, C12_STAGE_ID, P_E3.id, { GENERAL_APPEARANCE: 2.0, BLISTERING: 0.1, CRACKING: 0.1, FLAKING: 0.1, CROSS_CUT_ADHESION: 0 }); // Aspect 2,0 < 2,5 → NO_SIGNAL.
 
     const nf = evaluateNf9272Criteria(trial);
     const inf = evaluateInfiperfCriteria(trial, ruleSet, { stageId: C12_STAGE_ID });
@@ -1025,36 +1147,41 @@ export function runNfEn9272InfiperfTests(): {
       String(TRACEABILITY_STATUS_TO_BE_DEFINED)
     );
 
-    // NF : provenance du critère avec statut À DÉFINIR, emplacements null.
+    // NF : provenance du critère avec édition 2014 (calcul), statut À DÉFINIR,
+    // emplacements null. La traçabilité documentaire 2022 est CONSERVÉE mais
+    // jamais utilisée pour le calcul (migration dédiée).
     const stable = getNf9272CategoryRequirements('STABLE');
     const prov = stable.criteria.BLISTERING?.provenance;
     record(
       45,
-      'T14 NF provenance foncière : document=NF EN 927-2:2022, statut À DÉFINIR, section/paragraphe/tableau/page null',
+      'T14 NF provenance foncière : document=NF EN 927-2:2014 (calcul, HISTORICAL_TRANSITIONAL), 2022 conservé documentairement, emplacements null',
       'TRACABILITE',
       prov?.document === NF9272_DOCUMENT &&
-        prov?.edition === '2022' &&
+        prov?.document === 'NF EN 927-2:2014' &&
+        prov?.edition === '2014' &&
+        NF9272_EDITION_2022 === '2022' &&
+        NF9272_DOCUMENT_2022 === 'NF EN 927-2:2022' &&
         prov?.traceabilityStatus === NF9272_TRACEABILITY_STATUS &&
         prov?.reference === NF9272_REFERENCE &&
         prov?.section === null &&
         prov?.paragraph === null &&
         prov?.table === null &&
         prov?.page === null,
-      'document/document/edition renseignés, emplacements null, statut À DÉFINIR',
-      `document=${prov?.document}, edition=${prov?.edition}, section=${String(prov?.section)}, paragraph=${String(prov?.paragraph)}, table=${String(prov?.table)}, page=${String(prov?.page)}, statut=${prov?.traceabilityStatus}`
+      'document=NF EN 927-2:2014 (edition 2014), 2022 documentaire conservé, emplacements null, statut À DÉFINIR',
+      `document=${prov?.document}, edition=${prov?.edition}, 2022=${NF9272_DOCUMENT_2022}, section=${String(prov?.section)}, paragraph=${String(prov?.paragraph)}, table=${String(prov?.table)}, page=${String(prov?.page)}, statut=${prov?.traceabilityStatus}`
     );
 
     // NF : évaluation complète → provenance du résultat avec statut À DÉFINIR.
     const evalProv = evaluateNf9272Criteria(createTrial());
     record(
       46,
-      'T14 NF évaluation : provenance résultat avec document/statut À DÉFINIR, pas d’emplacement inventé',
+      'T14 NF évaluation : provenance résultat avec document 2014/statut À DÉFINIR, pas d’emplacement inventé',
       'TRACABILITE',
       evalProv.results.BLISTERING.provenance.document === NF9272_DOCUMENT &&
         evalProv.results.BLISTERING.provenance.traceabilityStatus === NF9272_TRACEABILITY_STATUS &&
         evalProv.results.BLISTERING.provenance.section === null &&
         evalProv.results.BLISTERING.provenance.page === null,
-      'provenance résultat = document NF EN 927-2:2022, statut À DÉFINIR, emplacement null',
+      'provenance résultat = document NF EN 927-2:2014, statut À DÉFINIR, emplacement null',
       `document=${evalProv.results.BLISTERING.provenance.document}, statut=${evalProv.results.BLISTERING.provenance.traceabilityStatus}, section=${String(evalProv.results.BLISTERING.provenance.section)}`
     );
 
@@ -1240,8 +1367,9 @@ export function runNfEn9272InfiperfTests(): {
   {
     // criteriaAdhesion = délai d'application avant essai (NF EN ISO 2409:2020),
     // verdict CONFORME/NON_CONFORME sur la condition de protocole. Indépendant
-    // de l'évaluation d'adhérence NF EN 927-2 (force en MPa) ; le critère NF
-    // n'importe pas cette couche et part de FORCE_MEASURES_ABSENT.
+    // de l'évaluation d'adhérence NF EN 927-2 (cotation observations 0..5) : le
+    // critère NF n'importe pas cette couche ; sans données, il répond
+    // INSUFFICIENT_DATA (jamais de force MPa inventée).
     const delay = evaluateAdhesionDelayCriterion({
       applicationDateTime: '2026-09-01T08:00:00Z',
       measurementDateTime: '2026-09-10T08:00:00Z',
@@ -1251,14 +1379,14 @@ export function runNfEn9272InfiperfTests(): {
 
     record(
       57,
-      'T17 §15 : criteriaAdhesion = condition de protocole ISO 2409 (délai), indépendant de l’évaluation NF 927-2',
+      'T17 §15 : criteriaAdhesion = condition de protocole ISO 2409 (délai), indépendant de l’évaluation NF 927-2 (cotation observations)',
       'ARCHITECTURE',
       delay.normativeReference === 'NF EN ISO 2409:2020' &&
         delay.origin === 'PROTOCOL_CONDITION' &&
         nfAdhesion.status === 'INSUFFICIENT_DATA' &&
-        nfAdhesion.message.includes('FORCE') &&
-        nfAdhesion.message.includes('aucune conversion'),
-      'délai ISO 2409 séparé ; adhérence NF force-métrique sans conversion ni donnée fabriquée',
+        nfAdhesion.message.toLocaleLowerCase('fr-FR').includes('données insuffisantes') &&
+        nfAdhesion.message.includes('Adhérence'),
+      'délai ISO 2409 séparé ; adhérence NF cotée observations, INSUFFICIENT_DATA sans données, aucune force inventée',
       `normativeReference=${delay.normativeReference}, verdict=${delay.verdict}, NF adhésion=${nfAdhesion.status}, message=${nfAdhesion.message}`
     );
 
@@ -1276,6 +1404,347 @@ export function runNfEn9272InfiperfTests(): {
       !en927EvaluatorSource.includes('criteriaAdhesion'),
       'aucun import de criteriaAdhesion dans en9272Evaluator.ts',
       `imports couplants=${en927EvaluatorSource.includes('criteriaAdhesion') ? 'OUI' : 'non'}`
+    );
+  }
+
+  // ----------------------------------------------------------------------------
+  // T18 — CLASSIFICATION SÉQUENTIELLE 2014 : 5 JEUX D'INTÉGRATION + INVALID_TEST
+  // ----------------------------------------------------------------------------
+  {
+    const close = (a: number | null, b: number) => a !== null && Math.abs(a - b) < 1e-9;
+
+    const evaluateDataset = (data: {
+      BLISTERING: number[];
+      CRACKING: number[];
+      FLAKING: number[];
+      CROSS_CUT_ADHESION: number[];
+    }) => {
+      const trial = createTrial();
+      seedDataset(trial, data);
+      return evaluateNf9272Criteria(trial);
+    };
+
+    // Jeu 1 — Stable : sum12 1,5 / écart 0,4 → STABLE.
+    {
+      const e = evaluateDataset({
+        BLISTERING: [0.1, 0.1, 0.1],
+        CRACKING: [0.4, 0.0, 0.2],
+        FLAKING: [0.1, 0.1, 0.1],
+        CROSS_CUT_ADHESION: [0.1, 0.0, 0.2]
+      });
+      record(
+        59,
+        'T18 Jeu Stable (sum12 1,5 / écart 0,4) : classification STABLE, sum12=1,5, maxDiff=0,4',
+        'CLASSIFICATION_2014',
+        e.testValidity === 'VALID' &&
+          e.classification === 'STABLE' &&
+          close(e.sum12, 1.5) &&
+          close(e.maxDifference, 0.4) &&
+          e.categoryChecks.STABLE.passed === true,
+        'STABLE, sum12=1.5, maxDiff=0.4, categoryChecks.STABLE.passed=true',
+        `testValidity=${e.testValidity}, classification=${String(e.classification)}, sum12=${String(e.sum12)}, maxDiff=${String(e.maxDifference)}`
+      );
+    }
+
+    // Jeu 2 — Semi-stable : sum12 6,0 / écart 1,2 → SEMI_STABLE.
+    {
+      const e = evaluateDataset({
+        BLISTERING: [0.5, 0.5, 0.5],
+        CRACKING: [1.3, 0.3, 0.3],
+        FLAKING: [0.5, 0.5, 0.5],
+        CROSS_CUT_ADHESION: [0.1, 0.5, 0.5]
+      });
+      record(
+        60,
+        'T18 Jeu Semi-stable (sum12 6,0 / écart 1,2) : SEMI_STABLE (échoue la catégorie Stable sur les moyennes)',
+        'CLASSIFICATION_2014',
+        e.testValidity === 'VALID' &&
+          e.classification === 'SEMI_STABLE' &&
+          close(e.sum12, 6.0) &&
+          close(e.maxDifference, 1.2),
+        'SEMI_STABLE, sum12=6.0, maxDiff=1.2',
+        `testValidity=${e.testValidity}, classification=${String(e.classification)}, sum12=${String(e.sum12)}, maxDiff=${String(e.maxDifference)}`
+      );
+    }
+
+    // Jeu 3 — Semi-stable LIMITE : sum12 12,0 / écart 1,0 → SEMI_STABLE (12,0 ≤ 12).
+    {
+      const e = evaluateDataset({
+        BLISTERING: [0.7, 0.7, 0.7],
+        CRACKING: [1.7, 1.7, 1.7],
+        FLAKING: [0.7, 0.7, 0.7],
+        CROSS_CUT_ADHESION: [0.9, 0.9, 0.9]
+      });
+      record(
+        61,
+        'T18 Jeu Semi-stable LIMITE (sum12 12,0 / écart 1,0) : SEMI_STABLE (l’égalité à la somme max passe)',
+        'CLASSIFICATION_2014',
+        e.testValidity === 'VALID' &&
+          e.classification === 'SEMI_STABLE' &&
+          close(e.sum12, 12.0) &&
+          close(e.maxDifference, 1.0) &&
+          e.categoryChecks.SEMI_STABLE.sum.passed === true,
+        'SEMI_STABLE, sum12=12.0 (≤12 → PASS), maxDiff=1.0',
+        `testValidity=${e.testValidity}, classification=${String(e.classification)}, sum12=${String(e.sum12)}, maxDiff=${String(e.maxDifference)}`
+      );
+    }
+
+    // Jeu 4 — Non-stable : sum12 13,5 / écart 3,0 → NON_STABLE.
+    {
+      const e = evaluateDataset({
+        BLISTERING: [0.7, 0.7, 0.7],
+        CRACKING: [3.0, 3.0, 3.0],
+        FLAKING: [0.7, 0.7, 0.7],
+        CROSS_CUT_ADHESION: [0.0, 0.3, 0.0]
+      });
+      record(
+        62,
+        'T18 Jeu Non-stable (sum12 13,5 / écart 3,0) : NON_STABLE (moyenne craquelage 3,0 > seuil Semi 1,7)',
+        'CLASSIFICATION_2014',
+        e.testValidity === 'VALID' &&
+          e.classification === 'NON_STABLE' &&
+          e.categoryChecks.NON_STABLE.passed === true &&
+          close(e.sum12, 13.5) &&
+          close(e.maxDifference, 3.0),
+        'NON_STABLE, sum12=13.5, maxDiff=3.0',
+        `testValidity=${e.testValidity}, classification=${String(e.classification)}, sum12=${String(e.sum12)}, maxDiff=${String(e.maxDifference)}`
+      );
+    }
+
+    // Jeu 5 — Aucune catégorie : sum12 16,2 / écart 3,0 → NO_CATEGORY_MET (essai VALID).
+    {
+      const e = evaluateDataset({
+        BLISTERING: [0.7, 0.7, 0.7],
+        CRACKING: [0.0, 1.5, 1.5],
+        FLAKING: [0.7, 0.7, 0.8],
+        CROSS_CUT_ADHESION: [3.0, 3.0, 2.9]
+      });
+      const nonPassed = e.categoryChecks.NON_STABLE.passed;
+      record(
+        63,
+        'T18 Jeu Aucune catégorie (sum12 16,2 / écart 3,0) : NO_CATEGORY_MET — essai VALID, adhérence moyenne 2,97 > seuil 1,0',
+        'CLASSIFICATION_2014',
+        e.testValidity === 'VALID' &&
+          e.classification === 'NO_CATEGORY_MET' &&
+          close(e.sum12, 16.2) &&
+          close(e.maxDifference, 3.0) &&
+          nonPassed === false,
+        'VALID + NO_CATEGORY_MET, sum12=16.2, maxDiff=3.0, aucune catégorie satisfaite',
+        `testValidity=${e.testValidity}, classification=${String(e.classification)}, sum12=${String(e.sum12)}, maxDiff=${String(e.maxDifference)}, NON_STABLE.passed=${String(nonPassed)}`
+      );
+    }
+
+    // Borne de validité : écart 4,0 → VALID (NON_STABLE) ; écart 4,1 → INVALID_TEST.
+    {
+      const eValid = evaluateDataset({
+        BLISTERING: [0.5, 0.5, 0.5],
+        CRACKING: [4.0, 0.2, 0.2],
+        FLAKING: [0.5, 0.5, 0.5],
+        CROSS_CUT_ADHESION: [0.0, 0.5, 0.5]
+      });
+      record(
+        64,
+        'T18 Écart 4,0 (exactement) : essai VALID, classification NON_STABLE (4,0 ≤ 4,0)',
+        'CLASSIFICATION_2014',
+        eValid.testValidity === 'VALID' &&
+          eValid.classification === 'NON_STABLE' &&
+          close(eValid.maxDifference, 4.0),
+        'VALID + NON_STABLE avec maxDiff=4.0',
+        `testValidity=${eValid.testValidity}, classification=${String(eValid.classification)}, maxDiff=${String(eValid.maxDifference)}`
+      );
+
+      const eInvalid = evaluateDataset({
+        BLISTERING: [0.5, 0.5, 0.5],
+        CRACKING: [4.1, 0.2, 0.2],
+        FLAKING: [0.5, 0.5, 0.5],
+        CROSS_CUT_ADHESION: [0.0, 0.5, 0.5]
+      });
+      record(
+        65,
+        'T18 Écart 4,1 : essai INVALID_TEST, classification null, 4 critères NOT_APPLICABLE',
+        'CLASSIFICATION_2014',
+        eInvalid.testValidity === 'INVALID_TEST' &&
+          eInvalid.classification === null &&
+          eInvalid.maxDifference !== null &&
+          eInvalid.maxDifference > 4 &&
+          eInvalid.results.BLISTERING.status === 'NOT_APPLICABLE' &&
+          eInvalid.results.ADHESION.status === 'NOT_APPLICABLE',
+        'INVALID_TEST + classification=null + critères NOT_APPLICABLE',
+        `testValidity=${eInvalid.testValidity}, classification=${String(eInvalid.classification)}, maxDiff=${String(eInvalid.maxDifference)}, B=${eInvalid.results.BLISTERING.status}, A=${eInvalid.results.ADHESION.status}`
+      );
+    }
+  }
+
+  // ----------------------------------------------------------------------------
+  // T19 — BORNES NUMÉRIQUES : SOMMES 7/12/19, ÉCARTS 2/3/4, ÉGALITÉ AUX SEUILS
+  // ----------------------------------------------------------------------------
+  {
+    // Bornes sommes (classement séquentiel) : l'égalité passe.
+    const sumsOk =
+      compareNf9272Sum(7.0, 7) === true &&
+      compareNf9272Sum(7.1, 7) === false &&
+      compareNf9272Sum(12.0, 12) === true &&
+      compareNf9272Sum(12.1, 12) === false &&
+      compareNf9272Sum(19.0, 19) === true &&
+      compareNf9272Sum(19.1, 19) === false;
+    record(
+      66,
+      'T19 Bornes sommes : 7,0/12,0/19,0 → PASS ; 7,1/12,1/19,1 → FAIL (égalité passe)',
+      'BORNES_2014',
+      sumsOk,
+      'sum(7.0,7)=true, sum(7.1,7)=false, sum(12.0,12)=true, sum(12.1,12)=false, sum(19.0,19)=true, sum(19.1,19)=false',
+      `7→${String(compareNf9272Sum(7.0, 7))}/${String(compareNf9272Sum(7.1, 7))}, 12→${String(compareNf9272Sum(12.0, 12))}/${String(compareNf9272Sum(12.1, 12))}, 19→${String(compareNf9272Sum(19.0, 19))}/${String(compareNf9272Sum(19.1, 19))}`
+    );
+
+    // Bornes écarts : l'égalité passe, 4,1 rend l'essai INVALID_TEST.
+    const diffsOk =
+      compareNf9272Difference(2.0, 2) === true &&
+      compareNf9272Difference(2.1, 2) === false &&
+      compareNf9272Difference(3.0, 3) === true &&
+      compareNf9272Difference(3.1, 3) === false &&
+      compareNf9272Difference(4.0, 4) === true &&
+      compareNf9272Difference(4.1, 4) === false;
+    record(
+      67,
+      'T19 Bornes écarts : 2,0/3,0/4,0 → PASS ; 2,1/3,1/4,1 → FAIL',
+      'BORNES_2014',
+      diffsOk,
+      'diff(2.0,2)=true, diff(2.1,2)=false, diff(3.0,3)=true, diff(3.1,3)=false, diff(4.0,4)=true, diff(4.1,4)=false',
+      `2→${String(compareNf9272Difference(2.0, 2))}/${String(compareNf9272Difference(2.1, 2))}, 3→${String(compareNf9272Difference(3.0, 3))}/${String(compareNf9272Difference(3.1, 3))}, 4→${String(compareNf9272Difference(4.0, 4))}/${String(compareNf9272Difference(4.1, 4))}`
+    );
+
+    // La limite de validité est l'écart max de NON_STABLE, lue depuis les
+    // exigences (jamais codée en dur dans l'algorithme). Pure classify.
+    const validityLimitOk =
+      getNf9272CategoryRequirements('NON_STABLE').maxDifference === NF9272_TEST_VALIDITY_MAX_DIFFERENCE;
+    const meansNon = { BLISTERING: 0.5, CRACKING: 1.5, FLAKING: 0.5, ADHESION: 0.4 };
+    const pureValid = classifyNf9272Sequence(meansNon, 8.4, 4.0);
+    const pureInvalid = classifyNf9272Sequence(meansNon, 8.5, 4.1);
+    record(
+      68,
+      'T19 Validité : limite d’écart issue des exigences NON_STABLE (=4) ; pure classify 4,0 → VALID, 4,1 → INVALID_TEST',
+      'BORNES_2014',
+      validityLimitOk &&
+        pureValid.testValidity === 'VALID' &&
+        pureValid.classification === 'NON_STABLE' &&
+        pureInvalid.testValidity === 'INVALID_TEST' &&
+        pureInvalid.classification === null,
+      'NON_STABLE.maxDiff === NF9272_TEST_VALIDITY_MAX_DIFFERENCE ; classify(diff 4.0)=VALID/NON_STABLE ; classify(diff 4.1)=INVALID_TEST/null',
+      `limit=${NF9272_TEST_VALIDITY_MAX_DIFFERENCE}, 4.0→${pureValid.testValidity}/${String(pureValid.classification)}, 4.1→${pureInvalid.testValidity}/${String(pureInvalid.classification)}`
+    );
+
+    // Égalités aux seuils par critère (moyennes ≤) : 0,3 ; 0,7 ; 1,0 ; 1,7 ; 3,0 ; 1,3.
+    const thresholds = [0.3, 0.7, 1.0, 1.7, 3.0, 1.3];
+    const equalityOk = thresholds.every(
+      (t) => compareNf9272Mean('LESS_OR_EQUAL', t, t) === 'FAVORABLE' && compareNf9272Mean('LESS_OR_EQUAL', t + 0.0001, t) === 'DEFAVORABLE'
+    );
+    record(
+      69,
+      'T19 Égalités aux seuils par critère : t ≤ t → FAVORABLE ; t+0,0001 → DEFAVORABLE (0,3 ; 0,7 ; 1,0 ; 1,7 ; 3,0 ; 1,3)',
+      'BORNES_2014',
+      equalityOk,
+      'chaque seuil : égalité PASS, dépassement infime FAIL',
+      `thresholds=6 vérifiées`
+    );
+  }
+
+  // ----------------------------------------------------------------------------
+  // T20 — VERROU CONTRAT : IMMUTABILITÉ DES EXIGENCES 2014 (§16/§24)
+  // ----------------------------------------------------------------------------
+  {
+    // Décomposition d'une catégorie en la matrice contractualisée du prompt.
+    const contractChecks = (
+      category: 'STABLE' | 'SEMI_STABLE' | 'NON_STABLE',
+      expected: {
+        B: number; C: number; F: number; A: number;
+        maxSum: number; maxDifference: number;
+      }
+    ): boolean => {
+      const req = getNf9272CategoryRequirements(category);
+      return (
+        req.category === category &&
+        req.documented === true &&
+        req.criteria.BLISTERING.threshold === expected.B &&
+        req.criteria.CRACKING.threshold === expected.C &&
+        req.criteria.FLAKING.threshold === expected.F &&
+        req.criteria.ADHESION.threshold === expected.A &&
+        req.criteria.BLISTERING.comparison === 'LESS_OR_EQUAL' &&
+        req.criteria.CRACKING.comparison === 'LESS_OR_EQUAL' &&
+        req.criteria.FLAKING.comparison === 'LESS_OR_EQUAL' &&
+        req.criteria.ADHESION.comparison === 'LESS_OR_EQUAL' &&
+        req.maxSum === expected.maxSum &&
+        req.maxDifference === expected.maxDifference
+      );
+    };
+
+    // La constante exportée et l'accès par gestionnaire désignent la MÊME source.
+    const sameSource =
+      getNf9272CategoryRequirements('STABLE') === NF9272_STABLE_REQUIREMENTS &&
+      getNf9272CategoryRequirements('SEMI_STABLE') === NF9272_SEMI_STABLE_REQUIREMENTS &&
+      getNf9272CategoryRequirements('NON_STABLE') === NF9272_NON_STABLE_REQUIREMENTS;
+
+    // STABLE : Cloquage ≤ 0,3 | Craquelage ≤ 0,7 | Écaillage ≤ 0,3 | Adhérence ≤ 1,0 ; Σ12 ≤ 7 ; Δmax ≤ 2.
+    const stableContract = contractChecks('STABLE', { B: 0.3, C: 0.7, F: 0.3, A: 1.0, maxSum: 7, maxDifference: 2 });
+    record(
+      70,
+      'T20 Verrou contrat STABLE : 0,3 / 0,7 / 0,3 / 1,0 ; Σ≤7 ; Δ≤2 ; ≤ et documented — échoue si 0.3→0.4…',
+      'CONTRAT_2014',
+      stableContract && sameSource,
+      'B=0,3 | C=0,7 | F=0,3 | A=1,0 ; maxSum=7 ; maxDiff=2 ; 4 × LESS_OR_EQUAL ; documented=true',
+      `B=${getNf9272CategoryRequirements('STABLE').criteria.BLISTERING.threshold}, maxSum=${getNf9272CategoryRequirements('STABLE').maxSum}, maxDiff=${getNf9272CategoryRequirements('STABLE').maxDifference}, same=${String(sameSource)}`
+    );
+
+    // SEMI_STABLE : ≤ 0,7 / 1,7 / 0,7 / 1,0 ; Σ12 ≤ 12 ; Δmax ≤ 3.
+    const semiContract = contractChecks('SEMI_STABLE', { B: 0.7, C: 1.7, F: 0.7, A: 1.0, maxSum: 12, maxDifference: 3 });
+    record(
+      71,
+      'T20 Verrou contrat SEMI_STABLE : 0,7 / 1,7 / 0,7 / 1,0 ; Σ≤12 ; Δ≤3 — échoue si 1.7→1.8 ou 0.7→0.8…',
+      'CONTRAT_2014',
+      semiContract,
+      'B=0,7 | C=1,7 | F=0,7 | A=1,0 ; maxSum=12 ; maxDiff=3 ; ≤ ; documented',
+      `B=${getNf9272CategoryRequirements('SEMI_STABLE').criteria.BLISTERING.threshold}, C=${getNf9272CategoryRequirements('SEMI_STABLE').criteria.CRACKING.threshold}, A=${getNf9272CategoryRequirements('SEMI_STABLE').criteria.ADHESION.threshold}, maxSum=${getNf9272CategoryRequirements('SEMI_STABLE').maxSum}, maxDiff=${getNf9272CategoryRequirements('SEMI_STABLE').maxDifference}`
+    );
+
+    // NON_STABLE : ≤ 1,0 / 3,0 / 1,3 / 1,0 ; Σ12 ≤ 19 ; Δmax ≤ 4.
+    const nonContract = contractChecks('NON_STABLE', { B: 1.0, C: 3.0, F: 1.3, A: 1.0, maxSum: 19, maxDifference: 4 });
+    record(
+      72,
+      'T20 Verrou contrat NON_STABLE : 1,0 / 3,0 / 1,3 / 1,0 ; Σ≤19 ; Δ≤4 — échoue si 19→20 ou 4→5…',
+      'CONTRAT_2014',
+      nonContract,
+      'B=1,0 | C=3,0 | F=1,3 | A=1,0 ; maxSum=19 ; maxDiff=4 ; ≤ ; documented',
+      `B=${getNf9272CategoryRequirements('NON_STABLE').criteria.BLISTERING.threshold}, C=${getNf9272CategoryRequirements('NON_STABLE').criteria.CRACKING.threshold}, F=${getNf9272CategoryRequirements('NON_STABLE').criteria.FLAKING.threshold}, maxSum=${getNf9272CategoryRequirements('NON_STABLE').maxSum}, maxDiff=${getNf9272CategoryRequirements('NON_STABLE').maxDifference}`
+    );
+
+    // Ordre de classification et limite de validité dérivée de NON_STABLE.
+    const orderOk =
+      JSON.stringify(NF9272_CLASSIFICATION_ORDER) === JSON.stringify(['STABLE', 'SEMI_STABLE', 'NON_STABLE']);
+    const validityDerived =
+      NF9272_TEST_VALIDITY_MAX_DIFFERENCE === 4 &&
+      getNf9272CategoryRequirements('NON_STABLE').maxDifference === NF9272_TEST_VALIDITY_MAX_DIFFERENCE;
+    record(
+      73,
+      'T20 Verrou ordre : STABLE → SEMI_STABLE → NON_STABLE ; limite validité Δmax=4 issue de NON_STABLE.maxDifference',
+      'CONTRAT_2014',
+      orderOk && validityDerived,
+      'NF9272_CLASSIFICATION_ORDER=[STABLE, SEMI_STABLE, NON_STABLE] ; NON_STABLE.maxDifference === NF9272_TEST_VALIDITY_MAX_DIFFERENCE === 4',
+      `order=${NF9272_CLASSIFICATION_ORDER.join('→')}, limit=${NF9272_TEST_VALIDITY_MAX_DIFFERENCE}, NON.maxDiff=${getNf9272CategoryRequirements('NON_STABLE').maxDifference}`
+    );
+
+    // Frontières moyennes (seuil−ε / seuil / seuil+ε) pour chaque seuil (§15).
+    const meanBoundaries = [0.3, 0.7, 1.0, 1.7, 3.0, 1.3].every((t) => {
+      const below = compareNf9272Mean('LESS_OR_EQUAL', t - 0.0001, t);
+      const at = compareNf9272Mean('LESS_OR_EQUAL', t, t);
+      const above = compareNf9272Mean('LESS_OR_EQUAL', t + 0.0001, t);
+      return below === 'FAVORABLE' && at === 'FAVORABLE' && above === 'DEFAVORABLE';
+    });
+    record(
+      74,
+      'T20 Frontières moyennes : seuil−0,0001 → FAVORABLE ; seuil → FAVORABLE ; seuil+0,0001 → DEFAVORABLE (pour 0,3 ; 0,7 ; 1,0 ; 1,7 ; 3,0 ; 1,3)',
+      'CONTRAT_2014',
+      meanBoundaries,
+      'chaque seuil : t−ε FAV, t FAV, t+ε DEFA (opérateur ≤, égalité favorable)',
+      `seuils vérifiés=6 (0,3 ; 0,7 ; 1,0 ; 1,7 ; 3,0 ; 1,3)`
     );
   }
 
