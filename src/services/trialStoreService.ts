@@ -455,6 +455,11 @@ export class TrialStoreService {
       };
     });
 
+    const glossStandard = this.ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration;
+    if (!glossStandard) {
+      throw new Error('Configuration scientifique standard GLOSS manquante.');
+    }
+
     const protocolConfig: TrialProtocolConfig = {
       standardReference: 'NF EN 927-6',
       activeFamilies: params.activeFamilies,
@@ -467,7 +472,7 @@ export class TrialStoreService {
         GLOSS: params.familyConfigs?.GLOSS || {
           familyId: 'GLOSS',
           enabled: params.activeFamilies.includes('GLOSS'),
-          seriesConfig: createSeriesConfiguration('GLOSS', this.ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration.seriesCount ?? (() => { throw new Error('Configuration standard GLOSS manquante.'); })(), this.ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration.readingsPerSeries ?? (() => { throw new Error('Configuration standard GLOSS manquante.'); })(), this.ruleSet)
+          seriesConfig: createSeriesConfiguration('GLOSS', glossStandard.seriesCount, glossStandard.readingsPerSeries, this.ruleSet)
         },
         PERSOZ: params.familyConfigs?.PERSOZ || {
           familyId: 'PERSOZ',
