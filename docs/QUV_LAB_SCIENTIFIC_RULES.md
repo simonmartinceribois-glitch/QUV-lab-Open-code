@@ -340,7 +340,7 @@ Important : le terme **PROTOCOLE ADAPTÉ** désigne ici une **adaptation du cadr
 
 \`PROTOCOLE ADAPTÉ\` : la configuration s'écarte de la référence normative retenue et constitue une adaptation documentée du cadre d'application retenu pour l'essai.
 
-\`CONFIGURATION INVALIDE\` : la configuration est inférieure au minimum autorisé pour l'adaptation définie ci-dessous. Elle doit être refusée par le moteur.
+\`CONFIGURATION INVALIDE\` : la configuration échoue à un contrôle générique de validité du paramétrage (par exemple valeur non entière, non finie ou structure incohérente). Une adaptation justifiée n'est pas invalidée du seul fait que son nombre de mesures diffère de la référence.
 
 ### 8.1.1 Configuration du nombre de mesures lors de la création de l'essai
 
@@ -1043,10 +1043,11 @@ PROPOSITION STANDARD QUV-Lab
 → 2 essais/panneau
 
 PROTOCOLE ADAPTÉ QUV-Lab
-→ 1 essai/panneau
-→ justification obligatoire ≥ 8 caractères (section 8.2)
+→ 1 essai/panneau → justification obligatoire ≥ 8 caractères (section 8.2)
+→ 3 essais/panneau → justification obligatoire ≥ 8 caractères (section 8.2)
 
-3 essais/panneau ou plus → non autorisé
+Dans le périmètre logiciel retenu pour cette évolution, 3 essais/panneau constitue une adaptation justifiée autorisée.
+Aucun nombre supérieur à 3 n'est couvert par le présent contrat logiciel.
 ```
 
 Le protocole adapté à 1 essai par panneau constitue une configuration expérimentale QUV-Lab adaptée.
