@@ -1,9 +1,9 @@
 /**
  * QUV-Lab — Couche CRITÈRE (S3) : évaluation du délai d'application avant essai
- * d'adhérence (condition de protocole, NF EN ISO 2409:2020).
+ * d'adhérence (condition de protocole, NF EN 927-6:2018 §6.3.3).
  *
  * Couche pure, déterministe, NON persistée et sans mutation. Elle délègue la
- * totalité de la logique scientifique à `calculateDelayCompliance`
+ * totalité de la logique scientifique à `calculatePreExposureDelayCompliance`
  * (adhesionEngine) : AUCUNE seconde règle. Le verdict CONFORME / NON_CONFORME /
  * NON_EVALUE est la seule projection en jargon CRITÈRE du statut scientifique,
  * consommée par le rapport et l'interface utilisateur (source de vérité unique).
@@ -11,7 +11,7 @@
  * Séparation des couches RAW / COMPUTED / CRITÈRE / ANALYSE (règles QUV-Lab S0).
  */
 
-import { calculateDelayCompliance } from '../adhesionEngine';
+import { calculatePreExposureDelayCompliance } from '../protocolEngine';
 
 export type AdhesionDelayVerdict = 'CONFORME' | 'NON_CONFORME' | 'NON_EVALUE';
 
@@ -19,9 +19,9 @@ export interface AdhesionDelayCriterionEvaluation {
   /** Verdict CRITÈRE : CONFORME / NON_CONFORME lorsque datable, NON_EVALUE sinon. */
   verdict: AdhesionDelayVerdict;
   elapsedTimeHours: number | null;
-  /** Statut scientifique brut de calculateDelayCompliance (transparence totale).
+  /** Statut scientifique brut de calculatePreExposureDelayCompliance (transparence totale).
    *  DELAY_CHECK_SKIPPED : aucun délai minimal configuré, vérification contournée. */
-  status: ReturnType<typeof calculateDelayCompliance>['status'] | 'DELAY_CHECK_SKIPPED';
+  status: ReturnType<typeof calculatePreExposureDelayCompliance>['status'] | 'DELAY_CHECK_SKIPPED';
   formattedElapsedTime: string;
   message: string;
   origin: 'PROTOCOL_CONDITION';
@@ -38,7 +38,7 @@ export function evaluateAdhesionDelayCriterion(input: {
   // Fix contre-audit c1edb84 (point 1) : une valeur NÉGATIVE n'est pas un délai
   // valide au sens du contrat métier (un délai minimal ne peut pas être
   // négatif) — traitée comme non configurée, au même titre qu'une valeur
-  // absente/NaN, plutôt que silencieusement acceptée par calculateDelayCompliance
+  // absente/NaN, plutôt que silencieusement acceptée par calculatePreExposureDelayCompliance
   // (qui la traiterait comme "toujours conforme", contournant la vérification).
   const requiredMinimumDelayHours =
     input.requiredMinimumDelayHours === undefined ||
@@ -64,7 +64,7 @@ export function evaluateAdhesionDelayCriterion(input: {
     };
   }
 
-  const result = calculateDelayCompliance(
+  const result = calculatePreExposureDelayCompliance(
     input.applicationDateTime,
     input.measurementDateTime,
     requiredMinimumDelayHours
