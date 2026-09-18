@@ -167,14 +167,10 @@ export function createCountConfiguration(
       `Configuration ${familyId} invalide : le nombre de mesures doit être un entier fini supérieur ou égal à 1 (reçu : ${String(configuredCount)}).`
     );
   }
-  const ref = ruleSet.measurementConfigurations[familyId] || {
-    standardRecommendedCount: 4,
-    origin: 'NORMATIVE_REQUIREMENT' as ScientificRuleOrigin,
-    ruleSource: 'NORMATIVE_REQUIREMENT' as RuleSource,
-    standardReference: ruleSet.standardReference,
-    clause: 'N/A',
-    rationale: 'Configuration de mesure'
-  };
+  const ref = ruleSet.measurementConfigurations[familyId];
+  if (!ref) {
+    throw new Error(`Référentiel scientifique manquant pour la famille ${familyId} : configuration standard obligatoire.`);
+  }
 
   const isStandard = configuredCount === ref.standardRecommendedCount;
   const justification = options?.justification?.trim() || '';
