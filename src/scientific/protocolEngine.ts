@@ -85,8 +85,7 @@ export function evaluateCountProtocolCompliance(
   // standard courant via createCountConfiguration(), donc le comportement est identique
   // pour tout ce qui est construit après le changement de standard.
   const standardRef = ruleSet.measurementConfigurations[config.familyId];
-  const standardRecommended =
-    config.standardRecommendedCount ?? standardRef?.standardRecommendedCount;
+  const standardRecommended = standardRef?.standardRecommendedCount;
   if (standardRecommended === undefined) {
     return {
       status: 'INCOMPLETE',
@@ -101,6 +100,8 @@ export function evaluateCountProtocolCompliance(
       }]
     };
   }
+  if (!Number.isInteger(config.configuredCount) || config.configuredCount < 1) return { status: 'INVALID', isAdapted: false, isCompliantWithStandard: false, alerts: [{ id: `alert-proto-invalid-count-${config.familyId}`, severity: 'BLOCKING', code: 'MEASUREMENT_INVALID', message: 'Nombre de mesures invalide : entier >= 1 requis.', familyId: config.familyId }] };
+  if (config.familyId === 'ADHESION' && config.configuredCount > 3) return { status: 'INVALID', isAdapted: false, isCompliantWithStandard: false, alerts: [{ id: 'alert-proto-adhesion-count-range', severity: 'BLOCKING', code: 'MEASUREMENT_INVALID', message: 'Le nombre de mesures d’adhérence doit être compris entre 1 et 3.', familyId: 'ADHESION' }] };
   const isAdapted = config.configuredCount !== standardRecommended || config.mode === 'CUSTOM_JUSTIFIED';
 
   const alerts: MeasurementAlert[] = [];
@@ -182,8 +183,11 @@ export function evaluateSeriesProtocolCompliance(
   }
 
   const standardRef = ruleSet.seriesConfigurations?.[config.familyId];
-  const stdSeries = standardRef?.standardConfiguration.seriesCount ?? 2;
-  const stdReadings = standardRef?.standardConfiguration.readingsPerSeries ?? 2;
+  if (!standardRef) {
+    return { status: 'INCOMPLETE', isAdapted: false, isCompliantWithStandard: false, alerts: [{ id: `alert-proto-series-reference-missing-${config.familyId}`, severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE', message: `Configuration scientifique standard manquante pour la famille de séries ${config.familyId}.`, familyId: config.familyId }] };
+  }
+  const stdSeries = standardRef.standardConfiguration.seriesCount;
+  const stdReadings = standardRef.standardConfiguration.readingsPerSeries;
 
   const isAdapted =
     config.configuredConfiguration.seriesCount !== stdSeries ||
