@@ -431,7 +431,7 @@ export interface AdhesionComputedData {
   // Moyenne T0 du panneau témoin (Gate 5.6) : référence des deltas.
   initialPanelMean?: number | null;
   deltaAdhesionClass?: number | null; // Variation d'adhérence vs T0
-  /** Deprecated compatibility field: no longer computed by ADHESION. */
+  /** Deprecated compatibility field retained for persisted historical computed records. */
   elapsedTimeHours?: number | null;
   gridSpacingUsedMm: number | null;
   qualityAssessment: QualityAssessment;
