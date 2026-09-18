@@ -320,6 +320,9 @@ export function buildScientificReport(
   }
 ): ScientificReport {
   const audit = auditTrialBeforeReport(trial, ruleSet);
+  if (!audit.canGenerate) {
+    throw new Error('Rapport scientifique non générable : ' + audit.missingCriticalElements.join(' | '));
+  }
   const now = new Date().toISOString();
   const reportId = generateUUID();
   const existingReportsCount = trial.reports?.length || 0;
