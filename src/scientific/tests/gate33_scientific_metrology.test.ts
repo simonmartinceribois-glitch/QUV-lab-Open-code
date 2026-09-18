@@ -16,12 +16,13 @@
  * 12. Règles Normatives & Unités : Respect NF EN 927-6:2018 (2016h, 4 pts couleur, 2x2 brillance).
  */
 
+import { calculatePreExposureDelayCompliance } from '../protocolEngine';
 import { calculateColor } from '../colorEngine';
 import { calculateGloss } from '../glossEngine';
 import { calculatePersoz } from '../persozEngine';
 import { calculateObservations } from '../observationsEngine';
 import { calculateAdhesion, getApplicableGridSpacing,
-calculateDelayCompliance, ISO2409_CLASSES, resolveAdhesionCountConfig } from '../adhesionEngine';
+} from '../adhesionEngine';
 import {
   calculateMean,
   calculateSampleStdDev,
@@ -907,8 +908,8 @@ export function runGate33ScientificMetrologyTests(): {
     );
 
     // B. Contrôle du délai de séchage / conditionnement
-    const delayConform = calculateDelayCompliance('2026-08-01T00:00:00Z', '2026-08-10T00:00:00Z', 168);
-    const delayNonConform = calculateDelayCompliance('2026-08-01T00:00:00Z', '2026-08-03T00:00:00Z', 168);
+    const delayConform = calculatePreExposureDelayCompliance('2026-08-01T00:00:00Z', '2026-08-10T00:00:00Z', 168);
+    const delayNonConform = calculatePreExposureDelayCompliance('2026-08-01T00:00:00Z', '2026-08-03T00:00:00Z', 168);
 
     const delayPassed =
       delayConform.status === 'CONFORME' &&
