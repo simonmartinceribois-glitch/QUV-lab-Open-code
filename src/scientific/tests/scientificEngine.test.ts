@@ -229,16 +229,16 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
 
   // --- TEST 14 : Brillance 2 x 3 -> adaptation détectée ---
   {
-    const config = createSeriesConfiguration('GLOSS', 2, 1, ruleSet, { justification: 'Allègement plan de mesure' });
+    const config = createSeriesConfiguration('GLOSS', 2, 3, ruleSet, { justification: 'Renforcement du plan de mesure' });
     const raw: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 40 }] },
-        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 38 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 40 }, { pointIndex: 2, value: 41 }, { pointIndex: 3, value: 42 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 38 }, { pointIndex: 2, value: 39 }, { pointIndex: 3, value: 40 }] }
       ]
     };
     const res = calculateGloss(raw, config, ruleSet);
-    const passed = res.computed.protocolStatus === 'ADAPTED_JUSTIFIED' && res.computed.totalReadings === 2;
-    record(14, 'Brillance 2 × 3 -> ADAPTED_JUSTIFIED', 'Protocole Brillance', passed, 'ADAPTED_JUSTIFIED (5 mesures)', `${res.computed.protocolStatus} (${res.computed.totalReadings} mesures)`);
+    const passed = res.computed.protocolStatus === 'ADAPTED_JUSTIFIED' && res.computed.totalReadings === 6;
+    record(14, 'Brillance 2 × 3 -> ADAPTED_JUSTIFIED', 'Protocole Brillance', passed, 'ADAPTED_JUSTIFIED (6 mesures)', `${res.computed.protocolStatus} (${res.computed.totalReadings} mesures)`);
   }
 
   // --- TEST 15 : Persoz avec répétitions personnalisées -> adaptation selon référentiel laboratoire ---
