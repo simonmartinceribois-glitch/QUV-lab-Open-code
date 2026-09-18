@@ -246,6 +246,28 @@ export function evaluateSeriesProtocolCompliance(
 }
 
 
+/** Generic date/delay computation for protocol pre-exposure conditioning. */
+export function calculatePreExposureDelayCompliance(
+  applicationDateStr?: string,
+  measurementDateStr?: string,
+  requiredMinimumHours?: number
+): {
+  elapsedTimeHours: number | null;
+  formattedElapsedTime: string;
+  status: 'CONFORME' | 'INSUFFICIENT_DELAY' | 'INVALID_DATE' | 'MISSING_APPLICATION_DATE' | 'MISSING_REQUIRED_DELAY';
+  message: string;
+} {
+  if (requiredMinimumHours === undefined || !Number.isFinite(requiredMinimumHours) || requiredMinimumHours < 0) return { elapsedTimeHours: null, formattedElapsedTime: 'Délai requis non renseigné', status: 'MISSING_REQUIRED_DELAY', message: 'Délai minimal requis absent ou invalide dans la configuration du protocole.' };
+  if (!applicationDateStr?.trim()) return { elapsedTimeHours: null, formattedElapsedTime: 'Non déterminée', status: 'MISSING_APPLICATION_DATE', message: 'Date d’application absente.' };
+  const app = Date.parse(applicationDateStr), measure = Date.parse(measurementDateStr || '');
+  if (!Number.isFinite(app) || !Number.isFinite(measure) || measure < app) return { elapsedTimeHours: null, formattedElapsedTime: 'Date invalide', status: 'INVALID_DATE', message: 'Dates invalides pour le contrôle du conditionnement.' };
+  const elapsed = (measure - app) / 3600000;
+  const formatted = elapsed >= 24 ? `${Math.floor(elapsed / 24)} j ${Math.floor(elapsed % 24)} h` : `${Math.floor(elapsed)} h`;
+  return elapsed < requiredMinimumHours
+    ? { elapsedTimeHours: Math.round(elapsed * 10) / 10, formattedElapsedTime: formatted, status: 'INSUFFICIENT_DELAY', message: `Conditionnement insuffisant : ${formatted} écoulées pour ${requiredMinimumHours} h requises.` }
+    : { elapsedTimeHours: Math.round(elapsed * 10) / 10, formattedElapsedTime: formatted, status: 'CONFORME', message: `Conditionnement respecté : ${formatted} écoulées pour ${requiredMinimumHours} h requises.` };
+}
+
 export interface PreExposureConditioningResult {
   status: 'CONFORME' | 'INSUFFICIENT_DELAY' | 'INVALID_DATE' | 'MISSING_APPLICATION_DATE' | 'MISSING_RULE';
   elapsedHours: number | null;
