@@ -128,6 +128,7 @@ export function recalculateAcquisition(
       );
       computed = res.computed;
       alerts = res.alerts;
+      }
     }
   } else if (record.familyId === 'PERSOZ') {
     // Verrou population P1 : une acquisition PERSOZ non éligible (T ou panneau
@@ -138,6 +139,10 @@ export function recalculateAcquisition(
       alerts = [];
     } else {
       const countConfig = famConfig?.countConfig;
+      if (!countConfig) {
+        computed = null;
+        alerts = [{ id: `alert-${record.id}-missing-count-config`, severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE', message: 'Configuration de comptage PERSOZ absente.', familyId: 'PERSOZ', panelId: record.panelId, stageId: record.stageId }];
+      } else {
       const res = calculatePersoz(
         record.raw as PersozRawData,
         countConfig,
@@ -152,6 +157,7 @@ export function recalculateAcquisition(
       );
       computed = res.computed;
       alerts = res.alerts;
+      }
     }
   } else if (record.familyId === 'ADHESION') {
     // Verrou population P1 : même règle (matrice T0/T, C12/E1-E3).
