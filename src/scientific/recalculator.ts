@@ -118,7 +118,10 @@ export function recalculateAcquisition(
     }
   } else if (record.familyId === 'GLOSS') {
     const seriesConfig = famConfig?.seriesConfig;
-    if (seriesConfig) {
+    if (!seriesConfig) {
+      computed = null;
+      alerts = [{ id: `alert-${record.id}-missing-series-config`, severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE', message: 'Configuration de série GLOSS absente.', familyId: 'GLOSS', panelId: record.panelId, stageId: record.stageId }];
+    } else {
       const res = calculateGloss(
         record.raw as GlossRawData,
         seriesConfig,
