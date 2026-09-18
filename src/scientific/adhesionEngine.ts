@@ -20,7 +20,6 @@ export const ADHESION_CALCULATION_VERSION = '1.2.0';
 export const ADHESION_NORM_REFERENCE = 'NF EN ISO 2409:2020';
 /** Délai minimal d'application avant essai (protocole) : 168 h = 7 jours.
  *  Source unique — lu par calculateDelayCompliance (COMPUTED) et la couche CRITÈRE (S3). */
-export const ADHESION_DEFAULT_REQUIRED_DELAY_HOURS = 168;
 
 /**
  * Définition officielle des 6 classes d'adhérence selon la NF EN ISO 2409:2020
