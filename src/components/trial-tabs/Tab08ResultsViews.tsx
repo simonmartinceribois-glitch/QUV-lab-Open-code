@@ -14,6 +14,7 @@ import { ResultsPanelAnalysisView } from '../results-subviews/ResultsPanelAnalys
 import { ResultsFamilyAnalysisView } from '../results-subviews/ResultsFamilyAnalysisView';
 import { ResultsAdvancedComparisonsView } from '../results-subviews/ResultsAdvancedComparisonsView';
 import { ResultsReportAndReviewView } from '../results-subviews/ResultsReportAndReviewView';
+import { ResultsCriteriaEvaluationView } from '../results-subviews/ResultsCriteriaEvaluationView';
 import {
   Layers,
   GitCompare,
@@ -22,7 +23,8 @@ import {
   FileText,
   Sliders,
   Sparkles,
-  TrendingUp
+  TrendingUp,
+  FlaskConical
 } from 'lucide-react';
 
 interface Props {
@@ -38,6 +40,7 @@ type SubViewType =
   | 'PANEL'
   | 'FAMILY'
   | 'ADVANCED'
+  | 'CRITERIA'
   | 'REPORT';
 
 export function Tab08ResultsViews({ trial, ruleSet, onTrialUpdated }: Props) {
@@ -127,6 +130,19 @@ export function Tab08ResultsViews({ trial, ruleSet, onTrialUpdated }: Props) {
 
         <button
           type="button"
+          onClick={() => setActiveSubView('CRITERIA')}
+          className={`px-3.5 py-2 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 ${
+            activeSubView === 'CRITERIA'
+              ? 'bg-white text-blue-700 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <FlaskConical className="w-4 h-4 text-sky-600" />
+          7. Critères Complémentaires
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveSubView('REPORT')}
           className={`px-3.5 py-2 rounded-xl transition-all whitespace-nowrap flex items-center gap-1.5 ${
             activeSubView === 'REPORT'
@@ -135,7 +151,7 @@ export function Tab08ResultsViews({ trial, ruleSet, onTrialUpdated }: Props) {
           }`}
         >
           <FileText className="w-4 h-4" />
-          7. Rapport Scientifique & Exports
+          8. Rapport Scientifique & Exports
         </button>
       </div>
 
@@ -162,6 +178,10 @@ export function Tab08ResultsViews({ trial, ruleSet, onTrialUpdated }: Props) {
 
       {activeSubView === 'ADVANCED' && (
         <ResultsAdvancedComparisonsView trial={trial} ruleSet={ruleSet} />
+      )}
+
+      {activeSubView === 'CRITERIA' && (
+        <ResultsCriteriaEvaluationView trial={trial} ruleSet={ruleSet} />
       )}
 
       {activeSubView === 'REPORT' && (

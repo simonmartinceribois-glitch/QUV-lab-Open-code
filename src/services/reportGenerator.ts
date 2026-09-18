@@ -32,6 +32,10 @@ import { aggregateBatchColorExposed, PanelComputedItem } from '../scientific/agg
 import { evaluateCountProtocolCompliance, evaluateSeriesProtocolCompliance, buildProtocolDefinition } from '../scientific/protocolEngine';
 import { isAdaptationJustificationValid } from '../scientific/ruleSet';
 import type { MeasurementFamilyId } from '../types/scientific';
+import {
+  evaluateScientificCriteriaPerBatch,
+  type ScientificCriteriaEvaluationPerBatch
+} from './scientificCriteriaEvaluationService';
 
 /**
  * Admissibilité scientifique d'une acquisition COMPUTED à la restitution
@@ -195,6 +199,94 @@ export function auditTrialBeforeReport(trial: Trial, ruleSet: ScientificRuleSet)
       alertsCataloged
     }
   };
+}
+
+const fmtCriterion = (v: number | null): string =>
+  v === null ? 'n.c.' : v.toFixed(3);
+
+/**
+ * Rendu textuel factuel des évaluations complémentaires NF EN 927-2:2014, par lot.
+ * Règles de calcul uniquement dans le moteur scientifique ; ici simple mise en
+ * forme des résultats du service d'évaluation (aucun verdict global).
+ */
+function renderNf9272CriteriaSection(
+  trial: Trial,
+  ruleSet: ScientificRuleSet
+): string {
+  const evals = evaluateScientificCriteriaPerBatch(trial, ruleSet);
+  if (evals.length === 0) {
+    return 'Aucun lot enregistré : évaluation complémentaire NF EN 927-2:2014 indisponible.';
+  }
+  const block = (perBatch: ScientificCriteriaEvaluationPerBatch): string => {
+    const nf = perBatch.evaluation.nf9272;
+    const lines = [
+      '=== NF EN 927-2:2014 (HISTORICAL_TRANSITIONAL) — ÉVALUATION COMPLÉMENTAIRE ===',
+      `Système de finition évalué : ${nf.batchScoped.batchLabel ?? nf.batchScoped.batchId ?? 'Aucun lot'}`,
+      `Référence : ${nf.reference}:${nf.edition}`,
+      `Statut : ${nf.status}`,
+      `Jalon évalué : ${nf.jalon.display}`,
+      `Statut de données : ${nf.testValidity}`
+    ];
+    if (nf.batchScoped.scopeBlockedReason) {
+      lines.push(`Portée : ${nf.batchScoped.scopeBlockedReason}`);
+    }
+    if (nf.testValidity === 'VALID') {
+      lines.push(`Classification 2014 : ${nf.classification ?? 'NO_CATEGORY_MET'}`);
+      if (nf.classification) {
+        lines.push(`Σ12 = ${fmtCriterion(nf.sum12)} | Δmax = ${fmtCriterion(nf.maxDifference)}`);
+        for (const id of ['BLISTERING', 'CRACKING', 'FLAKING', 'ADHESION'] as const) {
+          const c = nf.results[id];
+          lines.push(
+            `${c.label} : ${c.status} — moyenne ${fmtCriterion(c.value)}` +
+              (typeof c.threshold === 'number' ? ` ≤ ${c.threshold}` : '')
+          );
+        }
+      }
+    } else if (nf.testValidity === 'INVALID_TEST') {
+      lines.push('Essai invalidé : écart maximum − minimum supérieur à 4,0 — classification 2014 non applicable.');
+    } else {
+      lines.push(
+        `Données insuffisantes : ${nf.batchScoped.scopeBlockedReason ?? 'jalon C12 absent ou inexploitable.'}`
+      );
+    }
+    lines.push(`Note factuelle : ${nf.complementaryNotice}`);
+    return lines.join('\n');
+  };
+  return evals.map(block).join('\n\n');
+}
+
+/**
+ * Rendu textuel factuel des évaluations complémentaires INFIPERF, par lot.
+ * Chaque indicateur reste indépendant : aucune conformité NF EN 927-6.
+ */
+function renderInfiperfCriteriaSection(
+  trial: Trial,
+  ruleSet: ScientificRuleSet
+): string {
+  const evals = evaluateScientificCriteriaPerBatch(trial, ruleSet);
+  if (evals.length === 0) {
+    return 'Aucun lot enregistré : évaluation complémentaire INFIPERF indisponible.';
+  }
+  const block = (perBatch: ScientificCriteriaEvaluationPerBatch): string => {
+    const inf = perBatch.evaluation.infiperf;
+    const colorCycles = inf.results.COLOR.cycles
+      .map(
+        (c) =>
+          `${c.display}: ΔL* ${fmtCriterion(c.deltaL)}, Δa* ${fmtCriterion(c.deltaA)}, Δb* ${fmtCriterion(c.deltaB)}, ΔE* ${fmtCriterion(c.deltaE)}`
+      )
+      .join(' | ');
+    return [
+      '=== INFIPERF / FCBA — ÉVALUATION COMPLÉMENTAIRE ===',
+      `Système de finition évalué : ${perBatch.batchLabel ?? perBatch.batchId ?? 'Aucun lot'}`,
+      `Référence : ${inf.reference}:${inf.edition}`,
+      `Rétention de brillance : ${inf.results.GLOSS_RETENTION.status} — moyenne ${fmtCriterion(inf.results.GLOSS_RETENTION.value)} % (seuil documenté : ${fmtCriterion(inf.results.GLOSS_RETENTION.threshold)} %)`,
+      `Persoz : ${inf.results.PERSOZ.status} — ${fmtCriterion(inf.results.PERSOZ.value)} s (seuil documenté : ${fmtCriterion(inf.results.PERSOZ.threshold)} s)`,
+      `Couleur : ${inf.results.COLOR.status} — ${colorCycles || 'aucune mesure colorimétrique exploitable'}`,
+      `Aspect général : ${inf.results.GENERAL_APPEARANCE.status} — ${fmtCriterion(inf.results.GENERAL_APPEARANCE.value)} (niveau d'alerte documenté : ${fmtCriterion(inf.results.GENERAL_APPEARANCE.alertThreshold)})`,
+      `Note factuelle : ${inf.complementaryNotice}`
+    ].join('\n');
+  };
+  return evals.map(block).join('\n\n');
 }
 
 /**
@@ -457,7 +549,9 @@ export function buildScientificReport(
       : `Aucune adaptation de protocole n'est enregistrée dans la configuration de l'essai.`,
     calculationTraceability: `Traçabilité intégrale du moteur de calcul :\n• Moteur scientifique : QUV-Lab Scientific Engine ${ruleSet.version}\n• RuleSet ID : ${ruleSet.id} (Référence : ${ruleSet.standardReference})\n• Méthode d'écart-type : Échantillon n-1 (${ruleSet.statisticalRules.stdDevMethod})\n• Formule colorimétrique : ${ruleSet.colorimetry.differenceFormula} (${ruleSet.colorimetry.illuminant}/${ruleSet.colorimetry.observer})\n• Géométrie de brillance par défaut : ${ruleSet.statisticalRules.glossGeometryDefault ?? '—'}°\n• Date d'exécution du calcul : ${now}`,
     scientificSynthesis: `Synthèse générale :\nL'essai ${trial.metadata.reference} regroupe ${trial.batches.length} lots expérimentaux (support : ${displayReportValue(trial.metadata.substrateDescription)}). Les mesures de référence initiales T0 ${stageT0?.status === 'VALIDATED' ? 'ont été validées pour l’ensemble des grandeurs physiques actives' : stageT0?.status === 'IN_PROGRESS' || stageT0?.status === 'READY_FOR_VALIDATION' ? 'sont en cours de réalisation (T0 non encore validé)' : stageT0?.status === 'NOT_STARTED' ? 'n’ont pas été réalisées (T0 non effectué)' : 'sont de statut indisponible (T0 non traçable)'}. Le comportement au vieillissement est caractérisé par le couplage des cinétiques colorimétriques (ΔE*ab), de perte de réflectance (rétention de brillance) et de résistance mécanique (Persoz).\nL'ensemble des résultats est conservé avec distinction stricte entre données brutes et résultats calculés.`,
-    factualConclusion: `Les résultats obtenus montrent l'évolution des propriétés mesurées au cours de l'exposition.\n\nLes éventuelles variations observées sont présentées par famille de mesure et comparées aux valeurs initiales T0.\n\nLes relevés présentant des alertes ou des adaptations de protocole sont identifiés dans les tableaux de résultats.\n\nLa présente synthèse ne constitue pas à elle seule une conclusion de conformité à la NF EN 927-6.${audit.isComplete ? '' : ' Essai incomplet (C12 non validé) : aucune conclusion globale de conformité ne peut être émise.'}`
+    factualConclusion: `Les résultats obtenus montrent l'évolution des propriétés mesurées au cours de l'exposition.\n\nLes éventuelles variations observées sont présentées par famille de mesure et comparées aux valeurs initiales T0.\n\nLes relevés présentant des alertes ou des adaptations de protocole sont identifiés dans les tableaux de résultats.\n\nLa présente synthèse ne constitue pas à elle seule une conclusion de conformité à la NF EN 927-6.${audit.isComplete ? '' : ' Essai incomplet (C12 non validé) : aucune conclusion globale de conformité ne peut être émise.'}`,
+    nf9272CriteriaEvaluation: renderNf9272CriteriaSection(trial, ruleSet),
+    infiperfCriteriaEvaluation: renderInfiperfCriteriaSection(trial, ruleSet)
   };
 
   const annexes = {
@@ -640,6 +734,29 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
   lines.push(``);
   lines.push(`=== CONCLUSION FACTUELLE ===`);
   lines.push(`"${report.sections.factualConclusion.replace(/\n/g, ' ')}"`);
+
+  // ==========================================================================
+  // BLOC ADDITIF — CRITÈRES COMPLÉMENTAIRES NF EN 927-2:2014 & INFIPERF
+  // Aucune colonne existante n'est déplacée ; uniquement des lignes ajoutées en
+  // fin d'export. Évaluation par lot, jamais inter-lots.
+  // ==========================================================================
+  lines.push(``);
+  lines.push(`=== CRITÈRES COMPLÉMENTAIRES NF EN 927-2:2014 (HISTORICAL_TRANSITIONAL) & INFIPERF / FCBA ===`);
+  lines.push(`NF9272_STATUS;NF9272_CLASSIFICATION;NF9272_BATCH_ID;INFIPERF_STATUS;INFIPERF_RESULT`);
+  evaluateScientificCriteriaPerBatch(trial, ruleSet).forEach((perBatch) => {
+    const nf = perBatch.evaluation.nf9272;
+    const classification =
+      nf.testValidity === 'VALID' ? (nf.classification ?? 'NO_CATEGORY_MET') : nf.testValidity;
+    const infiperfResult = [
+      `GLOSS_RETENTION=${perBatch.evaluation.infiperf.results.GLOSS_RETENTION.status}`,
+      `PERSOZ=${perBatch.evaluation.infiperf.results.PERSOZ.status}`,
+      `COLOR=${perBatch.evaluation.infiperf.results.COLOR.status}`,
+      `GENERAL_APPEARANCE=${perBatch.evaluation.infiperf.results.GENERAL_APPEARANCE.status}`
+    ].join(' | ');
+    lines.push(
+      `"${nf.status}";"${classification}";"${perBatch.batchId ?? 'N/A'}";"COMPLEMENTARY";"${infiperfResult}"`
+    );
+  });
 
   return lines.join('\n');
 }
