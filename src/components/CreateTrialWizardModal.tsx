@@ -187,7 +187,7 @@ export function CreateTrialWizardModal({
   const [persozReps, setPersozReps] = useState<number>(3);
   const [persozJustification, setPersozJustification] = useState<string>('');
 
-  // Adhérence (Gate 57) : standard 2 mesures/panneau, adaptation à 1 justifiée uniquement.
+  // Adhérence : la référence est portée par le RuleSet ; toute adaptation positive entière est possible et doit être justifiée.
   const [adhCount, setAdhCount] = useState<number>(2);
   const [adhJustification, setAdhJustification] = useState<string>('');
 
@@ -249,8 +249,7 @@ export function CreateTrialWizardModal({
   const isPersozAdaptationInvalid = isPersozAdapted && !isAdaptationJustificationValid(persozJustification);
 
   const isAdhAdapted = adhCount !== stdAdhesion;
-  const isAdhAdaptationInvalid =
-    (isAdhAdapted && !isAdaptationJustificationValid(adhJustification)) || (adhCount !== 1 && adhCount !== 2);
+  const isAdhAdaptationInvalid = isAdhAdapted && !isAdaptationJustificationValid(adhJustification);
 
   // Gardes de saisie (P5) : les configurations de mesure sont des entiers finis ≥ 1.
   // 0, valeurs décimales et NaN sont ramenés à l'entier valide le plus proche.
