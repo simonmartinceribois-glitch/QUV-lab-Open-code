@@ -1,10 +1,11 @@
 /**
- * Moteur de calcul NF EN 927-2:2022 — couche CALCULATIONS uniquement.
+ * Moteur de calcul NF EN 927-2:2014 (référentiel historique/transitoire —
+ * HISTORICAL_TRANSITIONAL) — couche CALCULATIONS uniquement.
  *
- * Tous les traitements numériques (moyennes, arrondis) vivent ici. Cette couche
- * ne connaît NI les seuils du référentiel (en9272Requirements.ts) NI les
- * évaluations (en9272Evaluator.ts) : elle reçoit des nombres et retourne des
- * nombres.
+ * Tous les traitements numériques (moyennes, sommes, différences, arrondis)
+ * vivent ici. Cette couche ne connaît NI les seuils du référentiel
+ * (en9272Requirements.ts) NI les évaluations (en9272Evaluator.ts) : elle
+ * reçoit des nombres et retourne des nombres.
  *
  * Règles :
  *  - moyenne éprouvette (adhérence) : moyenne arithmétique des 2 mesures
@@ -13,6 +14,12 @@
  *    (E1/E2/E3), arrondie à 1 décimale ;
  *  - défauts (Blistering/Cracking/Flaking) : moyenne arithmétique des cotations
  *    éprouvette (0..5), arrondie à 1 décimale ;
+ *  - classement séquentiel 2014 : la SOMME des 12 cotations individuelles
+ *    (4 critères × 3 éprouvettes exposées) est calculée depuis les valeurs
+ *    BRUTES, jamais depuis des moyennes arrondies ; de même, la DIFFÉRENCE
+ *    maximale max(12) − min(12) porte sur les valeurs individuelles ;
+ *    les moyennes comparées aux seuils (opérateur ≤) sont les moyennes
+ *    arithmétiques NON arrondies (0,7 ≤ 0,7 PASS ; 0,7001 > 0,7 FAIL) ;
  *  - jamais de donnée fabriquée : toute entrée non finie est exclue ; si le
  *    minimum requis n'est pas atteint, le résultat est `null`.
  */
@@ -68,4 +75,26 @@ export function systemAdhesionMean(specimenMeans: (number | null)[]): number | n
 export function defectMean(specimenRatings: number[]): number | null {
   const mean = arithmeticMean(specimenRatings);
   return mean === null ? null : roundTo1Decimal(mean);
+}
+
+/**
+ * SOMME des 12 cotations individuelles (classement séquentiel 2014).
+ * Somme des valeurs BRUTES finies, jamais depuis des moyennes arrondies.
+ * Retourne `null` si aucune valeur finie.
+ */
+export function sumOfValues(values: number[]): number | null {
+  const finite = finiteValues(values);
+  if (finite.length === 0) return null;
+  return finite.reduce((sum, v) => sum + v, 0);
+}
+
+/**
+ * DIFFÉRENCE maximale des 12 cotations individuelles : max(12) − min(12).
+ * Porte sur les valeurs BRUTES finies. Retourne `null` si moins de 2 valeurs
+ * finies (une différence exige au moins deux points).
+ */
+export function maxDifferenceOfValues(values: number[]): number | null {
+  const finite = finiteValues(values);
+  if (finite.length < 2) return null;
+  return Math.max(...finite) - Math.min(...finite);
 }

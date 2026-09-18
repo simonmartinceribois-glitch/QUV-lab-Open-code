@@ -1,5 +1,6 @@
 /**
- * Préparation NF EN 927-2:2022 — couche PREPARATION (mapping strict, AUCUN calcul métier).
+ * Préparation NF EN 927-2:2014 (référentiel historique/transitoire —
+ * HISTORICAL_TRANSITIONAL) — couche PREPARATION (mapping strict, AUCUN calcul métier).
  *
  * Cette couche extrait et met en forme les données d'un essai vers des données
  * PRÉPARÉES pour l'évaluation au jalon C12. Elle ne calcule aucune moyenne, aucun
@@ -10,11 +11,15 @@
  * toute interpolation/extrapolation sont exclus. Éprouvettes exposées : E1/E2/E3
  * uniquement (témoin T exclu).
  *
- * Sécurité données adhérence : le pipeline QUV-Lab est exclusivement qualitatif
- * (classes ISO 2409 0..5). Les 2 mesures INDIVIDUELLES de force d'adhérence
- * exigées par le référentiel NF EN 927-2 n'existent pas ; la préparation le
- * signale explicitement. Aucune conversion de classe vers une force en MPa n'est
- * jamais réalisée.
+ * Cotation de l'ADHÉRENCE (classement séquentiel 2014) : le pipeline QUV-Lab est
+ * exclusivement qualitatif (classes ISO 2409 0..5). Le classement 2014 évalue
+ * l'adhérence par la cotation maximale des observations visuelles, lue depuis
+ * `perCategoryMaxRating` sous la clé `CROSS_CUT_ADHESION` (repli `ADHESION`),
+ * sur l'échelle 0..5, comparée au seuil par opérateur ≤. Le blocage "force en
+ * MPa / 2 mesures par éprouvette" appartient à l'évolution de migration vers la
+ * NF EN 927-2:2022 (traçabilité documentaire conservée dans
+ * en9272Requirements.ts, jamais utilisée pour le calcul 2014). Aucune
+ * conversion de classe vers une force en MPa n'est jamais réalisée.
  */
 
 import type { Trial, ExposureStage, BatchDefinition, PanelDefinition } from '../../../types/trial';
@@ -52,13 +57,21 @@ export interface Nf9272PreparedDefectData {
 export interface Nf9272PreparedAdhesionData {
   category: 'ADHESION';
   stageId: string | null;
+  /** Lot (système de finition) ciblé par l'évaluation. `null` si non résolu. */
+  batchId: string | null;
+  /** Libellé système ciblé, ex. 'LOT A — Lasure'. */
+  batchLabel: string | null;
   /**
-   * `true` uniquement si des mesures individuelles de FORCE d'adhérence
-   * (numériques, 2 par éprouvette) sont disponibles au jalon C12.
-   * Faux aujourd'hui : le pipeline ne fournit que des classes ISO 2409 (0..5).
+   * Cotation par éprouvette exposée E1/E2/E3 du lot ciblé, lue depuis les
+   * observations visuelles (`perCategoryMaxRating` sous la clé
+   * `CROSS_CUT_ADHESION`, repli `ADHESION`), échelle 0..5.
    */
-  available: false;
-  reason: 'FORCE_MEASURES_ABSENT';
+  specimens: Nf9272SpecimenValue[];
+  /** Éprouvettes exposées REQUISES mais sans cotation exploitable (acquisition absente, cotation invalide). */
+  missingSpecimens: { panelId: string; panelLabel: string }[];
+  available: boolean;
+  /** Source de la valeur : cotation ISO 2409 issue des observations visuelles (aucune force MPa). */
+  source: 'OBSERVATIONS_RATING';
 }
 
 export type Nf9272PreparedData = Nf9272PreparedDefectData | Nf9272PreparedAdhesionData;
@@ -124,6 +137,29 @@ function readCategoryRating(panel: PanelDefinition, stageId: string, trial: Tria
 }
 
 /**
+ * Clés d'observations reconnues pour la cotation de l'ADHÉRENCE (échelle 0..5) :
+ * `CROSS_CUT_ADHESION` puis repli `ADHESION`.
+ */
+export const NF9272_ADHESION_OBSERVATION_CATEGORIES = ['CROSS_CUT_ADHESION', 'ADHESION'] as const;
+
+function readAdhesionRating(panel: PanelDefinition, stageId: string, trial: Trial): { value: number } | null {
+  const acquisition = trial.acquisitions[observationsAcquisitionKey(stageId, panel.id)];
+  const perCategory = (acquisition?.computed as { perCategoryMaxRating?: Record<string, number> | undefined } | undefined)
+    ?.perCategoryMaxRating;
+  if (!acquisition || !perCategory) return null;
+  const rating = perCategory[NF9272_ADHESION_OBSERVATION_CATEGORIES[0]] ?? perCategory[NF9272_ADHESION_OBSERVATION_CATEGORIES[1]];
+  if (typeof rating !== 'number' || !Number.isFinite(rating)) return null;
+  return { value: rating };
+}
+
+function findTargetBatch(trial: Trial, options?: { batchId?: string }): BatchDefinition | null {
+  if (options?.batchId) {
+    return trial.batches.find((b) => b.id === options.batchId) ?? null;
+  }
+  return trial.batches.length === 1 ? trial.batches[0] : null;
+}
+
+/**
  * Prépare les cotations de défauts (Blistering/Cracking/Flaking) d'UNE catégorie
  * au jalon C12, pour le SYSTÈME CIBLÉ (lot). Mapping pur : recopie des valeurs
  * par éprouvette E1/E2/E3 du lot ; aucune agrégation. Un lot multi-système non
@@ -138,11 +174,7 @@ export function prepareNf9272DefectData(
   const specimens: Nf9272SpecimenValue[] = [];
   const missingSpecimens: Nf9272PreparedDefectData['missingSpecimens'] = [];
 
-  const batch = options?.batchId
-    ? (trial.batches.find((b) => b.id === options.batchId) ?? null)
-    : trial.batches.length === 1
-      ? trial.batches[0]
-      : null;
+  const batch = findTargetBatch(trial, options);
 
   for (const panel of collectExposedE1E2E3Panels(trial.batches, batch?.id)) {
     const read = readCategoryRating(panel, stage.id, trial, category);
@@ -165,21 +197,46 @@ export function prepareNf9272DefectData(
 }
 
 /**
- * Préparation de l'ADHÉRENCE au jalon C12.
+ * Préparation de la cotation de l'ADHÉRENCE (classement séquentiel 2014) au
+ * jalon C12, pour le SYSTÈME CIBLÉ (lot).
  *
- * BLOCAGE CONNU (Cas B de l'addendum) : le référentiel NF EN 927-2:2022 exige des
- * valeurs de FORCE d'adhérence individuelle (2 mesures/éprouvette). Le pipeline
- * QUV-Lab ne produit que des classes ISO 2409 (0..5) — jamais de mesure de force.
- * Aucune conversion de classe vers une force en MPa n'est réalisée (cf.
- * reportGenerator et BenchComputedPanel). La préparation signale le blocage ;
- * l'évaluateur produira INSUFFICIENT_DATA documenté.
+ * Source : cotation maximale des OBSERVATIONS VISUELLES ISO 2409 (0..5), lue
+ * depuis `perCategoryMaxRating` sous la clé `CROSS_CUT_ADHESION` (repli
+ * `ADHESION`), éprouvette par éprouvette E1/E2/E3 du lot ciblé. Aucune force
+ * en MPa, aucune conversion, aucun wrapper : mapping pur.
+ *
+ * Le cas documentaire NF EN 927-2:2022 (2 mesures individuelles de force)
+ * n'est PAS traité par ce référentiel de calcul : il relève de l'évolution de
+ * migration dédiée (NBG-3).
  */
-export function prepareNf9272AdhesionData(trial: Trial, stage: ExposureStage): Nf9272PreparedAdhesionData {
+export function prepareNf9272AdhesionData(
+  trial: Trial,
+  stage: ExposureStage,
+  options?: { batchId?: string }
+): Nf9272PreparedAdhesionData {
+  const specimens: Nf9272SpecimenValue[] = [];
+  const missingSpecimens: Nf9272PreparedAdhesionData['missingSpecimens'] = [];
+
+  const batch = findTargetBatch(trial, options);
+
+  for (const panel of collectExposedE1E2E3Panels(trial.batches, batch?.id)) {
+    const read = readAdhesionRating(panel, stage.id, trial);
+    if (read) {
+      specimens.push({ panelId: panel.id, panelLabel: panel.label, value: read.value });
+    } else {
+      missingSpecimens.push({ panelId: panel.id, panelLabel: panel.label });
+    }
+  }
+
   return {
     category: 'ADHESION',
     stageId: stage.id,
-    available: false,
-    reason: 'FORCE_MEASURES_ABSENT'
+    batchId: batch?.id ?? null,
+    batchLabel: batch ? formatBatchSystem(batch) : null,
+    specimens,
+    missingSpecimens,
+    available: specimens.length > 0,
+    source: 'OBSERVATIONS_RATING'
   };
 }
 
@@ -194,6 +251,6 @@ export function prepareNf9272CriterionData(
   criterion: Nf9272DefectCategory | 'ADHESION',
   options?: { batchId?: string }
 ): Nf9272PreparedData {
-  if (criterion === 'ADHESION') return prepareNf9272AdhesionData(trial, stage);
+  if (criterion === 'ADHESION') return prepareNf9272AdhesionData(trial, stage, options);
   return prepareNf9272DefectData(trial, stage, criterion, options);
 }
