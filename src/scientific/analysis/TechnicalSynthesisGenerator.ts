@@ -204,9 +204,9 @@ export function generateTechnicalSynthesis(
   // ADAPTATIONS DU PROTOCOLE (Section 23)
   // --------------------------------------------------------------------------
   const colorCfg = trial.config.familyConfigs.COLOR?.countConfig;
-  if (colorCfg && colorCfg.configuredCount !== 4 && colorCfg.justification) {
+  if (colorCfg && colorCfg.deviationFromStandard && colorCfg.justification) {
     protocolAdaptations.push(
-      `Les mesures colorimétriques ont été réalisées selon un plan adapté de ${colorCfg.configuredCount} points (au lieu de 4 standard) ; cette adaptation est documentée dans le protocole de l'essai ("${colorCfg.justification}").`
+      `Les mesures colorimétriques ont été réalisées selon un plan adapté de ${colorCfg.configuredCount} points (par rapport à la configuration de référence retenue) ; cette adaptation est documentée dans le protocole de l'essai ("${colorCfg.justification}").`
     );
   }
 
