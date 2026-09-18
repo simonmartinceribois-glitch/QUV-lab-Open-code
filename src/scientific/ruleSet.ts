@@ -18,7 +18,7 @@ import {
  * - NORMATIVE_REQUIREMENT : NF EN 927-6:2018 (Couleur 4 pts cl. 6.3.2, Brillance 2x2 60° cl. 6.3.3)
  * - LAB_RECOMMENDATION : Dureté Persoz 3 reps (ISO 1522 / procédure labo, non-normative pour 927-6)
  * - METROLOGICAL_CHOICE : Écart-type échantillon n-1, seuils d'alerte dispersion
- * - PROTOCOL_ADAPTATION : Toute configuration s'écartant du standard (avec justification obligatoire)
+ * - PROTOCOL_ADAPTATION : Toute configuration s'écartant de la référence, avec justification obligatoire.
  */
 export function getDefaultScientificRuleSet(): ScientificRuleSet {
   return {
@@ -91,7 +91,7 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
         origin: 'NORMATIVE_REQUIREMENT',
         standardReference: 'NF EN ISO 2409:2020',
         clause: '§5 & §6 (Essai de quadrillage)',
-        rationale: 'Évaluation de la résistance du revêtement à la séparation par quadrillage (6×6 incisions, espacement selon épaisseur sèche). Standard QUV-Lab (Gate 57) : 2 mesures indépendantes par panneau ; 1 mesure uniquement en adaptation justifiée.',
+        rationale: 'Méthode d’essai d’adhérence selon NF EN ISO 2409:2020. Le nombre de mesures relève du protocole retenu pour l’essai : 2 mesures/panneau en configuration de référence. Toute autre configuration entière ≥ 1 constitue une adaptation du cadre appliqué à l’essai et doit être explicitement justifiée ; cette adaptation ne modifie pas le texte de la norme.',
         standardRecommendedCount: 2,
         configuredCount: 2,
         deviationFromStandard: false,
@@ -167,12 +167,6 @@ export function createCountConfiguration(
       `Configuration ${familyId} invalide : le nombre de mesures doit être un entier fini supérieur ou égal à 1 (reçu : ${String(configuredCount)}).`
     );
   }
-  if (familyId === 'ADHESION' && configuredCount !== 1 && configuredCount !== 2) {
-    throw new Error(
-      `Configuration ADHESION invalide : ${String(configuredCount)} mesure(s) demandée(s). Seules 2 mesures/panneau (standard) ou 1 mesure/panneau (adaptation justifiée) sont autorisées.`
-    );
-  }
-
   const ref = ruleSet.measurementConfigurations[familyId] || {
     standardRecommendedCount: 4,
     origin: 'NORMATIVE_REQUIREMENT' as ScientificRuleOrigin,

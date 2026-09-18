@@ -336,7 +336,7 @@ export function runAllAcceptanceTests(): {
     trial.config.familyConfigs.COLOR = {
       familyId: 'COLOR',
       enabled: true,
-      countConfig: createCountConfiguration('COLOR', 2, ruleSet, { justification: 'Éprouvettes étroites 50mm' })
+      countConfig: createCountConfiguration('COLOR', 5, ruleSet, { justification: 'Éprouvettes étroites 50mm' })
     };
     const anomalies = detectTrialAnomalies(trial, ruleSet);
     const anom = anomalies.find((a) => a.code === 'COLOR_ADAPTATION_JUSTIFIED');
@@ -360,7 +360,7 @@ export function runAllAcceptanceTests(): {
     trial.config.familyConfigs.COLOR = {
       familyId: 'COLOR',
       enabled: true,
-      countConfig: createCountConfiguration('COLOR', 2, ruleSet, { justification: '' })
+      countConfig: createCountConfiguration('COLOR', 5, ruleSet, { justification: '' })
     };
     const anomalies = detectTrialAnomalies(trial, ruleSet);
     const anom = anomalies.find((a) => a.code === 'COLOR_ADAPTATION_UNJUSTIFIED');
@@ -737,7 +737,7 @@ export function runAllAcceptanceTests(): {
     trial.config.familyConfigs.COLOR = {
       familyId: 'COLOR',
       enabled: true,
-      countConfig: createCountConfiguration('COLOR', 2, ruleSet, { justification: 'Largeur réduite' })
+      countConfig: createCountConfiguration('COLOR', 5, ruleSet, { justification: 'Largeur réduite' })
     };
     const analysis = runQUVAnalysis(trial, ruleSet);
     const passed = analysis.normativeConclusionStatus === 'NON_EVALUEE' &&

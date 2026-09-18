@@ -465,7 +465,7 @@ export function buildScientificReport(
         ? 'PROTOCOLE ADAPTÉ'
         : 'PROTOCOLE STANDARD';
     const justLine = adapted
-      ? `${justification.trim() ? `\nJustification : ${justification.trim()}` : '\nJustification : NON RENSEIGNÉE'}`
+      ? `${justification.trim() ? `\nJustification : ${justification.trim()}` : '\nJustification : NON RENSEIGNÉE'}\nNOTE : cette configuration constitue une adaptation du cadre normatif/scientifique appliqué à l'essai ; elle ne modifie pas le texte de la référence ${stdRef}.`
       : '';
     return (
       `PROTOCOLE DE MESURE — ${labels[fam]}\n` +

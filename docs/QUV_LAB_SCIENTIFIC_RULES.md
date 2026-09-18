@@ -332,11 +332,78 @@ RAW
 COMPUTED
 ```
 
-Le nombre de mesures configuré pour une famille est comparé à la référence scientifique de cette famille.
+Le nombre de mesures configuré pour une famille est comparé à la configuration de référence retenue par QUV-Lab pour l'application du cadre normatif.
 
-`PROTOCOLE STANDARD` : le nombre de mesures configuré correspond à la référence scientifique de la famille.
+Important : le terme **PROTOCOLE ADAPTÉ** désigne ici une **adaptation du cadre normatif appliqué dans QUV-Lab**. Il ne doit pas être présenté comme une modification de la norme publiée elle-même. Le logiciel doit distinguer explicitement la référence normative et l'adaptation retenue pour l'essai.
 
-`PROTOCOLE ADAPTÉ` : le nombre de mesures configuré s'écarte de la référence scientifique de la famille.
+\`PROTOCOLE STANDARD\` : la configuration correspond à la référence normative retenue sans adaptation.
+
+\`PROTOCOLE ADAPTÉ\` : la configuration s'écarte de la référence normative retenue et constitue une adaptation documentée du cadre d'application retenu pour l'essai.
+
+\`CONFIGURATION INVALIDE\` : la configuration est inférieure au minimum autorisé pour l'adaptation définie ci-dessous. Elle doit être refusée par le moteur.
+
+### 8.1.1 Configuration du nombre de mesures lors de la création de l'essai
+
+Le S0 **ne fixe pas de minimum logiciel générique par famille** pour qualifier une configuration d'adaptation.
+
+Lors de la création d'un essai, deux modes de configuration sont possibles :
+
+1. **Configuration selon le cadre normatif / la référence scientifique retenue**
+   * le nombre de mesures est configuré conformément à la référence applicable retenue pour l'essai ;
+   * ce nombre constitue la configuration de référence de l'essai.
+
+2. **Configuration adaptée**
+   * l'opérateur définit explicitement le nombre de mesures retenu pour l'essai ;
+   * ce nombre peut être différent, y compris inférieur, au nombre de mesures de la référence ;
+   * l'adaptation doit être explicitement identifiée ;
+   * une justification/commentaire est obligatoire et est conservé avec l'essai.
+
+**Important :** cette adaptation est une **adaptation du cadre appliqué à l'essai**. Elle ne constitue pas une modification du texte de la norme, ni une nouvelle exigence normative. Le logiciel ne doit donc jamais présenter le nombre adapté comme « conforme à la norme » du seul fait qu'il a été configuré et analysé.
+
+Il n'existe donc pas de règle du type « minimum QUV-Lab = X mesures » codée par famille dans `ruleSet.ts`.
+
+Le `RuleSet` conserve la référence scientifique/normative et sa configuration de référence. Le **nombre effectivement choisi appartient au protocole de l'essai**.
+
+| Famille | Référence/configuration normative ou scientifique | Nombre adapté |
+|---|---|---|
+| Couleur | Selon la référence applicable retenue | Défini lors de la création |
+| Brillance | Selon la structure méthodologique applicable retenue | Défini lors de la création |
+| Persoz | Selon la procédure laboratoire retenue | Défini lors de la création |
+| Adhérence | Selon la méthode et le protocole retenus | Défini lors de la création |
+
+Le moteur doit accepter et analyser la configuration réellement créée, qu'elle soit standard ou adaptée, sous réserve des contrôles génériques de validité du paramétrage (entiers, valeurs finies, structure cohérente, etc.).
+
+**Aucune adaptation ne doit désactiver l'analyse des résultats.**
+
+Dans les deux modes :
+
+```text
+configuration de l'essai
+        ↓
+acquisition RAW
+        ↓
+validation / qualité
+        ↓
+calculs COMPUTED
+        ↓
+critères applicables
+        ↓
+analyse
+        ↓
+restitution
+```
+
+La différence entre les deux modes est une **information de traçabilité du protocole**, pas une condition générale d'exécution du moteur.
+
+Pour une configuration adaptée, la restitution doit conserver au minimum :
+
+* le nombre réellement configuré ;
+* la référence utilisée pour identifier l'écart ;
+* le statut d'adaptation ;
+* le commentaire / la justification ;
+* les résultats calculés à partir des données réellement acquises.
+
+Le nombre configuré est verrouillé selon les règles générales de verrouillage du protocole : après la première acquisition scientifique, aucune modification silencieuse du plan de mesure n'est autorisée.
 
 Toute adaptation doit être :
 

@@ -227,18 +227,18 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     record(13, 'Brillance 2 × 2 -> STANDARD', 'Protocole Brillance', passed, 'STANDARD (4/4 valides)', `${res.computed.protocolStatus} (${res.computed.validCount}/4)`);
   }
 
-  // --- TEST 14 : Brillance 2 x 1 -> adaptation détectée ---
+  // --- TEST 14 : Brillance 2 x 3 -> adaptation détectée ---
   {
-    const config = createSeriesConfiguration('GLOSS', 2, 1, ruleSet, { justification: 'Allègement plan de mesure' });
+    const config = createSeriesConfiguration('GLOSS', 2, 3, ruleSet, { justification: 'Renforcement du plan de mesure' });
     const raw: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 40 }] },
-        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 38 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 40 }, { pointIndex: 2, value: 41 }, { pointIndex: 3, value: 42 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 38 }, { pointIndex: 2, value: 39 }, { pointIndex: 3, value: 40 }] }
       ]
     };
     const res = calculateGloss(raw, config, ruleSet);
-    const passed = res.computed.protocolStatus === 'ADAPTED_JUSTIFIED' && res.computed.totalReadings === 2;
-    record(14, 'Brillance 2 × 1 -> ADAPTED_JUSTIFIED', 'Protocole Brillance', passed, 'ADAPTED_JUSTIFIED (2 mesures)', `${res.computed.protocolStatus} (${res.computed.totalReadings} mesures)`);
+    const passed = res.computed.protocolStatus === 'ADAPTED_JUSTIFIED' && res.computed.totalReadings === 6;
+    record(14, 'Brillance 2 × 3 -> ADAPTED_JUSTIFIED', 'Protocole Brillance', passed, 'ADAPTED_JUSTIFIED (6 mesures)', `${res.computed.protocolStatus} (${res.computed.totalReadings} mesures)`);
   }
 
   // --- TEST 15 : Persoz avec répétitions personnalisées -> adaptation selon référentiel laboratoire ---
@@ -724,7 +724,7 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
           GLOSS: {
             familyId: 'GLOSS',
             enabled: true,
-            seriesConfig: createSeriesConfiguration('GLOSS', 1, 2, ruleSet, { justification: 'Mesure unidirectionnelle' })
+            seriesConfig: createSeriesConfiguration('GLOSS', 2, 1, ruleSet, { justification: 'Mesure unidirectionnelle' })
           }
         }
       },
@@ -844,7 +844,7 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
   // --- TEST 34 : Traçabilité opérateur et horodatage sur chaque adaptation ---
   {
     const timestampBefore = new Date().toISOString();
-    const configAdapted = createCountConfiguration('COLOR', 3, ruleSet, {
+    const configAdapted = createCountConfiguration('COLOR', 2, ruleSet, {
       justification: 'Panneau court',
       operatorId: 'Ingénieur Qualité M. Dupont'
     });
@@ -1223,6 +1223,7 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
 
   const passedCount = results.filter((r) => r.passed).length;
   const failedCount = results.length - passedCount;
+
 
   return {
     results,

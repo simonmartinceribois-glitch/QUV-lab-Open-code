@@ -304,7 +304,7 @@ export function WizardStep5Families({
           </div>
         )}
 
-        {/* Adhérence (Gate 57) : standard 2 mesures/panneau, adaptation à 1 justifiée */}
+        {/* Adhérence : référence issue du RuleSet ; adaptation justifiée possible avec un nombre entier ≥ 1 */}
         {activeFamilies.includes('ADHESION') && (
           <div className="p-4 rounded-xl border border-slate-200 bg-white space-y-3">
             <div className="flex items-center justify-between">
@@ -321,9 +321,8 @@ export function WizardStep5Families({
               <input
                 type="number"
                 min={1}
-                max={2}
                 value={adhCount}
-                onChange={(e) => onAdhCountChange(Math.max(1, Math.min(2, Number(e.target.value) || 1)))}
+                onChange={(e) => onAdhCountChange(Math.max(1, Number(e.target.value) || 1))}
                 className="w-20 px-2 py-1 text-xs border border-slate-300 rounded text-center font-bold"
               />
             </div>
@@ -337,7 +336,7 @@ export function WizardStep5Families({
                   value={adhJustification}
                   onChange={(e) => onAdhJustificationChange(e.target.value)}
                   className={`w-full px-3 py-1.5 text-xs border rounded-lg ${isAdhAdapted && !isAdaptationJustificationValid(adhJustification) ? 'border-red-500 bg-red-50/30' : 'border-red-300 bg-red-50/20'}`}
-                  placeholder="Motif de l'adaptation à 1 mesure..."
+                  placeholder="Motif de l'adaptation par rapport à la référence..."
                 />
                 {isAdhAdapted && !isAdaptationJustificationValid(adhJustification) && (
                   <p className="text-[11px] text-red-600 mt-1 font-semibold">Justification obligatoire : 8 caractères minimum.</p>

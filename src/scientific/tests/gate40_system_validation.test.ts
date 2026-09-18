@@ -517,8 +517,8 @@ export function runGate40SystemValidationTests(): {
   // ==========================================================================
 
   {
-    // Simulation d'une adaptation motivée du plan de mesure : 2 points couleur au lieu de 4
-    const justifiedConfig = createCountConfiguration('COLOR', 2, ruleSet, {
+    // Simulation d'une adaptation motivée du plan de mesure : 5 points couleur au lieu de 4
+    const justifiedConfig = createCountConfiguration('COLOR', 5, ruleSet, {
       justification: 'Éprouvettes à surface restreinte 50x50 mm dédiées au criblage formulatoire',
       operatorId: 'Responsable Laboratoire'
     });

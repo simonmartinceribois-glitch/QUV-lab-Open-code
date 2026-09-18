@@ -309,7 +309,7 @@ export function calculateAdhesion(
   const alerts: MeasurementAlert[] = [];
   const version = options?.calculationVersion || ADHESION_CALCULATION_VERSION;
 
-  // 1. Mesures individuelles (Gate 57) : 2 standard, 1 si adaptation justifiée.
+  // 1. Mesures individuelles : le nombre attendu vient de la configuration du protocole ; la référence standard est portée par le RuleSet.
   // Le nombre attendu vient du protocole ; défaut 2 quand aucune configuration.
   // Compatibilité historique D4 : un RAW scalaire legacy (sans `measurements`) est
   // TOUJOURS interprété comme 1 mesure attendue (1/1), quelle que soit la
