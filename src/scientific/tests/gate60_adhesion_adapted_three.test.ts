@@ -89,7 +89,7 @@ export function runGate60AdhesionAdaptedThreeTests(): {
     (result.computed.individualResults ?? []).length === 3 &&
       !result.alerts.some((a) => a.code === 'MEASUREMENT_COUNT_MISMATCH'),
     '3 mesures acceptées sans troncature ni alerte de dépassement',
-    `individualResults=${result.computed.individualResults.length}, countMismatch=${result.alerts.some((a) => a.code === 'MEASUREMENT_COUNT_MISMATCH')}`
+    `individualResults=${(result.computed.individualResults ?? []).length}, countMismatch=${result.alerts.some((a) => a.code === 'MEASUREMENT_COUNT_MISMATCH')}`
   );
 
   const passed = results.filter((r) => r.passed).length;
