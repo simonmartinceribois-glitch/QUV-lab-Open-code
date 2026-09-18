@@ -332,37 +332,36 @@ RAW
 COMPUTED
 ```
 
-Le nombre de mesures configuré pour une famille est comparé à la configuration de référence du protocole QUV-Lab pour cette famille.
+Le nombre de mesures configuré pour une famille est comparé à la configuration de référence retenue par QUV-Lab pour l'application du cadre normatif.
 
-Important : le terme `PROTOCOLE ADAPTÉ` décrit ici une adaptation du **protocole QUV-Lab de référence**, et non une adaptation, dérogation ou modification du cadre normatif. Le logiciel ne doit jamais présenter une adaptation QUV-Lab comme une « adaptation de la norme » ni comme une conformité normative acquise par cette adaptation.
+Important : le terme **PROTOCOLE ADAPTÉ** désigne ici une **adaptation du cadre normatif appliqué dans QUV-Lab**. Il ne doit pas être présenté comme une modification de la norme publiée elle-même. Le logiciel doit distinguer explicitement la référence normative et l'adaptation retenue pour l'essai.
 
-`PROTOCOLE STANDARD` : le nombre de mesures configuré correspond à la configuration de référence du protocole QUV-Lab pour la famille.
+\`PROTOCOLE STANDARD\` : la configuration correspond à la référence normative retenue sans adaptation.
 
-`PROTOCOLE ADAPTÉ` : le nombre de mesures configuré s'écarte de la configuration de référence du protocole QUV-Lab, tout en restant au-dessus ou égal au minimum de configuration applicable défini ci-dessous.
+\`PROTOCOLE ADAPTÉ\` : la configuration s'écarte de la référence normative retenue et constitue une adaptation documentée du cadre d'application retenu pour l'essai.
 
-`CONFIGURATION INVALIDE` : le nombre de mesures configuré est inférieur au minimum de configuration applicable. Ce cas n'est pas une adaptation valide et doit être refusé par le moteur de configuration.
+\`CONFIGURATION INVALIDE\` : la configuration est inférieure au minimum autorisé pour l'adaptation définie ci-dessous. Elle doit être refusée par le moteur.
 
-### 8.1.1 Minima de configuration applicables aux adaptations QUV-Lab
+### 8.1.1 Minima de configuration pour une adaptation du cadre normatif
 
-Les minima ci-dessous sont des **bornes de configuration du protocole QUV-Lab**. Ils servent à empêcher qu'une adaptation du protocole QUV-Lab soit configurée avec un plan de mesure insuffisant.
+Les minima ci-dessous définissent les **limites de l'adaptation du cadre normatif dans QUV-Lab**. Ils ne constituent pas une nouvelle exigence de la norme et ne permettent pas, à eux seuls, de déclarer la conformité à la norme.
 
-Ils ne constituent pas une nouvelle définition du cadre normatif et ne doivent pas être interprétés comme une « adaptation minimale de la norme ».
-
-| Famille | Configuration QUV-Lab de référence | Minimum de configuration autorisé | Règle d'adaptation |
+| Famille | Référence normative retenue | Minimum autorisé dans l'adaptation QUV-Lab | Règle |
 |---|---|---|---|
-| Couleur | 4 mesures/panneau | 4 mesures/panneau | Une configuration 4 est standard ; toute configuration supérieure est adaptée. Une configuration <4 est invalide. |
-| Brillance | 2 séries × 2 mesures, une série par direction | 2 séries × 2 mesures, avec ≥2 mesures dans chaque direction | Toute configuration différente de 2×2 mais respectant au minimum 2 séries et 2 mesures par série est adaptée. Une configuration ne respectant pas cette structure minimale est invalide. |
-| Persoz | 3 répétitions | 1 mesure/panneau | 3 est standard ; 1 ou 2 sont des adaptations QUV-Lab justifiées. Le minimum 1 est une borne du protocole logiciel et non une exigence normative NF EN 927-6. |
-| Adhérence | 2 mesures/panneau | 1 mesure/panneau | 2 est standard ; 1 est une adaptation QUV-Lab justifiée. Cette borne logicielle ne modifie pas l'exigence normative applicable au protocole expérimental. |
-| Observations | Pas de dénombrement scalaire configuré | Sans objet | Les observations ne sont pas soumises à ce mécanisme de minimum numérique. |
+| Couleur | 4 mesures/panneau | 4 mesures/panneau | <4 interdit ; 4 = référence ; >4 = adaptation documentée. |
+| Brillance | 2 séries × 2 mesures, une série par direction | 2 séries × 2 mesures, avec ≥2 mesures dans chaque direction | Une réduction sous 2×2 est interdite ; une configuration supérieure est une adaptation documentée. |
+| Persoz | 3 répétitions retenues par le protocole laboratoire | 1 mesure/panneau | 1 ou 2 = adaptation documentée ; 3 = référence. Cette règle relève du cadre laboratoire et non d'une exigence normative NF EN 927-6. |
+| Adhérence | 2 mesures/panneau retenues pour le protocole QUV | 1 mesure/panneau | 1 = adaptation documentée ; 2 = référence. Cette adaptation ne modifie pas le texte de la norme. |
+| Observations | Cotation qualitative | Sans minimum numérique | Hors mécanisme de comptage. |
 
-**Règle d'interprétation impérative :**
+**Règle impérative :**
 
-* une valeur comprise entre le minimum autorisé et la configuration de référence est une **adaptation du protocole QUV-Lab**, lorsqu'elle s'écarte de la référence ;
-* une valeur supérieure à la configuration de référence est également une adaptation du protocole QUV-Lab ;
-* une valeur inférieure au minimum autorisé est une **configuration invalide**, pas une adaptation ;
-* l'existence d'une adaptation QUV-Lab ne permet jamais, à elle seule, de conclure à la conformité ou à la non-conformité normative ;
-* lorsque le minimum applicable correspond lui-même à une exigence méthodologique normative identifiée dans le S0 (notamment couleur et brillance), le logiciel doit empêcher toute configuration inférieure sans pour autant qualifier l'adaptation QUV-Lab de « dérogation à la norme ».
+* inférieur au minimum = **configuration invalide** ;
+* égal au minimum mais différent de la référence = **adaptation du cadre normatif** ;
+* supérieur à la référence = **adaptation du cadre normatif** ;
+* égal à la référence = **configuration standard** ;
+* toute adaptation doit être tracée et justifiée ;
+* aucune adaptation QUV-Lab ne doit être formulée comme une modification de la norme elle-même ni comme une conformité normative automatique.
 
 Toute adaptation doit être :
 
