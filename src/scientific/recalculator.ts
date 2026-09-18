@@ -128,7 +128,6 @@ export function recalculateAcquisition(
       );
       computed = res.computed;
       alerts = res.alerts;
-      }
     }
   } else if (record.familyId === 'PERSOZ') {
     // Verrou population P1 : une acquisition PERSOZ non éligible (T ou panneau
