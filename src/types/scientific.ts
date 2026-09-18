@@ -425,7 +425,7 @@ export interface AdhesionComputedData {
   initialPanelMean?: number | null;
   deltaAdhesionClass?: number | null; // Variation d'adhérence vs T0
   elapsedTimeHours: number | null;
-  gridSpacingUsedMm: number;
+  gridSpacingUsedMm: number | null;
   qualityAssessment: QualityAssessment;
   protocolStatus: ProtocolComplianceStatus;
   referenceTrace?: ReferenceTrace;
