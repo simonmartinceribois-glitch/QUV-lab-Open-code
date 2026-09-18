@@ -223,6 +223,20 @@ export function generateTechnicalSynthesis(
     );
   }
 
+  const persozCfg = trial.config.familyConfigs.PERSOZ?.countConfig;
+  if (persozCfg && persozCfg.deviationFromStandard && persozCfg.justification) {
+    protocolAdaptations.push(
+      `Le nombre de répétitions de dureté Persoz a été adapté à ${persozCfg.configuredCount} mesure(s) par rapport à la configuration de référence (${persozCfg.standardRecommendedCount}) ; cette adaptation du cadre appliqué à l'essai est documentée dans le protocole ("${persozCfg.justification}").`
+    );
+  }
+
+  const adhesionCfg = trial.config.familyConfigs.ADHESION?.countConfig;
+  if (adhesionCfg && adhesionCfg.deviationFromStandard && adhesionCfg.justification) {
+    protocolAdaptations.push(
+      `Le nombre de mesures d'adhérence par panneau a été adapté à ${adhesionCfg.configuredCount} mesure(s) par rapport à la configuration de référence (${adhesionCfg.standardRecommendedCount}) ; cette adaptation du cadre appliqué à l'essai est documentée dans le protocole ("${adhesionCfg.justification}").`
+    );
+  }
+
   // Tronquer si maxSentences spécifié
   const max = options?.maxSentences || 6;
   const finalSentences = sentences.slice(0, max);
