@@ -56,7 +56,6 @@ function mkAdhPanel(panelMean: number | null): AdhesionComputedData {
     individualResults: [],
     panelMean,
     classDescription: 'Moyenne panneau',
-    elapsedTimeHours: 216,
     gridSpacingUsedMm: 2,
     qualityAssessment: {
       expectedCount: 2, actualCount: 2, validCount: 2, suspectCount: 0,
@@ -201,7 +200,6 @@ export function runColorAdhesionStatisticsTests(): {
       ],
       gridSpacingMm: 2,
       measurementDateTime: '2026-10-24T00:00:00Z',
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020'
     }, std2, ruleSet, {});
     record('ADH-STAT-01', 'Moyenne panneau 1+2 → 1.5',
@@ -218,7 +216,6 @@ export function runColorAdhesionStatisticsTests(): {
       ],
       gridSpacingMm: 2,
       measurementDateTime: '2026-10-24T00:00:00Z',
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020'
     }, std2, ruleSet, {});
     const desc = res.computed.classDescription || '';
@@ -237,7 +234,6 @@ export function runColorAdhesionStatisticsTests(): {
       ],
       gridSpacingMm: 2,
       measurementDateTime: '2026-10-24T00:00:00Z',
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020'
     }, std2, ruleSet, {});
     const indiv = res.computed.individualResults || [];
@@ -298,7 +294,6 @@ export function runColorAdhesionStatisticsTests(): {
       coatingThicknessMicrons: 90,
       measurementDateTime: '2026-10-24T00:00:00Z',
       applicationDateTime: '2026-08-01T00:00:00Z',
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020'
     });
     const seedC = (stageId: string, panelId: string, raw: AdhesionRawData) => {

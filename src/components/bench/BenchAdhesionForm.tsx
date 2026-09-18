@@ -11,7 +11,6 @@ import {
   ISO2409_CLASSES,
   getApplicableGridSpacing
 } from '../../scientific/adhesionEngine';
-import { evaluateAdhesionDelayCriterion } from '../../scientific/criteria/criteriaAdhesion';
 import { ProtocolStatusHeader } from './ProtocolStatusHeader';
 import type { BatchDefinition, ExposureStage, PanelDefinition } from '../../types/trial';
 
@@ -69,14 +68,6 @@ export function BenchAdhesionForm({
   const thickness = currentBatch?.dryFilmThicknessMicrons ?? undefined;
   const spacingResult = getApplicableGridSpacing(thickness);
   const gridDisplay = getAdhesionGridDisplay(thickness);
-  // Source de vérité unique du délai : la couche CRITÈRE (S3), identique au
-  // rapport. Aucun calcul concurrent dans l'UI ; le seuil (168 h) est un
-  // paramètre protocolaire OPTIONNEL fourni explicitement lorsque configuré,
-  // jamais injecté en dur — sans configuration, la vérification est contournée.
-  const delayResult = evaluateAdhesionDelayCriterion({
-    applicationDateTime: currentBatch?.applicationDate,
-    measurementDateTime: new Date().toISOString()
-  });
   const isWitness = currentPanel?.role === 'WITNESS' || currentPanel?.index === 1;
 
   const setEntryClass = (idx: number, cls: number | null) => {
@@ -133,24 +124,6 @@ export function BenchAdhesionForm({
           <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
             <div className="text-slate-500 text-[11px]">Conditionnement avant essai :</div>
             <div className="font-bold text-slate-800 mt-0.5">23 ± 2 °C / 50 ± 5 % HR (≥ 16 h)</div>
-          </div>
-        </div>
-
-        {/* Traçabilité du délai d'application */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 bg-white border border-slate-200 rounded-lg gap-2">
-          <div>
-            <span className="text-slate-500 font-medium">Application finition : </span>
-            <span className="font-mono font-bold text-slate-800">{currentBatch?.applicationDate || 'Non renseignée'}</span>
-          </div>
-          <div>
-            <span className="text-slate-500 font-medium">Délai écoulé : </span>
-            {delayResult.elapsedTimeHours !== null ? (
-              <span className={`font-bold ${delayResult.status === 'CONFORME' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                {Math.floor(delayResult.elapsedTimeHours / 24)} j {Math.round(delayResult.elapsedTimeHours % 24)} h ({delayResult.status === 'CONFORME' ? `✅ Conforme ≥ ${delayResult.requiredMinimumDelayHours} h` : `⚠️ < ${delayResult.requiredMinimumDelayHours} h`})
-              </span>
-            ) : (
-              <span className="text-slate-400 italic">Non évalué (seuil non configuré ou date manquante)</span>
-            )}
           </div>
         </div>
 

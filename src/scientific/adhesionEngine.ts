@@ -20,7 +20,6 @@ export const ADHESION_CALCULATION_VERSION = '1.2.0';
 export const ADHESION_NORM_REFERENCE = 'NF EN ISO 2409:2020';
 /** Délai minimal d'application avant essai (protocole) : 168 h = 7 jours.
  *  Source unique — lu par calculateDelayCompliance (COMPUTED) et la couche CRITÈRE (S3). */
-export const ADHESION_DEFAULT_REQUIRED_DELAY_HOURS = 168;
 
 /**
  * Définition officielle des 6 classes d'adhérence selon la NF EN ISO 2409:2020
@@ -91,12 +90,20 @@ export function getApplicableGridSpacing(
   coatingThicknessMicrons?: number | null,
   isWoodOrSoftSubstrate: boolean = true
 ): {
-  gridSpacingMm: number;
+  gridSpacingMm: number | null;
   cutsCount: number;
   thicknessCategory: string;
   rationale: string;
 } {
-  const thickness = coatingThicknessMicrons ?? 60; // Valeur par défaut si non spécifié
+  if (coatingThicknessMicrons === undefined || coatingThicknessMicrons === null || !Number.isFinite(coatingThicknessMicrons) || coatingThicknessMicrons < 0) {
+    return {
+      gridSpacingMm: null,
+      cutsCount: 0,
+      thicknessCategory: 'Épaisseur de revêtement non renseignée',
+      rationale: 'Espacement de quadrillage non déterminable sans épaisseur de revêtement valide.'
+    };
+  }
+  const thickness = coatingThicknessMicrons;
 
   if (thickness <= 60) {
     if (isWoodOrSoftSubstrate) {
@@ -136,92 +143,6 @@ export function getApplicableGridSpacing(
       rationale: 'NF EN ISO 2409 §5.2.2 : Pour épaisseurs > 250 µm, espacement spécial ≥ 3 mm ou méthode d\'incision en croix X (ISO 16276-2).'
     };
   }
-}
-
-/**
- * Calcul et vérification automatique du délai entre application et mesure
- */
-export function calculateDelayCompliance(
-  applicationDateStr?: string,
-  measurementDateStr?: string,
-  requiredMinimumHours: number = ADHESION_DEFAULT_REQUIRED_DELAY_HOURS
-): {
-  elapsedTimeHours: number | null;
-  formattedElapsedTime: string;
-  status: 'CONFORME' | 'INSUFFICIENT_DELAY' | 'INVALID_DATE' | 'MISSING_APPLICATION_DATE';
-  complianceText: 'CONFORME' | 'DÉLAI INSUFFISANT' | 'DATE INVALIDE' | 'DATE NON RENSEIGNÉE';
-  message: string;
-} {
-  if (!applicationDateStr || applicationDateStr.trim() === '') {
-    return {
-      elapsedTimeHours: null,
-      formattedElapsedTime: 'Non déterminée',
-      status: 'MISSING_APPLICATION_DATE',
-      complianceText: 'DATE NON RENSEIGNÉE',
-      message: 'Date d\'application du lot non renseignée. Veuillez renseigner la date d\'application dans la définition du lot.'
-    };
-  }
-
-  const appTime = new Date(applicationDateStr).getTime();
-  if (isNaN(appTime)) {
-    return {
-      elapsedTimeHours: null,
-      formattedElapsedTime: 'Date invalide',
-      status: 'INVALID_DATE',
-      complianceText: 'DATE INVALIDE',
-      message: 'Format de la date d\'application invalide.'
-    };
-  }
-
-  const measureTime = measurementDateStr ? new Date(measurementDateStr).getTime() : Date.now();
-  if (isNaN(measureTime)) {
-    return {
-      elapsedTimeHours: null,
-      formattedElapsedTime: 'Date invalide',
-      status: 'INVALID_DATE',
-      complianceText: 'DATE INVALIDE',
-      message: 'Format de la date de mesure invalide.'
-    };
-  }
-
-  const diffMs = measureTime - appTime;
-  if (diffMs < 0) {
-    return {
-      elapsedTimeHours: null,
-      formattedElapsedTime: 'Antérieure à application',
-      status: 'INVALID_DATE',
-      complianceText: 'DATE INVALIDE',
-      message: 'La date de mesure ne peut pas être antérieure à la date d\'application de la finition.'
-    };
-  }
-
-  const elapsedHours = diffMs / (1000 * 60 * 60);
-  const days = Math.floor(elapsedHours / 24);
-  const remainingHours = Math.floor(elapsedHours % 24);
-  const minutes = Math.floor((elapsedHours * 60) % 60);
-
-  const formattedElapsedTime =
-    days > 0
-      ? `${days} j ${remainingHours} h ${minutes > 0 ? minutes + ' min' : ''}`.trim()
-      : `${Math.floor(elapsedHours)} h ${minutes} min`;
-
-  if (elapsedHours < requiredMinimumHours) {
-    return {
-      elapsedTimeHours: Math.round(elapsedHours * 10) / 10,
-      formattedElapsedTime,
-      status: 'INSUFFICIENT_DELAY',
-      complianceText: 'DÉLAI INSUFFISANT',
-      message: `Délai de séchage/conditionnement insuffisant (${formattedElapsedTime} écoulés vs ${requiredMinimumHours} h requis par le protocole).`
-    };
-  }
-
-  return {
-    elapsedTimeHours: Math.round(elapsedHours * 10) / 10,
-    formattedElapsedTime,
-    status: 'CONFORME',
-    complianceText: 'CONFORME',
-    message: `Délai respecté (${formattedElapsedTime} écoulés pour un minimum requis de ${requiredMinimumHours} h).`
-  };
 }
 
 export interface AdhesionCalculationOptions {
@@ -278,7 +199,8 @@ export function resolveAdhesionCountConfig(
   stored: MeasurementCountConfiguration | undefined
 ): MeasurementCountConfiguration {
   if (stored) return stored;
-  return {
+  throw new Error('Configuration ADHESION absente : aucune configuration scientifique implicite ne doit être synthétisée.');
+  /*
     familyId: 'ADHESION',
     mode: 'STANDARD_DEFAULT',
     origin: 'NORMATIVE_REQUIREMENT',
@@ -292,6 +214,7 @@ export function resolveAdhesionCountConfig(
     configuredAt: '2026-08-30T00:00:00Z',
     ruleSource: 'NORMATIVE_REQUIREMENT'
   };
+  */
 }
 
 /**
@@ -307,6 +230,12 @@ export function calculateAdhesion(
   alerts: MeasurementAlert[];
 } {
   const alerts: MeasurementAlert[] = [];
+  if (!countConfig) {
+    alerts.push({ id: 'alert-adh-protocol-missing', severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE', message: 'Configuration ADHESION absente : évaluation scientifique incomplète.', familyId: 'ADHESION', stageId: options?.stageId, panelId: options?.panelId });
+  }
+  if (countConfig && (!Number.isInteger(countConfig.configuredCount) || countConfig.configuredCount < 1 || countConfig.configuredCount > 3)) {
+    alerts.push({ id: 'alert-adh-count-invalid', severity: 'BLOCKING', code: 'MEASUREMENT_INVALID', message: 'Le nombre de mesures ADHESION doit être un entier compris entre 1 et 3.', familyId: 'ADHESION', stageId: options?.stageId, panelId: options?.panelId });
+  }
   const version = options?.calculationVersion || ADHESION_CALCULATION_VERSION;
 
   // 1. Mesures individuelles : le nombre attendu vient de la configuration du protocole ; la référence standard est portée par le RuleSet.
@@ -315,7 +244,7 @@ export function calculateAdhesion(
   // TOUJOURS interprété comme 1 mesure attendue (1/1), quelle que soit la
   // configuration live — jamais de 1/2 WARNING rétroactif sur l'historique.
   const isLegacyScalar = !Array.isArray(raw.measurements) || raw.measurements.length === 0;
-  const expectedCount = isLegacyScalar ? 1 : (countConfig?.configuredCount ?? 2);
+  const expectedCount = isLegacyScalar ? 1 : (countConfig?.configuredCount ?? 0);
   const measurements = normalizeAdhesionMeasurements(raw);
 
   // Référence T0 (Gate 5.6 : témoin) normalisée une seule fois, en lecture seule.
@@ -381,61 +310,8 @@ export function calculateAdhesion(
         ? `Moyenne panneau : ${panelMean} — indicateur numérique complémentaire (hors classification ISO 2409)`
         : 'Non mesurée';
 
-  // 2. Contrôle du délai d'application.
-  // NOTE (fix R4 - audit 11-12/09) : `requiredMinimumDelayHours` est un champ RAW
-  // obligatoire (types/scientific.ts) ; on ne remplace donc plus silencieusement
-  // toute valeur "falsy" par le défaut via `||` (un délai réel de 0h, bien
-  // qu'improbable, serait alors interprété à tort comme "non configuré").
-  // Seule une valeur réellement absente/invalide (undefined/NaN à l'exécution,
-  // ex. import legacy contournant le typage statique) retombe explicitement sur
-  // ADHESION_DEFAULT_REQUIRED_DELAY_HOURS, unique constante partagée avec la
-  // couche CRITÈRE (criteriaAdhesion.ts) et avec les points de saisie RAW
-  // (Tab06MeasurementsBench.tsx, trialSeed.ts).
-  // Fix contre-audit c1edb84 (point 1) : une valeur NÉGATIVE n'est pas un délai
-  // valide au sens du contrat métier — traitée comme absente/invalide, au même
-  // titre que NaN/undefined, et retombe donc sur la constante canonique
-  // partagée (jamais utilisée telle quelle, ce qui ferait accepter n'importe
-  // quel délai comme "conforme" dans calculateDelayCompliance).
-  const requiredMinimumDelayHours = Number.isFinite(raw.requiredMinimumDelayHours) && raw.requiredMinimumDelayHours >= 0
-    ? raw.requiredMinimumDelayHours
-    : ADHESION_DEFAULT_REQUIRED_DELAY_HOURS;
-  const delayCheck = calculateDelayCompliance(
-    raw.applicationDateTime,
-    raw.measurementDateTime,
-    requiredMinimumDelayHours
-  );
-
-  if (delayCheck.status === 'INVALID_DATE') {
-    alerts.push({
-      id: `alert-adh-date-${options?.stageId || ''}-${options?.panelId || ''}`,
-      severity: 'BLOCKING',
-      code: 'MEASUREMENT_INVALID',
-      message: delayCheck.message,
-      familyId: 'ADHESION',
-      stageId: options?.stageId,
-      panelId: options?.panelId
-    });
-  } else if (delayCheck.status === 'INSUFFICIENT_DELAY') {
-    alerts.push({
-      id: `alert-adh-delay-${options?.stageId || ''}-${options?.panelId || ''}`,
-      severity: 'WARNING',
-      code: 'PROTOCOL_ADAPTED',
-      message: delayCheck.message,
-      familyId: 'ADHESION',
-      stageId: options?.stageId,
-      panelId: options?.panelId
-    });
-  } else if (delayCheck.status === 'MISSING_APPLICATION_DATE') {
-    alerts.push({
-      id: `alert-adh-missing-appdate-${options?.stageId || ''}-${options?.panelId || ''}`,
-      severity: 'WARNING',
-      code: 'MEASUREMENT_MISSING',
-      message: delayCheck.message,
-      familyId: 'ADHESION',
-      stageId: options?.stageId,
-      panelId: options?.panelId
-    });
-  }
+  // Le délai avant T0 est contrôlé au niveau du protocole général (RuleSet NF EN 927-6),
+  // et ne fait pas partie de l'évaluation spécifique ADHESION.
 
   // 3. Référence T0 & Évolution (Gate 5.6 : T0 du témoin ; Gate 57 : moyennes de panneau).
   // La référence est normalisée comme une mesure (scalaire historique = mesure unique),
@@ -512,11 +388,13 @@ export function calculateAdhesion(
     warnings: alerts.map((a) => a.message)
   };
 
-  const protocolStatus: ProtocolComplianceStatus = countConfig?.deviationFromStandard
-    ? countConfig.justification?.trim()
-      ? 'ADAPTED_JUSTIFIED'
-      : 'ADAPTED_UNJUSTIFIED'
-    : 'STANDARD';
+  const protocolStatus: ProtocolComplianceStatus = !countConfig
+    ? 'INCOMPLETE'
+    : countConfig.configuredCount > 3 || countConfig.configuredCount < 1 || !Number.isInteger(countConfig.configuredCount)
+      ? 'INVALID'
+      : countConfig.deviationFromStandard
+        ? countConfig.justification?.trim() ? 'ADAPTED_JUSTIFIED' : 'ADAPTED_UNJUSTIFIED'
+        : 'STANDARD';
 
   const computed: AdhesionComputedData = {
     adhesionClass,
@@ -526,8 +404,8 @@ export function calculateAdhesion(
     initialAdhesionClass,
     initialPanelMean,
     deltaAdhesionClass,
-    elapsedTimeHours: delayCheck.elapsedTimeHours,
-    gridSpacingUsedMm: raw.gridSpacingMm || 2,
+    elapsedTimeHours: null,
+    gridSpacingUsedMm: raw.gridSpacingMm ?? null,
     qualityAssessment,
     protocolStatus,
     computation: {

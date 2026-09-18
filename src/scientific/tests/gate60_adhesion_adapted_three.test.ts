@@ -53,7 +53,6 @@ export function runGate60AdhesionAdaptedThreeTests(): {
     coatingThicknessMicrons: 80,
     measurementDateTime: '2026-09-18T10:00:00Z',
     applicationDateTime: '2026-09-18T10:00:00Z',
-    requiredMinimumDelayHours: 0,
     normReference: 'NF EN ISO 2409:2020'
   };
 

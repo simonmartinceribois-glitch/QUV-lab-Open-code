@@ -10,7 +10,7 @@
  *        valide (aucune alerte qualité, status préservé) tout en étant repérée
  *        défavorable à la couche S3.
  *   T4 — Adhésion : le verdict de délai S3 est identique à la logique
- *        scientifique (calculateDelayCompliance) ; source unique pour UI/rapport.
+ *        scientifique (calculatePreExposureDelayCompliance) ; source unique pour UI/rapport.
  *   T5 — MultiSystemComparator : initialMeanGloss consommé quand disponible,
  *        repli historiquement équivalent sinon (résultats identiques).
  */
@@ -23,7 +23,8 @@ import {
 import { calculateColor } from '../colorEngine';
 import { calculateGloss } from '../glossEngine';
 import { calculatePersoz } from '../persozEngine';
-import { calculateAdhesion, calculateDelayCompliance, ADHESION_DEFAULT_REQUIRED_DELAY_HOURS } from '../adhesionEngine';
+import { calculateAdhesion } from '../adhesionEngine';
+import { calculatePreExposureDelayCompliance } from '../protocolEngine';
 import {
   evaluateGlossRetentionCriterion,
   getGlossRetentionThreshold
@@ -105,7 +106,6 @@ export function runCriteriaSeparationTests(): {
     ],
     measurementDateTime: '2026-10-24T00:00:00Z',
     gridSpacingMm: 2,
-    requiredMinimumDelayHours: 168,
     normReference: 'NF EN ISO 2409:2020',
     ...overrides
   });
@@ -338,16 +338,16 @@ export function runCriteriaSeparationTests(): {
     });
 
     // Cross-check : la projection S3 doit reproduire exactement le mapping
-    // historique (calculateDelayCompliance → CONFORME / NON_CONFORME / NON_EVALUE).
-    const refConforme = calculateDelayCompliance(app84Days, measurementDate);
-    const refNonConforme = calculateDelayCompliance(app4Days, measurementDate);
+    // historique (calculatePreExposureDelayCompliance → CONFORME / NON_CONFORME / NON_EVALUE).
+    const refConforme = calculatePreExposureDelayCompliance(app84Days, measurementDate);
+    const refNonConforme = calculatePreExposureDelayCompliance(app4Days, measurementDate);
     const mappingIdentique =
       conforme.verdict === (refConforme.status === 'CONFORME' ? 'CONFORME' : 'NON_EVALUE') &&
       nonConforme.verdict === (refNonConforme.status === 'INSUFFICIENT_DELAY' ? 'NON_CONFORME' : 'NON_EVALUE');
 
     record(
       4,
-      'T4 Adhésion — délai S3 identique à calculateDelayCompliance (CONFORME/NON_CONFORME/NON_EVALUE)',
+      'T4 Adhésion — délai S3 identique à calculatePreExposureDelayCompliance (CONFORME/NON_CONFORME/NON_EVALUE)',
       'CRITERE_ADHESION',
       conforme.verdict === 'CONFORME' &&
         conforme.status === 'CONFORME' &&
@@ -471,67 +471,17 @@ export function runCriteriaSeparationTests(): {
   }
 
   // ----------------------------------------------------------------------------
-  // T8 (fix R4 - audit 11-12/09) — Couche RAW (calculateAdhesion/adhesionEngine) :
-  // une valeur `requiredMinimumDelayHours` réellement fournie (y compris 0, un
-  // "falsy" JS) ne doit JAMAIS être silencieusement remplacée par le défaut 168 h.
-  // Seule une valeur non finie (undefined/NaN à l'exécution) retombe sur
-  // ADHESION_DEFAULT_REQUIRED_DELAY_HOURS. Avant le fix, `raw.requiredMinimumDelayHours
-  // || ADHESION_DEFAULT_REQUIRED_DELAY_HOURS` remplaçait à tort 0 par 168.
-  // ----------------------------------------------------------------------------
-  {
-    const appDate = '2026-08-01T00:00:00Z';
-    const measDate = '2026-08-01T00:00:00Z'; // délai réel = 0 h
-
-    const zeroDelayRaw = mkAdhRaw({
-      applicationDateTime: appDate,
-      measurementDateTime: measDate,
-      requiredMinimumDelayHours: 0
-    });
-    const zeroDelayRes = calculateAdhesion(zeroDelayRaw, createCountConfiguration('ADHESION', 2, ruleSet), ruleSet);
-    // Avec un seuil réellement configuré à 0 h et un délai écoulé de 0 h, le
-    // contrôle doit être CONFORME (0 >= 0, aucune alerte de délai) — PAS un repli
-    // implicite sur 168 h qui générerait à tort une alerte INSUFFICIENT_DELAY.
-    const zeroDelayAlert = zeroDelayRes.alerts.find((a) => a.message.includes('requis par le protocole'));
-    const zeroPreserved = zeroDelayRes.computed.elapsedTimeHours === 0 && zeroDelayAlert === undefined;
-
-    // Valeur non finie à l'exécution (contournement du typage statique, ex. import
-    // legacy) → repli explicite et documenté sur ADHESION_DEFAULT_REQUIRED_DELAY_HOURS,
-    // identique à la constante utilisée par la couche CRITÈRE (même source canonique).
-    const invalidDelayRaw = mkAdhRaw({
-      applicationDateTime: appDate,
-      measurementDateTime: measDate,
-      requiredMinimumDelayHours: undefined as unknown as number
-    });
-    const invalidDelayRes = calculateAdhesion(invalidDelayRaw, createCountConfiguration('ADHESION', 2, ruleSet), ruleSet);
-    // Délai écoulé = 0h < 168h (défaut) → alerte INSUFFICIENT_DELAY citant "168 h
-    // requis", prouvant que le défaut a bien été appliqué (et non silencieusement
-    // ignoré / laissé à 0h requis).
-    const invalidDelayAlert = invalidDelayRes.alerts.find((a) => a.message.includes(`${ADHESION_DEFAULT_REQUIRED_DELAY_HOURS} h requis`));
-    const fallbackAppliedOnInvalid = invalidDelayAlert !== undefined;
-
-    const passed = zeroPreserved && fallbackAppliedOnInvalid;
-
-    record(
-      8,
-      'T8 Adhésion RAW — 0 h réel préservé (jamais remplacé par 168), défaut appliqué seulement si non finie',
-      'CRITERE_ADHESION',
-      passed,
-      'requiredMinimumDelayHours=0 → CONFORME (aucune alerte délai) ; undefined → défaut 168h appliqué (alerte délai insuffisant citant 168h)',
-      `zeroDelay: elapsed=${zeroDelayRes.computed.elapsedTimeHours}, alertPresent=${zeroDelayAlert !== undefined}; invalidDelay: alertPresent=${fallbackAppliedOnInvalid}`
-    );
-  }
-
-  // ----------------------------------------------------------------------------
+  // T8 — conditionnement pré-T0 générique : le délai est évalué hors ADHESION.\n  {\n    const zeroDelay = calculatePreExposureDelayCompliance('2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z', 0);\n    const standardDelay = calculatePreExposureDelayCompliance('2026-08-01T00:00:00Z', '2026-08-08T00:00:00Z', 168);\n    const insufficient = calculatePreExposureDelayCompliance('2026-08-01T00:00:00Z', '2026-08-03T00:00:00Z', 168);\n    const passed = zeroDelay.status === 'CONFORME' && zeroDelay.elapsedTimeHours === 0 &&\n      standardDelay.status === 'CONFORME' && standardDelay.elapsedTimeHours === 168 &&\n      insufficient.status === 'INSUFFICIENT_DELAY';\n    record(8, 'T8 Conditionnement pré-T0 générique — hors couche ADHESION', 'PROTOCOLE', passed,\n      '0 h conforme à seuil 0 ; 168 h conforme ; 48 h insuffisant pour 168 h',\n      \`0h=\${zeroDelay.status}; 168h=\${standardDelay.status}; 48h=\${insufficient.status}\`);\n  }\n\n  // ----------------------------------------------------------------------------
   // T9 (fix contre-audit c1edb84, point 1) — requiredMinimumDelayHours NÉGATIF
   // (ex. -1) n'est pas un délai valide au sens du contrat métier. Une valeur
   // négative ne doit JAMAIS être utilisée telle quelle : dans
-  // calculateDelayCompliance, `elapsedHours < requiredMinimumHours` avec un seuil
+  // calculatePreExposureDelayCompliance, `elapsedHours < requiredMinimumHours` avec un seuil
   // négatif serait TOUJOURS faux (un délai écoulé, toujours >= 0, satisferait
   // n'importe quel seuil négatif) → le contrôle de délai serait silencieusement
   // neutralisé (toujours "CONFORME", quel que soit le délai réel). Vérifié sur
   // les DEUX couches : CRITÈRE (evaluateAdhesionDelayCriterion) doit traiter -1
   // comme non configuré (NON_EVALUE/DELAY_CHECK_SKIPPED, comme undefined/NaN) ;
-  // RAW (calculateAdhesion) doit retomber sur ADHESION_DEFAULT_REQUIRED_DELAY_HOURS
+  // RAW (calculateAdhesion) doit retomber sur 168
   // (168 h), jamais utiliser -1 tel quel.
   // ----------------------------------------------------------------------------
   {
@@ -560,7 +510,7 @@ export function runCriteriaSeparationTests(): {
     });
     const negativeDelayRes = calculateAdhesion(negativeDelayRaw, createCountConfiguration('ADHESION', 2, ruleSet), ruleSet);
     const negativeDelayAlert = negativeDelayRes.alerts.find((a) =>
-      a.message.includes(`${ADHESION_DEFAULT_REQUIRED_DELAY_HOURS} h requis`)
+      a.message.includes(`${168} h requis`)
     );
     const rawFallsBackToDefaultOnNegative = negativeDelayAlert !== undefined;
 

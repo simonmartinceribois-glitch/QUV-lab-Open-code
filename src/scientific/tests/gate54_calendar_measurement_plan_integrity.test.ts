@@ -288,7 +288,6 @@ export function runGate54CalendarMeasurementPlanTests(): {
         adhesionClass: 0,
         measurementDateTime: new Date().toISOString(),
         applicationDateTime: trial8.batches[0].applicationDate,
-        requiredMinimumDelayHours: 168,
         normReference: 'NF EN ISO 2409:2020'
       };
       globalTrialStore.recordAcquisition({

@@ -171,6 +171,25 @@ export function auditTrialBeforeReport(trial: Trial, ruleSet: ScientificRuleSet)
   // Alertes recensées : chaque acquisition expose un catalogue d'alertes.
   const alertsCataloged = acquisitionsList.every((a) => Array.isArray((a as { alerts?: unknown }).alerts));
 
+  // Le rapport scientifique est bloqué si le protocole actif est INCOMPLETE ou INVALID.
+  // Le statut est calculé exclusivement par protocolEngine ; le rapport ne redéfinit pas les règles.
+  const protocolRank: Record<ProtocolComplianceStatus, number> = {
+    STANDARD: 0, ADAPTED_JUSTIFIED: 1, ADAPTED_UNJUSTIFIED: 2, INCOMPLETE: 3, INVALID: 4
+  };
+  let reportProtocolStatus: ProtocolComplianceStatus = 'STANDARD';
+  for (const familyId of trial.config.activeFamilies) {
+    const cfg = trial.config.familyConfigs[familyId];
+    const evaluation = familyId === 'GLOSS'
+      ? evaluateSeriesProtocolCompliance(cfg?.seriesConfig, ruleSet)
+      : familyId === 'OBSERVATIONS'
+        ? null
+        : evaluateCountProtocolCompliance(cfg?.countConfig, ruleSet);
+    if (evaluation && protocolRank[evaluation.status] > protocolRank[reportProtocolStatus]) reportProtocolStatus = evaluation.status;
+  }
+  if (reportProtocolStatus === 'INCOMPLETE' || reportProtocolStatus === 'INVALID' || reportProtocolStatus === 'ADAPTED_UNJUSTIFIED') {
+    missingCriticalElements.push(`Statut protocolaire bloquant : ${reportProtocolStatus}.`);
+  }
+
   const isComplete =
     trialIdentified &&
     batchesIdentified &&
@@ -179,7 +198,7 @@ export function auditTrialBeforeReport(trial: Trial, ruleSet: ScientificRuleSet)
     final2016hAvailable &&
     missingCriticalElements.length === 0;
 
-  const canGenerate = missingCriticalElements.length === 0;
+  const canGenerate = missingCriticalElements.length === 0 && reportProtocolStatus !== 'INCOMPLETE' && reportProtocolStatus !== 'INVALID' && reportProtocolStatus !== 'ADAPTED_UNJUSTIFIED';
 
   return {
     isComplete,
@@ -301,6 +320,9 @@ export function buildScientificReport(
   }
 ): ScientificReport {
   const audit = auditTrialBeforeReport(trial, ruleSet);
+  if (!audit.canGenerate) {
+    throw new Error('Rapport scientifique non générable : ' + audit.missingCriticalElements.join(' | '));
+  }
   const now = new Date().toISOString();
   const reportId = generateUUID();
   const existingReportsCount = trial.reports?.length || 0;

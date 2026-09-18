@@ -16,12 +16,13 @@
  * 12. Règles Normatives & Unités : Respect NF EN 927-6:2018 (2016h, 4 pts couleur, 2x2 brillance).
  */
 
+import { calculatePreExposureDelayCompliance } from '../protocolEngine';
 import { calculateColor } from '../colorEngine';
 import { calculateGloss } from '../glossEngine';
 import { calculatePersoz } from '../persozEngine';
 import { calculateObservations } from '../observationsEngine';
 import { calculateAdhesion, getApplicableGridSpacing,
-calculateDelayCompliance, ISO2409_CLASSES, resolveAdhesionCountConfig } from '../adhesionEngine';
+} from '../adhesionEngine';
 import {
   calculateMean,
   calculateSampleStdDev,
@@ -907,8 +908,8 @@ export function runGate33ScientificMetrologyTests(): {
     );
 
     // B. Contrôle du délai de séchage / conditionnement
-    const delayConform = calculateDelayCompliance('2026-08-01T00:00:00Z', '2026-08-10T00:00:00Z', 168);
-    const delayNonConform = calculateDelayCompliance('2026-08-01T00:00:00Z', '2026-08-03T00:00:00Z', 168);
+    const delayConform = calculatePreExposureDelayCompliance('2026-08-01T00:00:00Z', '2026-08-10T00:00:00Z', 168);
+    const delayNonConform = calculatePreExposureDelayCompliance('2026-08-01T00:00:00Z', '2026-08-03T00:00:00Z', 168);
 
     const delayPassed =
       delayConform.status === 'CONFORME' &&
@@ -931,7 +932,6 @@ export function runGate33ScientificMetrologyTests(): {
       gridSpacingMm: 2,
       coatingThicknessMicrons: 65,
       measurementDateTime: '2026-08-01T00:00:00Z',
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020',
       observation: 'Incisions nettes, 0% décollement'
     };
@@ -942,7 +942,6 @@ export function runGate33ScientificMetrologyTests(): {
       coatingThicknessMicrons: 65,
       measurementDateTime: '2026-10-24T00:00:00Z',
       applicationDateTime: '2026-08-01T00:00:00Z',
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020',
       observation: 'Léger détachement aux intersections'
     };
@@ -982,7 +981,6 @@ export function runGate33ScientificMetrologyTests(): {
       coatingThicknessMicrons: 65,
       measurementDateTime: '2026-10-24T00:00:00Z',
       applicationDateTime: '2026-08-01T00:00:00Z',
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020'
     };
     const rawT0New: AdhesionRawData = {
@@ -993,7 +991,6 @@ export function runGate33ScientificMetrologyTests(): {
       gridSpacingMm: 2,
       coatingThicknessMicrons: 65,
       measurementDateTime: '2026-08-01T00:00:00Z',
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020'
     };
     const adhStandard2 = createCountConfiguration('ADHESION', 2, ruleSet);
@@ -1013,18 +1010,17 @@ export function runGate33ScientificMetrologyTests(): {
       adhNewResult.computed.individualResults[0].deltaAdhesionClass === 1;
 
     // D4 explicite : sans countConfig enregistré, l'historique reste 1/1 STANDARD.
-    const adhHistorical = resolveAdhesionCountConfig(undefined);
+    const adhHistorical = calculateAdhesion(rawC12New, undefined, ruleSet, { referenceRaw: rawT0New });
 
     record(
       'G33-ADH-04',
       'Adhérence Gate 57 : distinction legacy 1/1 vs nouveau protocole — 1/2 = WARNING + MEASUREMENT_MISSING, historique sans countConfig = 1/1 STANDARD',
       'STATISTICAL_RIGOR',
       adhNewPassed &&
-        adhHistorical.configuredCount === 1 &&
-        adhHistorical.standardRecommendedCount === 1 &&
-        adhHistorical.deviationFromStandard === false,
-      'Nouveau 1/2 WARNING 50 % + MEASUREMENT_MISSING ; historique 1/1 STANDARD',
-      `PanelMean=${adhNewResult.computed.panelMean}, Delta=${adhNewResult.computed.deltaAdhesionClass}, Status=${adhNewResult.computed.qualityAssessment.status}, Hist=${adhHistorical.configuredCount}/${adhHistorical.standardRecommendedCount}`
+        adhHistorical.alerts.some((a) => a.severity === 'BLOCKING') &&
+        adhHistorical.computed === null,
+      'Nouveau 1/2 WARNING 50 % + MEASUREMENT_MISSING ; historique sans configuration = BLOQUANT',
+      `PanelMean=${adhNewResult.computed.panelMean}, Delta=${adhNewResult.computed.deltaAdhesionClass}, Status=${adhNewResult.computed.qualityAssessment.status}, HistStatus=${adhHistorical.alerts.some((a) => a.severity === 'BLOCKING') ? 'BLOCKING' : 'UNEXPECTED'}`
     );
   }
 

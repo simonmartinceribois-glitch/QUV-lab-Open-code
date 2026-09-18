@@ -17,6 +17,7 @@ import {
   UUID
 } from '../types/scientific';
 import { getActiveFamiliesForStage, isAdhesionEligiblePanel, isPersozEligiblePanel } from './panelUtils';
+import { evaluateCountProtocolCompliance, evaluateSeriesProtocolCompliance } from './protocolEngine';
 
 export const QUALITY_ASSESSMENT_VERSION = '1.2.0';
 
@@ -215,30 +216,21 @@ export function assessTrialQuality(
     });
   });
 
-  // 2. Évaluation de la conformité du protocole global
+  // 2. Évaluation de la conformité du protocole global : source unique = protocolEngine.
+  // Agrégation déterministe : INVALID > INCOMPLETE > ADAPTED_UNJUSTIFIED > ADAPTED_JUSTIFIED > STANDARD.
+  const rank: Record<ProtocolComplianceStatus, number> = {
+    STANDARD: 0, ADAPTED_JUSTIFIED: 1, ADAPTED_UNJUSTIFIED: 2, INCOMPLETE: 3, INVALID: 4
+  };
   let protocolCompliance: ProtocolComplianceStatus = 'STANDARD';
-
   for (const familyId of trial.config.activeFamilies) {
-    const famConfig = trial.config.familyConfigs[familyId];
-    if (famConfig?.countConfig) {
-      if (famConfig.countConfig.mode === 'CUSTOM_JUSTIFIED') {
-        if (!famConfig.countConfig.justification?.trim()) {
-          protocolCompliance = 'ADAPTED_UNJUSTIFIED';
-          break;
-        } else {
-          protocolCompliance = 'ADAPTED_JUSTIFIED';
-        }
-      }
-    }
-    if (famConfig?.seriesConfig) {
-      if (famConfig.seriesConfig.mode === 'CUSTOM_JUSTIFIED') {
-        if (!famConfig.seriesConfig.justification?.trim()) {
-          protocolCompliance = 'ADAPTED_UNJUSTIFIED';
-          break;
-        } else {
-          protocolCompliance = 'ADAPTED_JUSTIFIED';
-        }
-      }
+    const cfg = trial.config.familyConfigs[familyId];
+    const evaluation = familyId === 'GLOSS'
+      ? evaluateSeriesProtocolCompliance(cfg?.seriesConfig, ruleSet)
+      : familyId === 'OBSERVATIONS'
+        ? null
+        : evaluateCountProtocolCompliance(cfg?.countConfig, ruleSet);
+    if (evaluation && rank[evaluation.status] > rank[protocolCompliance]) {
+      protocolCompliance = evaluation.status;
     }
   }
 
