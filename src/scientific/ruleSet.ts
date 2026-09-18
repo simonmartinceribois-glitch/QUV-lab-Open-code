@@ -167,14 +167,10 @@ export function createCountConfiguration(
       `Configuration ${familyId} invalide : le nombre de mesures doit être un entier fini supérieur ou égal à 1 (reçu : ${String(configuredCount)}).`
     );
   }
-  const ref = ruleSet.measurementConfigurations[familyId] || {
-    standardRecommendedCount: 4,
-    origin: 'NORMATIVE_REQUIREMENT' as ScientificRuleOrigin,
-    ruleSource: 'NORMATIVE_REQUIREMENT' as RuleSource,
-    standardReference: ruleSet.standardReference,
-    clause: 'N/A',
-    rationale: 'Configuration de mesure'
-  };
+  const ref = ruleSet.measurementConfigurations[familyId];
+  if (!ref) {
+    throw new Error(`Référentiel scientifique manquant pour la famille ${familyId} : configuration standard obligatoire.`);
+  }
 
   const isStandard = configuredCount === ref.standardRecommendedCount;
   const justification = options?.justification?.trim() || '';
@@ -240,20 +236,10 @@ export function createSeriesConfiguration(
     );
   }
 
-  const ref = ruleSet.seriesConfigurations?.[familyId] || {
-    origin: 'NORMATIVE_REQUIREMENT' as ScientificRuleOrigin,
-    standardReference: ruleSet.standardReference,
-    clause: '6.3.3',
-    rationale: 'Mesure de brillance spéculaire sous 60°',
-    standardConfiguration: {
-      seriesCount: 2,
-      readingsPerSeries: 2,
-      totalReadings: 4,
-      orientations: ['GRAIN_DIRECTION', 'OPPOSITE_GRAIN_DIRECTION'],
-      description: '2 mesures sens du fil + 2 mesures en sens opposé au fil (rotation 180°)'
-    },
-    ruleSource: 'NORMATIVE_REQUIREMENT' as RuleSource
-  };
+  const ref = ruleSet.seriesConfigurations?.[familyId];
+  if (!ref) {
+    throw new Error(`Référentiel scientifique manquant pour la famille de séries ${familyId} : configuration standard obligatoire.`);
+  }
 
   const total = seriesCount * readingsPerSeries;
   const isStandard =
