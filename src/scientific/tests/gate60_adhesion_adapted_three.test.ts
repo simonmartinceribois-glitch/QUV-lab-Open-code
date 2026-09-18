@@ -60,7 +60,7 @@ export function runGate60AdhesionAdaptedThreeTests(): {
   const result = calculateAdhesion(raw, config, ruleSet);
 
   record(
-    'G58-ADH-01',
+    'G60-ADH-01',
     'configuration 3 = adaptation justifiée',
     config.configuredCount === 3 &&
       config.standardRecommendedCount === 2 &&
@@ -72,7 +72,7 @@ export function runGate60AdhesionAdaptedThreeTests(): {
   );
 
   record(
-    'G58-ADH-02',
+    'G60-ADH-02',
     'trois mesures RAW conservées et calculées',
     (result.computed.individualResults ?? []).length === 3 &&
       (result.computed.individualResults ?? []).every((m) => m.adhesionClass !== null) &&
@@ -84,7 +84,7 @@ export function runGate60AdhesionAdaptedThreeTests(): {
   );
 
   record(
-    'G58-ADH-03',
+    'G60-ADH-03',
     'aucune limitation artificielle à deux mesures',
     (result.computed.individualResults ?? []).length === 3 &&
       !result.alerts.some((a) => a.code === 'MEASUREMENT_COUNT_MISMATCH'),
