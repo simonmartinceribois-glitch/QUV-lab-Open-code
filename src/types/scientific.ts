@@ -148,8 +148,6 @@ export interface MeasurementCountConfiguration {
   clause?: string;
   rationale?: string;
   standardRecommendedCount: number;
-  /** Minimum autorisé pour l'adaptation du cadre normatif retenu dans QUV-Lab ; ce champ ne modifie pas le texte de la norme. */
-  minimumConfiguredCount: number;
   configuredCount: number;
   deviationFromStandard: boolean;
   justification?: string;
@@ -166,9 +164,6 @@ export interface MeasurementSeriesConfiguration {
   standardReference?: string;
   clause?: string;
   rationale?: string;
-  /** Minimum autorisé pour l'adaptation du cadre normatif retenu dans QUV-Lab. */
-  minimumSeriesCount: number;
-  minimumReadingsPerSeries: number;
   standardConfiguration: {
     seriesCount: number;
     readingsPerSeries: number;
