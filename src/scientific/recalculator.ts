@@ -97,6 +97,10 @@ export function recalculateAcquisition(
 
   if (record.familyId === 'COLOR') {
     const countConfig = famConfig?.countConfig;
+    if (!countConfig) {
+      computed = null;
+      alerts.push({ id: `alert-recalc-missing-config-${record.familyId}`, severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE', message: `Configuration ${record.familyId} absente. Calcul impossible.`, familyId: record.familyId, stageId: record.stageId, panelId: record.panelId });
+    } else {
     const res = calculateColor(
       record.raw as ColorRawData,
       countConfig,
