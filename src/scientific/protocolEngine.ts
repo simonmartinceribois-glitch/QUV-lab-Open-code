@@ -86,7 +86,21 @@ export function evaluateCountProtocolCompliance(
   // pour tout ce qui est construit après le changement de standard.
   const standardRef = ruleSet.measurementConfigurations[config.familyId];
   const standardRecommended =
-    config.standardRecommendedCount ?? standardRef?.standardRecommendedCount ?? 4;
+    config.standardRecommendedCount ?? standardRef?.standardRecommendedCount;
+  if (standardRecommended === undefined) {
+    return {
+      status: 'INCOMPLETE',
+      isAdapted: false,
+      isCompliantWithStandard: false,
+      alerts: [{
+        id: `alert-proto-reference-missing-${config.familyId}`,
+        severity: 'BLOCKING',
+        code: 'CALCULATION_UNAVAILABLE',
+        message: `Configuration scientifique standard manquante pour la famille ${config.familyId}.`,
+        familyId: config.familyId
+      }]
+    };
+  }
   const isAdapted = config.configuredCount !== standardRecommended || config.mode === 'CUSTOM_JUSTIFIED';
 
   const alerts: MeasurementAlert[] = [];
