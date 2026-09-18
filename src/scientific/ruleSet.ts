@@ -18,7 +18,7 @@ import {
  * - NORMATIVE_REQUIREMENT : NF EN 927-6:2018 (Couleur 4 pts cl. 6.3.2, Brillance 2x2 60° cl. 6.3.3)
  * - LAB_RECOMMENDATION : Dureté Persoz 3 reps (ISO 1522 / procédure labo, non-normative pour 927-6)
  * - METROLOGICAL_CHOICE : Écart-type échantillon n-1, seuils d'alerte dispersion
- * - PROTOCOL_ADAPTATION : Toute configuration s'écartant du standard (avec justification obligatoire)
+ * - PROTOCOL_ADAPTATION : Écart au protocole QUV-Lab de référence, dans les minima autorisés (avec justification obligatoire) ; ce n'est pas une adaptation du cadre normatif
  */
 export function getDefaultScientificRuleSet(): ScientificRuleSet {
   return {
@@ -93,7 +93,7 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
         origin: 'NORMATIVE_REQUIREMENT',
         standardReference: 'NF EN ISO 2409:2020',
         clause: '§5 & §6 (Essai de quadrillage)',
-        rationale: 'Évaluation de la résistance du revêtement à la séparation par quadrillage (6×6 incisions, espacement selon épaisseur sèche). Standard QUV-Lab (Gate 57) : 2 mesures indépendantes par panneau ; 1 mesure uniquement en adaptation justifiée.',
+        rationale: 'Méthode d’essai d’adhérence selon NF EN ISO 2409:2020. Le nombre de mesures relève du protocole QUV-Lab : 2 mesures/panneau en configuration de référence ; 1 mesure/panneau est le minimum d’adaptation autorisé par le contrat logiciel QUV-Lab. Cette adaptation ne constitue pas une adaptation du cadre normatif.',
         standardRecommendedCount: 2,
         minimumConfiguredCount: 1,
         configuredCount: 2,
@@ -205,6 +205,7 @@ export function createCountConfiguration(
     clause: ref.clause,
     rationale: ref.rationale,
     standardRecommendedCount: ref.standardRecommendedCount,
+    minimumConfiguredCount: ref.minimumConfiguredCount,
     configuredCount,
     deviationFromStandard: !isStandard,
     justification: isStandard ? undefined : justification,
@@ -295,6 +296,8 @@ export function createSeriesConfiguration(
     standardReference: ref.standardReference || ruleSet.standardReference,
     clause: ref.clause,
     rationale: ref.rationale,
+    minimumSeriesCount: ref.minimumSeriesCount,
+    minimumReadingsPerSeries: ref.minimumReadingsPerSeries,
     standardConfiguration: { ...ref.standardConfiguration },
     configuredConfiguration: {
       seriesCount,
