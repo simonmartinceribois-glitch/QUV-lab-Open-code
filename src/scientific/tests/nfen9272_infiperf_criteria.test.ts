@@ -48,6 +48,13 @@
  *         4,1 → INVALID_TEST.
  *   T19 — Bornes numériques : sommes 7/12/19 (7,0 PASS / 7,1 FAIL…), écarts
  *         2/3/4 (4,0 PASS / 4,1 FAIL…), égalité aux seuils par critère (≤).
+ *   T20 — VERROU CONTRAT (§16/§24) : immutabilité des exigences 2014 — les
+ *         TROIS catégories détaillées champ à champ (4 seuils + maxSum +
+ *         maxDifference + operator + documented), ordre de classification
+ *         exact, limite de validité dérivée de NON_STABLE, et frontières
+ *         seuil−ε / seuil / seuil+ε pour chaque seuil (0,3 ; 0,7 ; 1,0 ;
+ *         1,7 ; 3,0 ; 1,3). Échoue si une valeur du contrat est modifiée,
+ *         même si les autres tests passent.
  *
  * Aucun accès à RAW/COMPUTED : évaluations en lecture seule.
  * Aucun pixel des moteurs (gloss/adhesion/observations) modifié.
@@ -69,6 +76,10 @@ import { findNf9272Jalon, prepareNf9272DefectData, prepareNf9272AdhesionData } f
 import { defectMean, specimenAdhesionMean, systemAdhesionMean } from '../criteria/en927/en9272Calculations';
 import {
   getNf9272CategoryRequirements,
+  NF9272_STABLE_REQUIREMENTS,
+  NF9272_SEMI_STABLE_REQUIREMENTS,
+  NF9272_NON_STABLE_REQUIREMENTS,
+  NF9272_CLASSIFICATION_ORDER,
   NF9272_CALCULATION_STATUS,
   NF9272_EDITION_2022,
   NF9272_DOCUMENT_2022,
@@ -1634,6 +1645,106 @@ export function runNfEn9272InfiperfTests(): {
       equalityOk,
       'chaque seuil : égalité PASS, dépassement infime FAIL',
       `thresholds=6 vérifiées`
+    );
+  }
+
+  // ----------------------------------------------------------------------------
+  // T20 — VERROU CONTRAT : IMMUTABILITÉ DES EXIGENCES 2014 (§16/§24)
+  // ----------------------------------------------------------------------------
+  {
+    // Décomposition d'une catégorie en la matrice contractualisée du prompt.
+    const contractChecks = (
+      category: 'STABLE' | 'SEMI_STABLE' | 'NON_STABLE',
+      expected: {
+        B: number; C: number; F: number; A: number;
+        maxSum: number; maxDifference: number;
+      }
+    ): boolean => {
+      const req = getNf9272CategoryRequirements(category);
+      return (
+        req.category === category &&
+        req.documented === true &&
+        req.criteria.BLISTERING.threshold === expected.B &&
+        req.criteria.CRACKING.threshold === expected.C &&
+        req.criteria.FLAKING.threshold === expected.F &&
+        req.criteria.ADHESION.threshold === expected.A &&
+        req.criteria.BLISTERING.comparison === 'LESS_OR_EQUAL' &&
+        req.criteria.CRACKING.comparison === 'LESS_OR_EQUAL' &&
+        req.criteria.FLAKING.comparison === 'LESS_OR_EQUAL' &&
+        req.criteria.ADHESION.comparison === 'LESS_OR_EQUAL' &&
+        req.maxSum === expected.maxSum &&
+        req.maxDifference === expected.maxDifference
+      );
+    };
+
+    // La constante exportée et l'accès par gestionnaire désignent la MÊME source.
+    const sameSource =
+      getNf9272CategoryRequirements('STABLE') === NF9272_STABLE_REQUIREMENTS &&
+      getNf9272CategoryRequirements('SEMI_STABLE') === NF9272_SEMI_STABLE_REQUIREMENTS &&
+      getNf9272CategoryRequirements('NON_STABLE') === NF9272_NON_STABLE_REQUIREMENTS;
+
+    // STABLE : Cloquage ≤ 0,3 | Craquelage ≤ 0,7 | Écaillage ≤ 0,3 | Adhérence ≤ 1,0 ; Σ12 ≤ 7 ; Δmax ≤ 2.
+    const stableContract = contractChecks('STABLE', { B: 0.3, C: 0.7, F: 0.3, A: 1.0, maxSum: 7, maxDifference: 2 });
+    record(
+      70,
+      'T20 Verrou contrat STABLE : 0,3 / 0,7 / 0,3 / 1,0 ; Σ≤7 ; Δ≤2 ; ≤ et documented — échoue si 0.3→0.4…',
+      'CONTRAT_2014',
+      stableContract && sameSource,
+      'B=0,3 | C=0,7 | F=0,3 | A=1,0 ; maxSum=7 ; maxDiff=2 ; 4 × LESS_OR_EQUAL ; documented=true',
+      `B=${getNf9272CategoryRequirements('STABLE').criteria.BLISTERING.threshold}, maxSum=${getNf9272CategoryRequirements('STABLE').maxSum}, maxDiff=${getNf9272CategoryRequirements('STABLE').maxDifference}, same=${String(sameSource)}`
+    );
+
+    // SEMI_STABLE : ≤ 0,7 / 1,7 / 0,7 / 1,0 ; Σ12 ≤ 12 ; Δmax ≤ 3.
+    const semiContract = contractChecks('SEMI_STABLE', { B: 0.7, C: 1.7, F: 0.7, A: 1.0, maxSum: 12, maxDifference: 3 });
+    record(
+      71,
+      'T20 Verrou contrat SEMI_STABLE : 0,7 / 1,7 / 0,7 / 1,0 ; Σ≤12 ; Δ≤3 — échoue si 1.7→1.8 ou 0.7→0.8…',
+      'CONTRAT_2014',
+      semiContract,
+      'B=0,7 | C=1,7 | F=0,7 | A=1,0 ; maxSum=12 ; maxDiff=3 ; ≤ ; documented',
+      `B=${getNf9272CategoryRequirements('SEMI_STABLE').criteria.BLISTERING.threshold}, C=${getNf9272CategoryRequirements('SEMI_STABLE').criteria.CRACKING.threshold}, A=${getNf9272CategoryRequirements('SEMI_STABLE').criteria.ADHESION.threshold}, maxSum=${getNf9272CategoryRequirements('SEMI_STABLE').maxSum}, maxDiff=${getNf9272CategoryRequirements('SEMI_STABLE').maxDifference}`
+    );
+
+    // NON_STABLE : ≤ 1,0 / 3,0 / 1,3 / 1,0 ; Σ12 ≤ 19 ; Δmax ≤ 4.
+    const nonContract = contractChecks('NON_STABLE', { B: 1.0, C: 3.0, F: 1.3, A: 1.0, maxSum: 19, maxDifference: 4 });
+    record(
+      72,
+      'T20 Verrou contrat NON_STABLE : 1,0 / 3,0 / 1,3 / 1,0 ; Σ≤19 ; Δ≤4 — échoue si 19→20 ou 4→5…',
+      'CONTRAT_2014',
+      nonContract,
+      'B=1,0 | C=3,0 | F=1,3 | A=1,0 ; maxSum=19 ; maxDiff=4 ; ≤ ; documented',
+      `B=${getNf9272CategoryRequirements('NON_STABLE').criteria.BLISTERING.threshold}, C=${getNf9272CategoryRequirements('NON_STABLE').criteria.CRACKING.threshold}, F=${getNf9272CategoryRequirements('NON_STABLE').criteria.FLAKING.threshold}, maxSum=${getNf9272CategoryRequirements('NON_STABLE').maxSum}, maxDiff=${getNf9272CategoryRequirements('NON_STABLE').maxDifference}`
+    );
+
+    // Ordre de classification et limite de validité dérivée de NON_STABLE.
+    const orderOk =
+      JSON.stringify(NF9272_CLASSIFICATION_ORDER) === JSON.stringify(['STABLE', 'SEMI_STABLE', 'NON_STABLE']);
+    const validityDerived =
+      NF9272_TEST_VALIDITY_MAX_DIFFERENCE === 4 &&
+      getNf9272CategoryRequirements('NON_STABLE').maxDifference === NF9272_TEST_VALIDITY_MAX_DIFFERENCE;
+    record(
+      73,
+      'T20 Verrou ordre : STABLE → SEMI_STABLE → NON_STABLE ; limite validité Δmax=4 issue de NON_STABLE.maxDifference',
+      'CONTRAT_2014',
+      orderOk && validityDerived,
+      'NF9272_CLASSIFICATION_ORDER=[STABLE, SEMI_STABLE, NON_STABLE] ; NON_STABLE.maxDifference === NF9272_TEST_VALIDITY_MAX_DIFFERENCE === 4',
+      `order=${NF9272_CLASSIFICATION_ORDER.join('→')}, limit=${NF9272_TEST_VALIDITY_MAX_DIFFERENCE}, NON.maxDiff=${getNf9272CategoryRequirements('NON_STABLE').maxDifference}`
+    );
+
+    // Frontières moyennes (seuil−ε / seuil / seuil+ε) pour chaque seuil (§15).
+    const meanBoundaries = [0.3, 0.7, 1.0, 1.7, 3.0, 1.3].every((t) => {
+      const below = compareNf9272Mean('LESS_OR_EQUAL', t - 0.0001, t);
+      const at = compareNf9272Mean('LESS_OR_EQUAL', t, t);
+      const above = compareNf9272Mean('LESS_OR_EQUAL', t + 0.0001, t);
+      return below === 'FAVORABLE' && at === 'FAVORABLE' && above === 'DEFAVORABLE';
+    });
+    record(
+      74,
+      'T20 Frontières moyennes : seuil−0,0001 → FAVORABLE ; seuil → FAVORABLE ; seuil+0,0001 → DEFAVORABLE (pour 0,3 ; 0,7 ; 1,0 ; 1,7 ; 3,0 ; 1,3)',
+      'CONTRAT_2014',
+      meanBoundaries,
+      'chaque seuil : t−ε FAV, t FAV, t+ε DEFA (opérateur ≤, égalité favorable)',
+      `seuils vérifiés=6 (0,3 ; 0,7 ; 1,0 ; 1,7 ; 3,0 ; 1,3)`
     );
   }
 
