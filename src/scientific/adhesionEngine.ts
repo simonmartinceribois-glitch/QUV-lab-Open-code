@@ -145,102 +145,6 @@ export function getApplicableGridSpacing(
   }
 }
 
-/**
- * Calcul et vérification automatique du délai entre application et mesure
- */
-export function calculateDelayCompliance(
-  applicationDateStr?: string,
-  measurementDateStr?: string,
-  requiredMinimumHours?: number
-): {
-  elapsedTimeHours: number | null;
-  formattedElapsedTime: string;
-  status: 'CONFORME' | 'INSUFFICIENT_DELAY' | 'INVALID_DATE' | 'MISSING_APPLICATION_DATE';
-  complianceText: 'CONFORME' | 'DÉLAI INSUFFISANT' | 'DATE INVALIDE' | 'DATE NON RENSEIGNÉE';
-  message: string;
-} {
-  if (requiredMinimumHours === undefined || !Number.isFinite(requiredMinimumHours) || requiredMinimumHours < 0) {
-    return {
-      elapsedTimeHours: null,
-      formattedElapsedTime: 'Délai requis non renseigné',
-      status: 'MISSING_REQUIRED_DELAY',
-      complianceText: 'DATE NON RENSEIGNÉE',
-      message: 'Délai minimal requis absent ou invalide dans la configuration du protocole.'
-    };
-  }
-
-  if (!applicationDateStr || applicationDateStr.trim() === '') {
-    return {
-      elapsedTimeHours: null,
-      formattedElapsedTime: 'Non déterminée',
-      status: 'MISSING_APPLICATION_DATE',
-      complianceText: 'DATE NON RENSEIGNÉE',
-      message: 'Date d\'application du lot non renseignée. Veuillez renseigner la date d\'application dans la définition du lot.'
-    };
-  }
-
-  const appTime = new Date(applicationDateStr).getTime();
-  if (isNaN(appTime)) {
-    return {
-      elapsedTimeHours: null,
-      formattedElapsedTime: 'Date invalide',
-      status: 'INVALID_DATE',
-      complianceText: 'DATE INVALIDE',
-      message: 'Format de la date d\'application invalide.'
-    };
-  }
-
-  const measureTime = measurementDateStr ? new Date(measurementDateStr).getTime() : Date.now();
-  if (isNaN(measureTime)) {
-    return {
-      elapsedTimeHours: null,
-      formattedElapsedTime: 'Date invalide',
-      status: 'INVALID_DATE',
-      complianceText: 'DATE INVALIDE',
-      message: 'Format de la date de mesure invalide.'
-    };
-  }
-
-  const diffMs = measureTime - appTime;
-  if (diffMs < 0) {
-    return {
-      elapsedTimeHours: null,
-      formattedElapsedTime: 'Antérieure à application',
-      status: 'INVALID_DATE',
-      complianceText: 'DATE INVALIDE',
-      message: 'La date de mesure ne peut pas être antérieure à la date d\'application de la finition.'
-    };
-  }
-
-  const elapsedHours = diffMs / (1000 * 60 * 60);
-  const days = Math.floor(elapsedHours / 24);
-  const remainingHours = Math.floor(elapsedHours % 24);
-  const minutes = Math.floor((elapsedHours * 60) % 60);
-
-  const formattedElapsedTime =
-    days > 0
-      ? `${days} j ${remainingHours} h ${minutes > 0 ? minutes + ' min' : ''}`.trim()
-      : `${Math.floor(elapsedHours)} h ${minutes} min`;
-
-  if (elapsedHours < requiredMinimumHours) {
-    return {
-      elapsedTimeHours: Math.round(elapsedHours * 10) / 10,
-      formattedElapsedTime,
-      status: 'INSUFFICIENT_DELAY',
-      complianceText: 'DÉLAI INSUFFISANT',
-      message: `Délai de séchage/conditionnement insuffisant (${formattedElapsedTime} écoulés vs ${requiredMinimumHours} h requis par le protocole).`
-    };
-  }
-
-  return {
-    elapsedTimeHours: Math.round(elapsedHours * 10) / 10,
-    formattedElapsedTime,
-    status: 'CONFORME',
-    complianceText: 'CONFORME',
-    message: `Délai respecté (${formattedElapsedTime} écoulés pour un minimum requis de ${requiredMinimumHours} h).`
-  };
-}
-
 export interface AdhesionCalculationOptions {
   referenceRaw?: AdhesionRawData | null;
   referenceStageId?: UUID | null;
@@ -500,7 +404,7 @@ export function calculateAdhesion(
     initialAdhesionClass,
     initialPanelMean,
     deltaAdhesionClass,
-    elapsedTimeHours: delayCheck.elapsedTimeHours,
+    elapsedTimeHours: null,
     gridSpacingUsedMm: raw.gridSpacingMm ?? null,
     qualityAssessment,
     protocolStatus,
