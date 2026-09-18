@@ -612,6 +612,10 @@ export interface ScientificReport {
     calculationTraceability: string;
     scientificSynthesis: string;
     factualConclusion: string;
+    /** NF EN 927-2:2014 (HISTORICAL_TRANSITIONAL) — évaluation complémentaire (Optionnel). */
+    nf9272CriteriaEvaluation?: string;
+    /** INFIPERF / FCBA — évaluation complémentaire (Optionnel). */
+    infiperfCriteriaEvaluation?: string;
   };
   annexes: {
     annexA_RawDataSummary: string;

@@ -10,8 +10,10 @@
  *   T3  — Référentiel de calcul 2014 : les TROIS catégories sont documentées
  *        (STABLE / SEMI_STABLE / NON_STABLE) avec seuils ≤ par critère, sum12
  *        max (7/12/19) et écart max (2/3/4) ; opérateur ≤ partout.
- *   T4  — Adhérence : cotation OBSERVATIONS visuelles (perCategoryMaxRating
- *        CROSS_CUT_ADHESION, repli ADHESION), échelle 0..5, comparaison ≤ ;
+ *   T4  — Adhérence : cotation issue EXCLUSIVEMENT du moteur ADHESION existant
+ *        (acquisition __ADHESION, source ADHESION_MEASUREMENT : 1 mesure →
+ *        adhesionClass, 2 mesures → panelMean), échelle 0..5, comparaison ≤ ;
+ *        les observations CROSS_CUT_ADHESION/ADHESION ne l'alimentent plus ;
  *        aucune force en MPa inventée, aucune conversion de classe ISO 2409.
  *   T5  — Statuts : INSUFFICIENT_DATA (jalon absent, éprouvette manquante,
  *        portée bloquée) ; INVALID_TEST si écart > 4 ; comparaisons pures.
@@ -41,7 +43,7 @@
  *   T16 — Données incomplètes INFIPERF : une seule valeur valide → moyenne
  *         calculée (règle S0 §10), valeur nulle traitée comme absente.
  *   T17 — Architecture (§15) : criteriaAdhesion (délai ISO 2409) indépendant
- *         de l'adhérence NF EN 927-2 (cotation observations), aucun import croisé.
+ *         de l'adhérence NF EN 927-2 (cotation moteur ADHESION), aucun import croisé.
  *   T18 — Classification séquentielle 2014 (5 jeux d'intégration) : Stable,
  *         Semi-stable, Semi-stable limite (somme 12,0), Non-stable, Aucune
  *         catégorie ; validation des sum12/écarts et bornes 4,0 → VALID,
