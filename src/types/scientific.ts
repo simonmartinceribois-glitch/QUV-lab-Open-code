@@ -220,6 +220,12 @@ export interface ScientificRuleSet {
      *  Source de vérité unique : la couche CRITÈRE (S3) le lit ici, jamais en dur. */
     retentionThresholdPercent: number;
   };
+  preExposureConditioning: {
+    requiredHours: number;
+    standardReference: string;
+    clause: string;
+    rationale: string;
+  };
   sourceReference: string;
   status: 'VERIFIED' | 'TO_BE_CONFIRMED';
   validatedBy?: string;
@@ -401,9 +407,10 @@ export interface AdhesionRawData {
   bladeType?: string; // 'SINGLE_BLADE_6_CUTS' | 'MULTI_BLADE' | string
   tapeType?: string; // 'IEC 60454-2' | string
   conditioning?: string; // ex: "23°C / 50% HR"
-  requiredMinimumDelayHours?: number; // ex: 168 h (7 jours)
-  elapsedTimeHours?: number | null;
-  delayStatus?: 'CONFORME' | 'INSUFFICIENT_DELAY' | 'INVALID_DATE' | 'MISSING_APPLICATION_DATE' | 'MISSING_REQUIRED_DELAY';
+  /** Compatibilité historique : le délai T0 est désormais porté par le protocole général, pas par ADHESION. */
+  requiredMinimumDelayHours?: never;
+  elapsedTimeHours?: never;
+  delayStatus?: never;
   mediaId?: UUID | null;
   operatorId?: string;
   normReference: string; // "NF EN ISO 2409:2020"
