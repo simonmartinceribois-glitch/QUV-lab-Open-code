@@ -778,7 +778,7 @@ export class TrialStoreService {
       for (const familyId of trial.config.activeFamilies) {
         const familyConfig = trial.config.familyConfigs[familyId];
         if (!familyConfig || !familyConfig.enabled) {
-          throw new IntegrityViolationError(\`Configuration protocolaire absente pour la famille active \${familyId}.\`, { trialId: trial.id, familyId });
+          throw new IntegrityViolationError(`Configuration protocolaire absente pour la famille active ${familyId}.`, { trialId: trial.id, familyId });
         }
         const protocol = familyId === 'GLOSS'
           ? evaluateSeriesProtocolCompliance(familyConfig.seriesConfig, this.ruleSet)
@@ -786,7 +786,7 @@ export class TrialStoreService {
             ? null
             : evaluateCountProtocolCompliance(familyConfig.countConfig, this.ruleSet);
         if (protocol && (protocol.status === 'INCOMPLETE' || protocol.status === 'INVALID')) {
-          throw new IntegrityViolationError(\`Configuration protocolaire \${familyId} incomplète ou invalide : la première acquisition ne peut pas verrouiller l’essai.\`, { trialId: trial.id, familyId });
+          throw new IntegrityViolationError(`Configuration protocolaire ${familyId} incomplète ou invalide : la première acquisition ne peut pas verrouiller l’essai.`, { trialId: trial.id, familyId });
         }
       }
     }
