@@ -69,7 +69,6 @@ export function CreateTrialWizardModal({
   onCreated
 }: Props) {
   const ruleSet = propRuleSet || globalTrialStore['ruleSet'];
-  if (!isOpen) return null;
   const stdColor = ruleSet.measurementConfigurations.COLOR?.standardRecommendedCount;
   const stdGlossSeries = ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration?.seriesCount;
   const stdGlossReadings = ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration?.readingsPerSeries;
@@ -78,6 +77,8 @@ export function CreateTrialWizardModal({
   if (stdColor === undefined || stdGlossSeries === undefined || stdGlossReadings === undefined || stdPersoz === undefined || stdAdhesion === undefined) {
     throw new Error('Référentiel scientifique incomplet : impossible de créer le plan de mesure.');
   }
+
+  if (!isOpen) return null;
 
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7>(1);
 
