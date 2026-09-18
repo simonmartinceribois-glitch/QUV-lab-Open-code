@@ -462,22 +462,22 @@ export class TrialStoreService {
         COLOR: params.familyConfigs?.COLOR || {
           familyId: 'COLOR',
           enabled: params.activeFamilies.includes('COLOR'),
-          countConfig: createCountConfiguration('COLOR', 4, this.ruleSet)
+          countConfig: createCountConfiguration('COLOR', this.ruleSet.measurementConfigurations.COLOR.standardRecommendedCount, this.ruleSet)
         },
         GLOSS: params.familyConfigs?.GLOSS || {
           familyId: 'GLOSS',
           enabled: params.activeFamilies.includes('GLOSS'),
-          seriesConfig: createSeriesConfiguration('GLOSS', 2, 2, this.ruleSet)
+          seriesConfig: createSeriesConfiguration('GLOSS', this.ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration.seriesCount ?? (() => { throw new Error('Configuration standard GLOSS manquante.'); })(), this.ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration.readingsPerSeries ?? (() => { throw new Error('Configuration standard GLOSS manquante.'); })(), this.ruleSet)
         },
         PERSOZ: params.familyConfigs?.PERSOZ || {
           familyId: 'PERSOZ',
           enabled: params.activeFamilies.includes('PERSOZ'),
-          countConfig: createCountConfiguration('PERSOZ', 3, this.ruleSet)
+          countConfig: createCountConfiguration('PERSOZ', this.ruleSet.measurementConfigurations.PERSOZ.standardRecommendedCount, this.ruleSet)
         },
         ADHESION: params.familyConfigs?.ADHESION || {
           familyId: 'ADHESION',
           enabled: params.activeFamilies.includes('ADHESION'),
-          countConfig: createCountConfiguration('ADHESION', 2, this.ruleSet)
+          countConfig: createCountConfiguration('ADHESION', this.ruleSet.measurementConfigurations.ADHESION.standardRecommendedCount, this.ruleSet)
         },
         OBSERVATIONS: params.familyConfigs?.OBSERVATIONS || {
           familyId: 'OBSERVATIONS',
