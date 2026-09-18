@@ -54,6 +54,7 @@ import { runGate59IdbIntegrationTests } from './src/scientific/tests/gate59_idb_
 import { runStorageErrorNotificationTests } from './src/scientific/tests/storage_error_notification.test';
 import { runArchivedComparisonExclusionTests } from './src/scientific/tests/a1_archived_comparison.test';
 import { runO1O2PhotoMediaTests } from './src/scientific/tests/o1_o2_photo_media.test';
+import { runNfEn9272InfiperfTests } from './src/scientific/tests/nfen9272_infiperf_criteria.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -796,6 +797,16 @@ suite57.results.forEach((r) => {
   }
 });
 
+const suite58 = runNfEn9272InfiperfTests();
+console.log(`Résultats NF EN 927-2 / INFIPERF : ${suite58.summary.passed} / ${suite58.summary.total} réussis.`);
+suite58.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [NF EN 927-2 / INFIPERF] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -853,7 +864,8 @@ const totalFailed =
   suite54.summary.failed +
   suite55.summary.failed +
   suite56.summary.failed +
-  suite57.summary.failed;
+  suite57.summary.failed +
+  suite58.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -911,7 +923,8 @@ const totalCount =
   suite54.summary.total +
   suite55.summary.total +
   suite56.summary.total +
-  suite57.summary.total;
+  suite57.summary.total +
+  suite58.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
