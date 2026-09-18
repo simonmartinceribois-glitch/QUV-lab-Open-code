@@ -1309,7 +1309,7 @@ Le classifieur 2014 teste les catégories dans l'ordre **STABLE → SEMI_STABLE 
 * `maxDifference12` > **4,0** → essai **invalidé** (`INVALID_TEST`), classification `null` (limite de validité = maximum de NON_STABLE, lue depuis les exigences). Écart exactement 4,0 → essai VALID.
 * `sum12` et `maxDifference12` sont produits sur l'évaluation (`totalValueCheck = APPLIED_SEQUENTIAL_2014`).
 * **Aucun verdict global** n'est produit : chaque critère reste indépendant, sans score global ni note de conformité.
-* L'adhérence pour le calcul 2014 utilise la **cotation d'observation** (0..5), catégorie `CROSS_CUT_ADHESION` (repli `ADHESION`), seuil ≤ 1,0 par éprouvette. La **force en MPa** (revendication associée à la référence 2022) n'est pas utilisée pour le calcul 2014 ; aucune conversion de cotation vers une force n'est réalisée.
+* **Adhérence — contrat de calcul QUV-Lab 2014 :** pour cette évaluation historique/transitoire, l'adhérence utilisée par le moteur provient exclusivement des mesures acquises sous `ADHESION_MEASUREMENT` et des valeurs calculées correspondantes. Une mesure exploitable fournit `computed.adhesionClass` ; deux mesures exploitables fournissent `computed.panelMean`. En l'absence de mesure exploitable, le résultat est `INSUFFICIENT_DATA` et aucune valeur `0` artificielle n'est générée. Les observations visuelles `CROSS_CUT_ADHESION` et `ADHESION` ne sont pas utilisées comme source de données de ce calcul. Le seuil de classification de l'adhérence est ≤ 1,0 par éprouvette. Les valeurs de force en MPa associées aux évolutions ultérieures de la méthode/édition 2022 ne sont pas utilisées par ce moteur historique/transitoire.
 
 ### 25.5 Évaluation par système (lot), jamais inter-systèmes
 
