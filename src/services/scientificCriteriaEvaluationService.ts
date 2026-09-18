@@ -42,8 +42,6 @@ export interface ScientificCriteriaEvaluation {
   nf9272: Nf9272CriteriaEvaluation;
   /** Évaluation INFIPERF indépendante par le moteur existant (aucun verdict combiné). */
   infiperf: InfiperfCriteriaEvaluationMulti;
-  /** Date ISO d'exécution de l'évaluation applicative (dérivé, jamais persisté). */
-  evaluatedAt: string;
   /** Version du ScientificRuleSet utilisé (INFIPERF lit le seuil depuis le RuleSet). */
   ruleSetVersion: string;
   /** Identifiant de l'essai source. */
@@ -102,7 +100,6 @@ export function evaluateScientificCriteria(
   return {
     nf9272,
     infiperf,
-    evaluatedAt: new Date().toISOString(),
     ruleSetVersion: ruleSet.version || 'unknown',
     sourceTrialId: trial.id,
     batchId: nf9272.batchScoped.batchId
