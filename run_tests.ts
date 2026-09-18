@@ -8,6 +8,7 @@ import { runGate34NormativeReportingTests } from './src/scientific/tests/gate34_
 import { runGate40SystemValidationTests } from './src/scientific/tests/gate40_system_validation.test';
 import { runGate50OperationalQualificationTests } from './src/scientific/tests/gate50_operational_qualification.test';
 import { runGate52AdhesionTests } from './src/scientific/tests/gate52_adhesion.test';
+import { runGate60AdhesionAdaptedThreeTests } from './src/scientific/tests/gate60_adhesion_adapted_three.test';
 import { runGate53MediaCreatorTests } from './src/scientific/tests/gate53_media_creator_integrity.test';
 import { runGate54CalendarMeasurementPlanTests } from './src/scientific/tests/gate54_calendar_measurement_plan_integrity.test';
 import { runDateUtilsConsistencyTests } from './src/scientific/tests/date_utils_consistency.test';
@@ -175,6 +176,7 @@ console.log('\n================================================================'
 console.log('10. EXÉCUTION DE LA VALIDATION GATE 5.2 — RÈGLE ADHÉSION (18 TESTS)');
 console.log('================================================================');
 const suite10 = runGate52AdhesionTests();
+const suite10b = runGate60AdhesionAdaptedThreeTests();
 console.log(`Résultats Suite GATE 5.2 : ${suite10.summary.passed} / ${suite10.summary.total} réussis.`);
 suite10.results.forEach((r) => {
   console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Gate 52 Adhérence] ${r.id} - ${r.name}`);
@@ -185,6 +187,15 @@ suite10.results.forEach((r) => {
 });
 
 console.log('\n================================================================');
+console.log(`Résultats Suite GATE 60 : ${suite10b.summary.passed} / ${suite10b.summary.total} réussis.`);
+suite10b.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Gate 60 ADHESION=3] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 console.log('11. EXÉCUTION DE LA VALIDATION GATE 53 — INTÉGRITÉ CRÉATEUR & MÉDIAS (8 TESTS)');
 console.log('================================================================');
 const suite11 = runGate53MediaCreatorTests();
