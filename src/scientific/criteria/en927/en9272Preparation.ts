@@ -31,7 +31,7 @@
  */
 
 import type { Trial, ExposureStage, BatchDefinition, PanelDefinition } from '../../../types/trial';
-import type { AdhesionRawData, AdhesionComputedData } from '../../../types/scientific';
+import type { AdhesionComputedData } from '../../../types/scientific';
 import {
   getActiveE1E2E3PanelsOfBatch,
   getActiveStages,
@@ -171,9 +171,8 @@ function readCategoryRating(panel: PanelDefinition, stageId: string, trial: Tria
 function readAdhesionRating(panel: PanelDefinition, stageId: string, trial: Trial): { value: number } | null {
   const acquisition = trial.acquisitions[adhesionAcquisitionKey(stageId, panel.id)];
   if (!acquisition || acquisition.status === 'ERROR') return null;
-  const raw = acquisition.raw as Partial<AdhesionRawData> | undefined;
   const computed = acquisition.computed as AdhesionComputedData | null | undefined;
-  if (!computed || !raw) return null;
+  if (!computed) return null;
 
   // Contrat A1 : on distingue le nombre de MESURES EXPLOITABLES, pas seulement
   // le nombre d'entrées RAW. Une entrée invalide/manquante ne peut pas produire
@@ -190,7 +189,7 @@ function readAdhesionRating(panel: PanelDefinition, stageId: string, trial: Tria
           m.adhesionClass >= 0 &&
           m.adhesionClass <= 5
       ).length
-    : (typeof raw.adhesionClass === 'number' && Number.isInteger(raw.adhesionClass) && raw.adhesionClass >= 0 && raw.adhesionClass <= 5 ? 1 : 0);
+    : 0;
 
   const value =
     exploitableCount === 1
