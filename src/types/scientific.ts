@@ -26,8 +26,8 @@ export type QualityStatus =
 
 /** Niveau 4 : Statut de conformité du protocole de mesure */
 export type ProtocolComplianceStatus =
-  | 'STANDARD'            // Conforme à la référence normative retenue
-  | 'ADAPTED_JUSTIFIED'   // Adaptation documentée du cadre normatif retenu, dans les limites définies par QUV-Lab
+  | 'STANDARD'            // Référence normative/scientifique retenue
+  | 'ADAPTED_JUSTIFIED'   // Configuration adaptée, explicitement justifiée
   | 'ADAPTED_UNJUSTIFIED' // Diffère du standard SANS justification (bloquant)
   | 'INCOMPLETE'          // Paramétrage incomplet
   | 'INVALID';            // Valeurs incohérentes
@@ -43,7 +43,7 @@ export type ScientificRuleOrigin =
   | 'NORMATIVE_REQUIREMENT' // Exigence stricte issue d'une norme officielle (ex: NF EN 927-6 clauses 6.3.2, 6.3.3)
   | 'LAB_RECOMMENDATION'    // Recommandation ou procédure interne du laboratoire (ex: Dureté Persoz ISO 1522)
   | 'METROLOGICAL_CHOICE'   // Choix méthodologique métrologique (ex: Écart-type échantillon n-1, seuils de dispersion)
-  | 'PROTOCOL_ADAPTATION';  // Adaptation documentée du cadre normatif retenu pour l'essai ; ne modifie pas le texte de la norme
+  | 'PROTOCOL_ADAPTATION';  // Configuration adaptée du cadre retenu pour l'essai
 
 /** Alias de compatibilité avec v1.1 */
 export type RuleSource = ScientificRuleOrigin | 'NORMATIVE' | 'LABORATORY' | 'PROJECT' | 'USER_CUSTOM';
