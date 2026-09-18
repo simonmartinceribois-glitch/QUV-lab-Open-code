@@ -310,5 +310,5 @@ export function evaluatePreExposureConditioning(
     id: `alert-conditioning-delay-${familyId || 'UNKNOWN'}`, severity: 'BLOCKING', code: 'PROTOCOL_ADAPTED',
     message: `Conditionnement avant T0 insuffisant : ${elapsedHours.toFixed(1)} h écoulées pour ${requiredHours} h requises selon ${ruleSet?.preExposureConditioning?.standardReference} ${ruleSet?.preExposureConditioning?.clause}.`, familyId: familyId || 'UNKNOWN', stageId, panelId
   }};
-  return { status: 'CONFORME', elapsedHours, requiredHours };
+  return { status: 'CONFORME', elapsedHours, requiredHours: normalizedRequiredHours };
 }
