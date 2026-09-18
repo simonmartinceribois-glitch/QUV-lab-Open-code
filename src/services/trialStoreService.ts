@@ -49,6 +49,7 @@ import { generateStandardExposureStages } from './trialStages';
 // la valeur normative NF EN 927-6:2018 (12 × 168 h = 2016 h).
 const C12_SCHEDULED_HOURS = 2016;
 import { createDemoTrial, createValidationTrial } from './trialSeed';
+import { evaluateCountProtocolCompliance, evaluateSeriesProtocolCompliance } from '../scientific/protocolEngine';
 
 const STORAGE_KEY = 'quv_lab_trials_v2_2';
 
@@ -769,6 +770,26 @@ export class TrialStoreService {
       },
       mediaIds: params.mediaIds || prevRecord?.mediaIds || []
     };
+
+    // Avant le premier verrouillage, toutes les familles actives quantitatives
+    // doivent disposer d’une configuration complète et valide issue du RuleSet.
+    // Aucun verrou partiel n’est autorisé si une autre famille active est incomplète.
+    if (trial.configurationStatus !== 'LOCKED') {
+      for (const familyId of trial.config.activeFamilies) {
+        const familyConfig = trial.config.familyConfigs[familyId];
+        if (!familyConfig || !familyConfig.enabled) {
+          throw new IntegrityViolationError(\`Configuration protocolaire absente pour la famille active \${familyId}.\`, { trialId: trial.id, familyId });
+        }
+        const protocol = familyId === 'GLOSS'
+          ? evaluateSeriesProtocolCompliance(familyConfig.seriesConfig, this.ruleSet)
+          : familyId === 'OBSERVATIONS'
+            ? null
+            : evaluateCountProtocolCompliance(familyConfig.countConfig, this.ruleSet);
+        if (protocol && (protocol.status === 'INCOMPLETE' || protocol.status === 'INVALID')) {
+          throw new IntegrityViolationError(\`Configuration protocolaire \${familyId} incomplète ou invalide : la première acquisition ne peut pas verrouiller l’essai.\`, { trialId: trial.id, familyId });
+        }
+      }
+    }
 
     // Calcul immédiat via PROMPT 5 sans toucher à raw
     const { updatedRecord, rawUnchanged } = recalculateAcquisition(newRecord, trial, this.ruleSet);
