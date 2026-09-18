@@ -689,7 +689,9 @@ export function runScientificCriteriaEvaluationTests(): {
     );
   }
 
-  // 25 — Déterminisme : mêmes entrées => résultat applicatif strictement identique.\n  {\n    const trial = trialWithData(STABLE_DATA, 40);\n    const first = evaluateScientificCriteria(trial, ruleSet, { batchId: 'b1' });\n    const second = evaluateScientificCriteria(trial, ruleSet, { batchId: 'b1' });\n    record(\n      25,\n      'Service : déterminisme strict — mêmes entrées, même résultat',\n      'SERVICE_DETERMINISM',\n      JSON.stringify(first) === JSON.stringify(second),\n      'résultats strictement identiques',\n      JSON.stringify(first) === JSON.stringify(second) ? 'identiques' : 'différents'\n    );\n  }\n\n  const passed = results.filter((r) => r.passed).length;
+  // 25 — Déterminisme : mêmes entrées => résultat applicatif strictement identique.
+  {
+    const trial = trialWithData(STABLE_DATA, 40);\n    const first = evaluateScientificCriteria(trial, ruleSet, { batchId: 'b1' });\n    const second = evaluateScientificCriteria(trial, ruleSet, { batchId: 'b1' });\n    record(\n      25,\n      'Service : déterminisme strict — mêmes entrées, même résultat',\n      'SERVICE_DETERMINISM',\n      JSON.stringify(first) === JSON.stringify(second),\n      'résultats strictement identiques',\n      JSON.stringify(first) === JSON.stringify(second) ? 'identiques' : 'différents'\n    );\n  }\n\n  const passed = results.filter((r) => r.passed).length;
   return {
     results,
     summary: { total: results.length, passed, failed: results.length - passed }
