@@ -90,7 +90,6 @@ function buildWitnessTrial(): Trial {
       adhesionClass,
       gridSpacingMm: 2,
       measurementDateTime: '2026-09-04T00:00:00Z',
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020'
     };
     const record: PanelAcquisitionRecord = {
