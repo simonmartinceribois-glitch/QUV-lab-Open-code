@@ -120,7 +120,6 @@ function buildCsvTrial(): Trial {
     coatingThicknessMicrons: 90,
     measurementDateTime: '2026-08-30T14:00:00Z',
     applicationDateTime: '2026-08-01T00:00:00Z',
-    requiredMinimumDelayHours: 168,
     normReference: 'NF EN ISO 2409:2020',
     elapsedTimeHours: 696
   } as AdhesionRawData);
@@ -130,7 +129,6 @@ function buildCsvTrial(): Trial {
     coatingThicknessMicrons: 90,
     measurementDateTime: '2026-10-24T00:00:00Z',
     applicationDateTime: '2026-08-01T00:00:00Z',
-    requiredMinimumDelayHours: 168,
     normReference: 'NF EN ISO 2409:2020',
     observation: 'Legacy C12',
     elapsedTimeHours: 2160
