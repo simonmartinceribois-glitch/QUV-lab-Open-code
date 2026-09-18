@@ -190,7 +190,8 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
       },
       ADHESION: {
         familyId: 'ADHESION',
-        enabled: true
+        enabled: true,
+        countConfig: createCountConfiguration('ADHESION', 2, ruleSet)
       },
       OBSERVATIONS: {
         familyId: 'OBSERVATIONS',
@@ -227,7 +228,7 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
       action: 'CONFIGURE_PROTOCOL',
       entityType: 'PROTOCOL',
       entityId: 'ALL',
-      details: { activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'OBSERVATIONS'], colorPoints: 4, glossSeries: '2x2' }
+      details: { activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'ADHESION', 'OBSERVATIONS'], colorPoints: 4, glossSeries: '2x2', persozPoints: 3, adhesionPoints: 2 }
     },
     {
       id: 'audit-3',
@@ -714,9 +715,9 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
     standardReference: 'NF EN 927-6',
     activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'OBSERVATIONS'],
     familyConfigs: {
-      COLOR: { familyId: 'COLOR', enabled: true },
-      GLOSS: { familyId: 'GLOSS', enabled: true },
-      PERSOZ: { familyId: 'PERSOZ', enabled: true },
+      COLOR: { familyId: 'COLOR', enabled: true, countConfig: createCountConfiguration('COLOR', 4, ruleSet) },
+      GLOSS: { familyId: 'GLOSS', enabled: true, seriesConfig: createSeriesConfiguration('GLOSS', 2, 2, ruleSet) },
+      PERSOZ: { familyId: 'PERSOZ', enabled: true, countConfig: createCountConfiguration('PERSOZ', 3, ruleSet) },
       OBSERVATIONS: { familyId: 'OBSERVATIONS', enabled: true }
     }
   };
