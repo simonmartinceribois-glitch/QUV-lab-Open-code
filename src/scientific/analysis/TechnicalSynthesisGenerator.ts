@@ -211,9 +211,15 @@ export function generateTechnicalSynthesis(
   }
 
   const glossCfg = trial.config.familyConfigs.GLOSS?.seriesConfig;
-  if (glossCfg && (glossCfg.configuredConfiguration.seriesCount !== 2 || glossCfg.configuredConfiguration.readingsPerSeries !== 2) && glossCfg.justification) {
+  const glossReference = ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration;
+  if (
+    glossCfg &&
+    glossReference &&
+    glossCfg.deviationFromStandard &&
+    glossCfg.justification
+  ) {
     protocolAdaptations.push(
-      `La configuration de mesure de la brillance a été adaptée (${glossCfg.configuredConfiguration.seriesCount}×${glossCfg.configuredConfiguration.readingsPerSeries}) avec justification enregistrée ("${glossCfg.justification}").`
+      `La configuration de mesure de la brillance a été adaptée (${glossCfg.configuredConfiguration.seriesCount}×${glossCfg.configuredConfiguration.readingsPerSeries}) par rapport à la configuration de référence (${glossReference.seriesCount}×${glossReference.readingsPerSeries}) ; cette adaptation du cadre appliqué à l'essai est documentée dans le protocole ("${glossCfg.justification}").`
     );
   }
 
