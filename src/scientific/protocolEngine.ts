@@ -244,3 +244,48 @@ export function evaluateSeriesProtocolCompliance(
     protocolDefinition: buildProtocolDefinition(config, ruleSet)
   };
 }
+
+
+export interface PreExposureConditioningResult {
+  status: 'CONFORME' | 'INSUFFICIENT_DELAY' | 'INVALID_DATE' | 'MISSING_APPLICATION_DATE' | 'MISSING_RULE';
+  elapsedHours: number | null;
+  requiredHours: number | null;
+  alert?: MeasurementAlert;
+}
+
+/** Contrôle général du conditionnement avant les examens initiaux T0.
+ * Cette règle est commune aux familles mesurées avant exposition ; elle n'appartient
+ * pas au moteur ADHESION. Le RAW conserve les dates réelles ; le RuleSet porte le délai requis.
+ */
+export function evaluatePreExposureConditioning(
+  applicationDate?: string,
+  measurementDate?: string,
+  ruleSet?: ScientificRuleSet,
+  familyId?: MeasurementFamilyId,
+  stageId?: string,
+  panelId?: string
+): PreExposureConditioningResult {
+  const requiredHours = ruleSet?.preExposureConditioning?.requiredHours;
+  if (!Number.isFinite(requiredHours) || (requiredHours as number) < 0) {
+    return { status: 'MISSING_RULE', elapsedHours: null, requiredHours: null, alert: {
+      id: `alert-conditioning-rule-missing-${familyId || 'UNKNOWN'}`, severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE',
+      message: 'Règle de conditionnement avant T0 absente du RuleSet.', familyId: familyId || 'UNKNOWN', stageId, panelId
+    }};
+  }
+  if (!applicationDate) return { status: 'MISSING_APPLICATION_DATE', elapsedHours: null, requiredHours, alert: {
+    id: `alert-conditioning-application-date-${familyId || 'UNKNOWN'}`, severity: 'BLOCKING', code: 'MEASUREMENT_INVALID',
+    message: 'Date d’application de la finition absente : le délai avant T0 ne peut pas être contrôlé.', familyId: familyId || 'UNKNOWN', stageId, panelId
+  }};
+  const app = Date.parse(applicationDate);
+  const measured = measurementDate ? Date.parse(measurementDate) : NaN;
+  if (!Number.isFinite(app) || !Number.isFinite(measured) || measured < app) return { status: 'INVALID_DATE', elapsedHours: null, requiredHours, alert: {
+    id: `alert-conditioning-date-${familyId || 'UNKNOWN'}`, severity: 'BLOCKING', code: 'MEASUREMENT_INVALID',
+    message: 'Dates invalides pour le contrôle du conditionnement avant T0.', familyId: familyId || 'UNKNOWN', stageId, panelId
+  }};
+  const elapsedHours = (measured - app) / 3600000;
+  if (elapsedHours < requiredHours) return { status: 'INSUFFICIENT_DELAY', elapsedHours, requiredHours, alert: {
+    id: `alert-conditioning-delay-${familyId || 'UNKNOWN'}`, severity: 'BLOCKING', code: 'PROTOCOL_ADAPTED',
+    message: `Conditionnement avant T0 insuffisant : ${elapsedHours.toFixed(1)} h écoulées pour ${requiredHours} h requises selon ${ruleSet?.preExposureConditioning?.standardReference} ${ruleSet?.preExposureConditioning?.clause}.`, familyId: familyId || 'UNKNOWN', stageId, panelId
+  }};
+  return { status: 'CONFORME', elapsedHours, requiredHours };
+}
