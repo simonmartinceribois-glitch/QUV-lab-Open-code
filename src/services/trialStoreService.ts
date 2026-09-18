@@ -610,7 +610,7 @@ export class TrialStoreService {
     const prevConfig = famConfig?.countConfig || famConfig?.seriesConfig;
 
     if (typeof newCountOrSeries === 'number') {
-      const isStandard = newCountOrSeries === (this.ruleSet.measurementConfigurations[familyId]?.standardRecommendedCount ?? 4);
+      const isStandard = newCountOrSeries === (this.ruleSet.measurementConfigurations[familyId]?.standardRecommendedCount ?? undefined);
       if (!isStandard && !isAdaptationJustificationValid(justification)) {
         throw new Error('Une justification obligatoire (8 caractères minimum) est requise pour toute adaptation du nombre de mesures.');
       }
