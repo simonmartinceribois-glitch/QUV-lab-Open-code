@@ -691,7 +691,52 @@ export function runScientificCriteriaEvaluationTests(): {
 
   // 25 — Déterminisme : mêmes entrées => résultat applicatif strictement identique.
   {
-    const trial = trialWithData(STABLE_DATA, 40);\n    const first = evaluateScientificCriteria(trial, ruleSet, { batchId: 'b1' });\n    const second = evaluateScientificCriteria(trial, ruleSet, { batchId: 'b1' });\n    record(\n      25,\n      'Service : déterminisme strict — mêmes entrées, même résultat',\n      'SERVICE_DETERMINISM',\n      JSON.stringify(first) === JSON.stringify(second),\n      'résultats strictement identiques',\n      JSON.stringify(first) === JSON.stringify(second) ? 'identiques' : 'différents'\n    );\n  }\n\n  const passed = results.filter((r) => r.passed).length;
+    const trial = trialWithData(STABLE_DATA, 40);
+    const first = evaluateScientificCriteria(trial, ruleSet, { batchId: 'b1' });
+    const second = evaluateScientificCriteria(trial, ruleSet, { batchId: 'b1' });
+    record(
+      25,
+      'Service : déterminisme strict — mêmes entrées, même résultat',
+      'SERVICE_DETERMINISM',
+      JSON.stringify(first) === JSON.stringify(second),
+      'résultats strictement identiques',
+      JSON.stringify(first) === JSON.stringify(second) ? 'identiques' : 'différents'
+    );
+  }
+
+  // 26 — A1 : une entrée RAW à deux positions dont une seule est exploitable
+  // ne doit jamais être interprétée comme un panelMean exploitable.
+  {
+    const trial = createTrial();
+    const panels = [P_E1, P_E2, P_E3];
+    panels.forEach((panel, i) => {
+      seedObservation(trial, C12_STAGE_ID, panel.id, 'b1', {
+        BLISTERING: 0,
+        CRACKING: 0,
+        FLAKING: 0
+      });
+      seedAdhesion(
+        trial,
+        C12_STAGE_ID,
+        panel.id,
+        'b1',
+        i === 0 ? [0, null] : [0]
+      );
+    });
+
+    const e = evaluateScientificCriteria(trial, ruleSet, { batchId: 'b1' });
+    record(
+      26,
+      'A1 : mesure d’adhérence non exploitable non convertie artificiellement en panelMean',
+      'ADHESION_A1',
+      e.nf9272.testValidity === 'INSUFFICIENT_DATA' &&
+        e.nf9272.classification === null,
+      'INSUFFICIENT_DATA + classification=null',
+      `${e.nf9272.testValidity} + ${String(e.nf9272.classification)}`
+    );
+  }
+
+  const passed = results.filter((r) => r.passed).length;
   return {
     results,
     summary: { total: results.length, passed, failed: results.length - passed }
