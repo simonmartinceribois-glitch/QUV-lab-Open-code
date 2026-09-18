@@ -74,19 +74,19 @@ export function runGate60AdhesionAdaptedThreeTests(): {
   record(
     'G58-ADH-02',
     'trois mesures RAW conservées et calculées',
-    result.computed.individualResults.length === 3 &&
-      result.computed.individualResults.every((m) => m.adhesionClass !== null) &&
+    (result.computed.individualResults ?? []).length === 3 &&
+      (result.computed.individualResults ?? []).every((m) => m.adhesionClass !== null) &&
       result.computed.panelMean === 2 &&
       result.computed.qualityAssessment.expectedCount === 3 &&
       result.computed.qualityAssessment.completenessPercent === 100,
     '3 résultats individuels, panelMean=2.0, expectedCount=3, complétude=100 %',
-    `individualResults=${result.computed.individualResults.length}, panelMean=${result.computed.panelMean}, expectedCount=${result.computed.qualityAssessment.expectedCount}, completeness=${result.computed.qualityAssessment.completenessPercent}`
+    `individualResults=${(result.computed.individualResults ?? []).length}, panelMean=${result.computed.panelMean}, expectedCount=${result.computed.qualityAssessment.expectedCount}, completeness=${result.computed.qualityAssessment.completenessPercent}`
   );
 
   record(
     'G58-ADH-03',
     'aucune limitation artificielle à deux mesures',
-    result.computed.individualResults.length === 3 &&
+    (result.computed.individualResults ?? []).length === 3 &&
       !result.alerts.some((a) => a.code === 'MEASUREMENT_COUNT_MISMATCH'),
     '3 mesures acceptées sans troncature ni alerte de dépassement',
     `individualResults=${result.computed.individualResults.length}, countMismatch=${result.alerts.some((a) => a.code === 'MEASUREMENT_COUNT_MISMATCH')}`
