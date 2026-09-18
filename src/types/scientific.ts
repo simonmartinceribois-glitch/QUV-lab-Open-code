@@ -397,7 +397,7 @@ export interface AdhesionRawData {
   measurementDateTime: ISODateString;
   applicationDateTime?: string; // Récupéré de batch.applicationDate
   coatingThicknessMicrons?: number | null;
-  gridSpacingMm: number; // 1, 2, 3 mm selon NF EN ISO 2409
+  gridSpacingMm: number | null; // 1, 2, 3 mm selon NF EN ISO 2409 ; null si non déterminable
   bladeType?: string; // 'SINGLE_BLADE_6_CUTS' | 'MULTI_BLADE' | string
   tapeType?: string; // 'IEC 60454-2' | string
   conditioning?: string; // ex: "23°C / 50% HR"
