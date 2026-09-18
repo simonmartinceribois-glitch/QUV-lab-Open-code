@@ -96,8 +96,7 @@ export function detectTrialAnomalies(
     if (!famConfig || !famConfig.enabled) continue;
 
     if (famConfig.countConfig && familyId !== 'GLOSS') {
-      const standardCount = ruleSet.measurementConfigurations[familyId]?.standardRecommendedCount
-        ?? famConfig.countConfig.standardRecommendedCount;
+      const standardCount = ruleSet.measurementConfigurations[familyId]?.standardRecommendedCount;
       if (standardCount === undefined) {
         addAnomaly(
           'CRITICAL',
@@ -111,7 +110,7 @@ export function detectTrialAnomalies(
         const configuredCount = famConfig.countConfig.configuredCount;
         if (configuredCount !== standardCount) {
           const label = familyId === 'COLOR' ? 'colorimétrique' : familyId === 'PERSOZ' ? 'Persoz' : familyId === 'ADHESION' ? "d'adhérence" : familyId;
-          const sourceReference = famConfig.countConfig.standardReference || ruleSet.standardReference;
+          const sourceReference = ruleSet.measurementConfigurations[familyId]?.standardReference || ruleSet.standardReference;
           if (famConfig.countConfig.deviationFromStandard && !famConfig.countConfig.justification) {
             addAnomaly(
               'CRITICAL',
