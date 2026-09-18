@@ -70,6 +70,14 @@ export function CreateTrialWizardModal({
 }: Props) {
   const ruleSet = propRuleSet || globalTrialStore['ruleSet'];
   if (!isOpen) return null;
+  const stdColor = ruleSet.measurementConfigurations.COLOR?.standardRecommendedCount;
+  const stdGlossSeries = ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration?.seriesCount;
+  const stdGlossReadings = ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration?.readingsPerSeries;
+  const stdPersoz = ruleSet.measurementConfigurations.PERSOZ?.standardRecommendedCount;
+  const stdAdhesion = ruleSet.measurementConfigurations.ADHESION?.standardRecommendedCount;
+  if (stdColor === undefined || stdGlossSeries === undefined || stdGlossReadings === undefined || stdPersoz === undefined || stdAdhesion === undefined) {
+    throw new Error('Référentiel scientifique incomplet : impossible de créer le plan de mesure.');
+  }
 
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7>(1);
 
@@ -177,18 +185,18 @@ export function CreateTrialWizardModal({
     'OBSERVATIONS'
   ]);
 
-  const [colorPoints, setColorPoints] = useState<number>(4);
+  const [colorPoints, setColorPoints] = useState<number>(stdColor);
   const [colorJustification, setColorJustification] = useState<string>('');
 
-  const [glossSeriesCount, setGlossSeriesCount] = useState<number>(2);
-  const [glossReadingsPerSeries, setGlossReadingsPerSeries] = useState<number>(2);
+  const [glossSeriesCount, setGlossSeriesCount] = useState<number>(stdGlossSeries);
+  const [glossReadingsPerSeries, setGlossReadingsPerSeries] = useState<number>(stdGlossReadings);
   const [glossJustification, setGlossJustification] = useState<string>('');
 
-  const [persozReps, setPersozReps] = useState<number>(3);
+  const [persozReps, setPersozReps] = useState<number>(stdPersoz);
   const [persozJustification, setPersozJustification] = useState<string>('');
 
   // Adhérence : la référence est portée par le RuleSet ; toute adaptation positive entière est possible et doit être justifiée.
-  const [adhCount, setAdhCount] = useState<number>(2);
+  const [adhCount, setAdhCount] = useState<number>(stdAdhesion);
   const [adhJustification, setAdhJustification] = useState<string>('');
 
   // Gestion des familles
@@ -233,12 +241,6 @@ export function CreateTrialWizardModal({
 
   // Validations adaptations (P5) : références issues du référentiel scientifique,
   // jamais codées en dur dans le composant.
-  const stdColor = ruleSet.measurementConfigurations.COLOR?.standardRecommendedCount ?? 4;
-  const stdGlossSeries = ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration?.seriesCount ?? 2;
-  const stdGlossReadings = ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration?.readingsPerSeries ?? 2;
-  const stdPersoz = ruleSet.measurementConfigurations.PERSOZ?.standardRecommendedCount ?? 3;
-  const stdAdhesion = ruleSet.measurementConfigurations.ADHESION?.standardRecommendedCount ?? 2;
-
   const isColorAdapted = colorPoints !== stdColor;
   const isColorAdaptationInvalid = isColorAdapted && !isAdaptationJustificationValid(colorJustification);
 
