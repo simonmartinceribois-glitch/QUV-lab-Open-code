@@ -26,8 +26,8 @@ export type QualityStatus =
 
 /** Niveau 4 : Statut de conformité du protocole de mesure */
 export type ProtocolComplianceStatus =
-  | 'STANDARD'            // Conforme à la configuration de référence du protocole QUV-Lab
-  | 'ADAPTED_JUSTIFIED'   // Diffère du protocole QUV-Lab de référence, sans passer sous son minimum, avec justification
+  | 'STANDARD'            // Conforme à la référence normative retenue
+  | 'ADAPTED_JUSTIFIED'   // Adaptation documentée du cadre normatif retenu, dans les limites définies par QUV-Lab
   | 'ADAPTED_UNJUSTIFIED' // Diffère du standard SANS justification (bloquant)
   | 'INCOMPLETE'          // Paramétrage incomplet
   | 'INVALID';            // Valeurs incohérentes
@@ -43,7 +43,7 @@ export type ScientificRuleOrigin =
   | 'NORMATIVE_REQUIREMENT' // Exigence stricte issue d'une norme officielle (ex: NF EN 927-6 clauses 6.3.2, 6.3.3)
   | 'LAB_RECOMMENDATION'    // Recommandation ou procédure interne du laboratoire (ex: Dureté Persoz ISO 1522)
   | 'METROLOGICAL_CHOICE'   // Choix méthodologique métrologique (ex: Écart-type échantillon n-1, seuils de dispersion)
-  | 'PROTOCOL_ADAPTATION';  // Adaptation du protocole QUV-Lab de référence ; ne signifie pas adaptation du cadre normatif
+  | 'PROTOCOL_ADAPTATION';  // Adaptation documentée du cadre normatif retenu pour l'essai ; ne modifie pas le texte de la norme
 
 /** Alias de compatibilité avec v1.1 */
 export type RuleSource = ScientificRuleOrigin | 'NORMATIVE' | 'LABORATORY' | 'PROJECT' | 'USER_CUSTOM';
@@ -148,7 +148,7 @@ export interface MeasurementCountConfiguration {
   clause?: string;
   rationale?: string;
   standardRecommendedCount: number;
-  /** Minimum de configuration du protocole QUV-Lab ; ce champ n'est pas une définition d'une exigence normative. */
+  /** Minimum autorisé pour l'adaptation du cadre normatif retenu dans QUV-Lab ; ce champ ne modifie pas le texte de la norme. */
   minimumConfiguredCount: number;
   configuredCount: number;
   deviationFromStandard: boolean;
@@ -166,7 +166,7 @@ export interface MeasurementSeriesConfiguration {
   standardReference?: string;
   clause?: string;
   rationale?: string;
-  /** Minimum de configuration du protocole QUV-Lab ; distinct du cadre normatif. */
+  /** Minimum autorisé pour l'adaptation du cadre normatif retenu dans QUV-Lab. */
   minimumSeriesCount: number;
   minimumReadingsPerSeries: number;
   standardConfiguration: {
