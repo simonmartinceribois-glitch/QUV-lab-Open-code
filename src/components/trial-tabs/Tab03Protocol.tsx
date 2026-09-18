@@ -25,7 +25,7 @@ interface Props {
 
 export function Tab03Protocol({ trial, ruleSet, onTrialUpdated }: Props) {
   const [selectedFamilyForAdapt, setSelectedFamilyForAdapt] = useState<MeasurementFamilyId | null>(null);
-  const [newCount, setNewCount] = useState<number>(4);
+  const [newCount, setNewCount] = useState<number>(0);
   const [justification, setJustification] = useState<string>('');
   const [operatorId, setOperatorId] = useState<string>('Simon Martin (Technicien)');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -38,9 +38,9 @@ export function Tab03Protocol({ trial, ruleSet, onTrialUpdated }: Props) {
     setErrorMsg(null);
     setJustification('');
     if (famId === 'COLOR') {
-      setNewCount(trial.config.familyConfigs.COLOR?.countConfig?.configuredCount || 4);
+      setNewCount(trial.config.familyConfigs.COLOR?.countConfig?.configuredCount ?? ruleSet.measurementConfigurations.COLOR?.standardRecommendedCount ?? 0);
     } else if (famId === 'PERSOZ') {
-      setNewCount(trial.config.familyConfigs.PERSOZ?.countConfig?.configuredCount || 3);
+      setNewCount(trial.config.familyConfigs.PERSOZ?.countConfig?.configuredCount ?? ruleSet.measurementConfigurations.PERSOZ?.standardRecommendedCount ?? 0);
     }
   };
 
@@ -112,7 +112,7 @@ export function Tab03Protocol({ trial, ruleSet, onTrialUpdated }: Props) {
               </div>
               <div className="flex justify-between">
                 <span>Nombre standard recommandé :</span>
-                <strong className="text-slate-900">4 points / panneau</strong>
+                <strong className="text-slate-900">{ruleSet.measurementConfigurations.COLOR?.standardRecommendedCount ?? 'Non défini'} points / panneau</strong>
               </div>
               <div className="flex justify-between">
                 <span>Nombre configuré actif :</span>
@@ -123,7 +123,7 @@ export function Tab03Protocol({ trial, ruleSet, onTrialUpdated }: Props) {
                       : 'text-emerald-700'
                   }
                 >
-                  {trial.config.familyConfigs.COLOR?.countConfig?.configuredCount || 4} points / panneau
+                  {trial.config.familyConfigs.COLOR?.countConfig?.configuredCount ?? 'Non défini'} points / panneau
                 </strong>
               </div>
               <div className="flex justify-between">
@@ -159,11 +159,11 @@ export function Tab03Protocol({ trial, ruleSet, onTrialUpdated }: Props) {
               </div>
               <div className="flex justify-between">
                 <span>Séries configurées :</span>
-                <strong className="text-slate-900">2 séries (Sens du fil + Sens opposé au fil, 180°)</strong>
+                <strong className="text-slate-900">{ruleSet.seriesConfigurations?.GLOSS?.configuredConfiguration.seriesCount ?? 'Non défini'} séries</strong>
               </div>
               <div className="flex justify-between">
                 <span>Relevés totaux :</span>
-                <strong className="text-emerald-700">4 relevés / panneau</strong>
+                <strong className="text-emerald-700">{ruleSet.seriesConfigurations?.GLOSS?.configuredConfiguration.totalReadings ?? 'Non défini'} relevés / panneau</strong>
               </div>
               <div className="flex justify-between">
                 <span>Grandeur dérivée :</span>
@@ -207,7 +207,7 @@ export function Tab03Protocol({ trial, ruleSet, onTrialUpdated }: Props) {
               <div className="flex justify-between">
                 <span>Répétitions configurées :</span>
                 <strong className="text-purple-900">
-                  {trial.config.familyConfigs.PERSOZ?.countConfig?.configuredCount || 3} répétitions / panneau
+                  {trial.config.familyConfigs.PERSOZ?.countConfig?.configuredCount ?? 'Non défini'} répétitions / panneau
                 </strong>
               </div>
             </div>
