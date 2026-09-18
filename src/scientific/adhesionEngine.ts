@@ -422,9 +422,7 @@ export function calculateAdhesion(
   // titre que NaN/undefined, et retombe donc sur la constante canonique
   // partagée (jamais utilisée telle quelle, ce qui ferait accepter n'importe
   // quel délai comme "conforme" dans calculateDelayCompliance).
-  const requiredMinimumDelayHours = Number.isFinite(raw.requiredMinimumDelayHours) && raw.requiredMinimumDelayHours >= 0
-    ? raw.requiredMinimumDelayHours
-    : undefined;
+  const requiredMinimumDelayHours = raw.requiredMinimumDelayHours;
   const delayCheck = calculateDelayCompliance(
     raw.applicationDateTime,
     raw.measurementDateTime,
