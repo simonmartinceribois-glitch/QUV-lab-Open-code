@@ -1,6 +1,6 @@
 /**
  * QUV-Lab — Paillasse : formulaire Adhérence au quadrillage ISO 2409 (Gate 57).
- * N mesures indépendantes par panneau selon le protocole (standard 2, 1 si adaptation).
+ * N mesures indépendantes par panneau selon le protocole (standard 2 ; 1 ou 3 si adaptation justifiée).
  * Chaque mesure : classe 0–5 + observation individuelle. État au parent (entries),
  * aucune mutation du RAW ici — le payload est assemblé par Tab06MeasurementsBench.
  */
@@ -103,7 +103,7 @@ export function BenchAdhesionForm({
             Paramètres Préparatoires du Quadrillage — NF EN ISO 2409:2020
           </span>
           <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold rounded-md">
-            {expectedCount === 1 ? '1 mesure / panneau (adaptation justifiée)' : `${expectedCount} mesures / panneau (standard)`}
+            {expectedCount === standardAdhesionCount ? `${expectedCount} mesures / panneau (standard)` : `${expectedCount} mesures / panneau (adaptation justifiée)`}
           </span>
         </div>
 
