@@ -174,10 +174,31 @@ function readAdhesionRating(panel: PanelDefinition, stageId: string, trial: Tria
   const raw = acquisition.raw as Partial<AdhesionRawData> | undefined;
   const computed = acquisition.computed as AdhesionComputedData | null | undefined;
   if (!computed || !raw) return null;
-  const measurementCount =
-    Array.isArray(raw.measurements) && raw.measurements.length > 0 ? raw.measurements.length : 1;
+
+  // Contrat A1 : on distingue le nombre de MESURES EXPLOITABLES, pas seulement
+  // le nombre d'entrées RAW. Une entrée invalide/manquante ne peut pas produire
+  // artificiellement une valeur de cotation pour NF EN 927-2:2014.
+  //
+  // - 1 mesure exploitable → computed.adhesionClass
+  // - 2 mesures exploitables → computed.panelMean
+  // - sinon → absence de cotation exploitable.
+  const exploitableCount = Array.isArray(computed.individualResults)
+    ? computed.individualResults.filter(
+        (m) =>
+          typeof m.adhesionClass === 'number' &&
+          Number.isInteger(m.adhesionClass) &&
+          m.adhesionClass >= 0 &&
+          m.adhesionClass <= 5
+      ).length
+    : (typeof raw.adhesionClass === 'number' && Number.isInteger(raw.adhesionClass) && raw.adhesionClass >= 0 && raw.adhesionClass <= 5 ? 1 : 0);
+
   const value =
-    measurementCount <= 1 ? computed.adhesionClass : (computed.panelMean ?? null);
+    exploitableCount === 1
+      ? computed.adhesionClass
+      : exploitableCount === 2
+        ? computed.panelMean
+        : null;
+
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
   return { value };
 }
