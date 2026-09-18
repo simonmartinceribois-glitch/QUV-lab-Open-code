@@ -71,7 +71,6 @@ function seedAdh(trial: Trial, cycleIndex: number, panelSuffix: string, adhesion
     coatingThicknessMicrons: 90,
     measurementDateTime: '2026-10-24T00:00:00Z',
     applicationDateTime: '2026-08-01T00:00:00Z',
-    requiredMinimumDelayHours: 168,
     normReference: 'NF EN ISO 2409:2020'
   };
   const record: PanelAcquisitionRecord = {
