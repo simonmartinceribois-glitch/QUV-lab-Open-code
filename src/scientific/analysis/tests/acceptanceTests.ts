@@ -821,6 +821,7 @@ export function runAllAcceptanceTests(): {
   // --------------------------------------------------------------------------
   {
     const trial = createMockTrial('T31');
+    trial.config.activeFamilies = [...trial.config.activeFamilies, 'ADHESION'];
     trial.config.familyConfigs.PERSOZ = {
       familyId: 'PERSOZ',
       enabled: true,
