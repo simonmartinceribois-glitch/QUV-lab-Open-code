@@ -49,7 +49,7 @@ import { generateStandardExposureStages } from './trialStages';
 // la valeur normative NF EN 927-6:2018 (12 × 168 h = 2016 h).
 const C12_SCHEDULED_HOURS = 2016;
 import { createDemoTrial, createValidationTrial } from './trialSeed';
-import { evaluateCountProtocolCompliance, evaluateSeriesProtocolCompliance } from '../scientific/protocolEngine';
+import { evaluateCountProtocolCompliance, evaluateSeriesProtocolCompliance, evaluatePreExposureConditioning } from '../scientific/protocolEngine';
 
 const STORAGE_KEY = 'quv_lab_trials_v2_2';
 
@@ -770,6 +770,30 @@ export class TrialStoreService {
       },
       mediaIds: params.mediaIds || prevRecord?.mediaIds || []
     };
+
+    // Contrôle général du conditionnement avant les examens initiaux T0.
+    // Le délai est défini par le RuleSet NF EN 927-6 et s'applique aux familles
+    // mesurées à T0 ; il ne constitue pas une règle spécifique à l'adhérence.
+    if (targetStage.stageType === 'INITIAL_PRE_EXPOSURE') {
+      const targetBatch = trial.batches?.find((b) => b.id === params.batchId);
+      const conditioning = evaluatePreExposureConditioning(
+        targetBatch?.applicationDate,
+        newRecord.trace.createdAt,
+        this.ruleSet,
+        params.familyId,
+        params.stageId,
+        params.panelId
+      );
+      if (conditioning.alert) {
+        throw new IntegrityViolationError(conditioning.alert.message, {
+          trialId: trial.id,
+          stageId: params.stageId,
+          batchId: params.batchId,
+          panelId: params.panelId,
+          familyId: params.familyId
+        });
+      }
+    }
 
     // Avant le premier verrouillage, toutes les familles actives quantitatives
     // doivent disposer d’une configuration complète et valide issue du RuleSet.
