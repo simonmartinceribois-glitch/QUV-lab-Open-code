@@ -510,8 +510,8 @@ export function Tab06MeasurementsBench({
               <BenchGlossForm
                 glossSeriesCount={glossSeries}
                 glossReadingsPerSeries={glossReadingsPerSeries}
-                standardSeriesCount={glossStandard?.seriesCount ?? 2}
-                standardReadingsPerSeries={glossStandard?.readingsPerSeries ?? 2}
+                standardSeriesCount={glossStandard?.seriesCount ?? 0}
+                standardReadingsPerSeries={glossStandard?.readingsPerSeries ?? 0}
                 protocolJustification={protocolJustification}
                 glossSeriesData={glossSeriesData}
                 onGlossSeriesChange={setGlossSeriesData}
