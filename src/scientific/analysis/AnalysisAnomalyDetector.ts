@@ -1,80 +1,3 @@
-/**
- * QUV-Lab — Détecteur Factuel d'Anomalies (PROMPT 8 - Section 12, 13, 27, 28)
- * Recherche exclusivement les anomalies factuelles dans les données RAW, COMPUTED et le protocole
- * sans recalculer de données et sans porter de jugement subjectif.
- */
-
-import { Trial, ExposureStage, BatchDefinition } from '../../types/trial';
-import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
-import { AnalysisAnomaly } from '../../types/analysis';
-import { getActiveFamiliesForStage } from '../panelUtils';
-import { parseObservationRating } from '../observationsEngine';
-
-export function detectTrialAnomalies(
-  trial: Trial,
-  ruleSet: ScientificRuleSet,
-  scope?: {
-    stageId?: string;
-    batchIds?: string[];
-    families?: MeasurementFamilyId[];
-  }
-): AnalysisAnomaly[] {
-  const anomalies: AnalysisAnomaly[] = [];
-  let anomalyCounter = 1;
-
-  const addAnomaly = (
-    severity: AnalysisAnomaly['severity'],
-    category: AnalysisAnomaly['category'],
-    code: string,
-    title: string,
-    factualDescription: string,
-    blocking: boolean,
-    details?: {
-      sourceReference?: string;
-      affectedLotId?: string;
-      affectedPanelId?: string;
-      affectedStageId?: string;
-    }
-  ) => {
-    anomalies.push({
-      id: `ANOM-${trial.metadata.reference}-${category}-${anomalyCounter++}`,
-      severity,
-      category,
-      code,
-      title,
-      factualDescription,
-      blocking,
-      affectedTrialId: trial.id,
-      ...details
-    });
-  };
-
-  const selectedStages = scope?.stageId
-    ? trial.stages.filter((s) => s.id === scope.stageId)
-    : trial.stages;
-
-  const selectedBatches = scope?.batchIds && scope.batchIds.length > 0
-    ? trial.batches.filter((b) => scope.batchIds!.includes(b.id))
-    : trial.batches;
-
-  const activeFamilies: MeasurementFamilyId[] = scope?.families && scope.families.length > 0
-    ? scope.families
-    : trial.config.activeFamilies;
-
-  // --------------------------------------------------------------------------
-  // A. ANOMALIES TEMPORELLES & STRUCTURALES
-  // --------------------------------------------------------------------------
-  const stageT0 = trial.stages.find((s) => s.cycleIndex === 0);
-  if (!stageT0) {
-    addAnomaly(
-      'CRITICAL',
-      'TEMPORAL',
-      'INITIAL_STAGE_MISSING',
-      'Étape initiale T0 absente',
-      'L\'essai ne dispose pas de l\'étape T0 (mesures initiales avant exposition), rendant impossible tout calcul de variation temporelle.',
-      true
-    );
-  }
 
   const stage2016 = trial.stages.find((s) => s.cycleIndex === 12);
   if (!stage2016) {
@@ -95,34 +18,47 @@ export function detectTrialAnomalies(
     const famConfig = trial.config.familyConfigs[familyId];
     if (!famConfig || !famConfig.enabled) continue;
 
-    if (familyId === 'COLOR' && famConfig.countConfig) {
-      const stdPoints = ruleSet.measurementConfigurations.COLOR?.standardRecommendedCount ?? 4;
-      const configuredPoints = famConfig.countConfig.configuredCount;
-      if (configuredPoints !== stdPoints) {
-        if (famConfig.countConfig.deviationFromStandard && !famConfig.countConfig.justification) {
-          addAnomaly(
-            'CRITICAL',
-            'PROTOCOL',
-            'COLOR_ADAPTATION_UNJUSTIFIED',
-            'Adaptation du plan colorimétrique non justifiée',
-            `Le plan de mesure de la couleur est configuré à ${configuredPoints} points au lieu des ${stdPoints} points standard sans justification technique enregistrée.`,
-            true,
-            { sourceReference: 'NF EN 927-6 §6.3.2' }
-          );
-        } else {
-          addAnomaly(
-            'INFO',
-            'PROTOCOL',
-            'COLOR_ADAPTATION_JUSTIFIED',
-            'Plan de mesure colorimétrique adapté et justifié',
-            `Le plan de mesure de la couleur a été adapté à ${configuredPoints} points au lieu de ${stdPoints} points standard. Motif enregistré : "${famConfig.countConfig.justification}".`,
-            false,
-            { sourceReference: 'NF EN 927-6 §6.3.2' }
-          );
+    if (famConfig.countConfig && familyId !== 'GLOSS') {
+      const standardCount = ruleSet.measurementConfigurations[familyId]?.standardRecommendedCount
+        ?? famConfig.countConfig.standardRecommendedCount;
+      if (standardCount === undefined) {
+        addAnomaly(
+          'CRITICAL',
+          'PROTOCOL',
+          'MEASUREMENT_REFERENCE_MISSING',
+          `Référentiel de mesure manquant pour ${familyId}`,
+          `Aucune configuration standard n'est disponible pour la famille ${familyId} ; l'évaluation de l'adaptation ne peut pas être référencée.`,
+          true
+        );
+      } else {
+        const configuredCount = famConfig.countConfig.configuredCount;
+        if (configuredCount !== standardCount) {
+          const label = familyId === 'COLOR' ? 'colorimétrique' : familyId === 'PERSOZ' ? 'Persoz' : familyId === 'ADHESION' ? "d'adhérence" : familyId;
+          const sourceReference = famConfig.countConfig.standardReference || ruleSet.standardReference;
+          if (famConfig.countConfig.deviationFromStandard && !famConfig.countConfig.justification) {
+            addAnomaly(
+              'CRITICAL',
+              'PROTOCOL',
+              `${familyId}_ADAPTATION_UNJUSTIFIED`,
+              `Adaptation du plan ${label} non justifiée`,
+              `Le plan de mesure de ${label} est configuré à ${configuredCount} relevé(s) au lieu de ${standardCount} de référence sans justification technique enregistrée.`,
+              true,
+              { sourceReference }
+            );
+          } else {
+            addAnomaly(
+              'INFO',
+              'PROTOCOL',
+              `${familyId}_ADAPTATION_JUSTIFIED`,
+              `Plan de mesure ${label} adapté et justifié`,
+              `Le plan de mesure de ${label} a été adapté à ${configuredCount} relevé(s) au lieu de ${standardCount} de référence. Motif enregistré : "${famConfig.countConfig.justification}".`,
+              false,
+              { sourceReference }
+            );
+          }
         }
       }
     }
-
     if (familyId === 'GLOSS' && famConfig.seriesConfig) {
       const std = ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration;
       const cfg = famConfig.seriesConfig.configuredConfiguration;
@@ -168,117 +104,3 @@ export function detectTrialAnomalies(
           const acq = trial.acquisitions[acqKey];
 
           if (!acq) {
-            // Uniquement si l'étape est entamée ou validée
-            if (stage.status === 'IN_PROGRESS' || stage.status === 'VALIDATED') {
-              addAnomaly(
-                'WARNING',
-                'DATA',
-                'ACQUISITION_MISSING',
-                `Acquisition manquante : ${familyId}`,
-                `Aucune acquisition enregistrée pour le panneau ${panel.label} (${batch.reference}) à l'étape ${stage.name} pour la grandeur ${familyId}.`,
-                false,
-                {
-                  affectedLotId: batch.id,
-                  affectedPanelId: panel.id,
-                  affectedStageId: stage.id
-                }
-              );
-            }
-            continue;
-          }
-
-          // Anomalies de statut d'acquisition
-          if (acq.status === 'ERROR') {
-            addAnomaly(
-              'CRITICAL',
-              'METROLOGY',
-              'ACQUISITION_ERROR',
-              `Données invalides : ${familyId} sur ${panel.label}`,
-              `L'acquisition ${familyId} du panneau ${panel.label} à l'étape ${stage.name} comporte des erreurs bloquantes ou des valeurs invalides.`,
-              true,
-              {
-                affectedLotId: batch.id,
-                affectedPanelId: panel.id,
-                affectedStageId: stage.id
-              }
-            );
-          } else if (acq.status === 'PARTIAL') {
-            addAnomaly(
-              'WARNING',
-              'DATA',
-              'ACQUISITION_PARTIAL',
-              `Série de mesures incomplète : ${familyId}`,
-              `L'acquisition ${familyId} sur ${panel.label} (${stage.name}) ne comporte pas le nombre attendu de points de mesure.`,
-              false,
-              {
-                affectedLotId: batch.id,
-                affectedPanelId: panel.id,
-                affectedStageId: stage.id
-              }
-            );
-          }
-
-          // Relayer les alertes du moteur scientifique
-          if (acq.alerts && acq.alerts.length > 0) {
-            for (const alert of acq.alerts) {
-              addAnomaly(
-                alert.severity === 'BLOCKING' ? 'CRITICAL' : alert.severity === 'WARNING' ? 'WARNING' : 'INFO',
-                'METROLOGY',
-                typeof alert.code === 'string' ? alert.code : 'MEASUREMENT_ALERT',
-                `Alerte métrologique : ${familyId} (${panel.label})`,
-                alert.message,
-                alert.severity === 'BLOCKING',
-                {
-                  affectedLotId: batch.id,
-                  affectedPanelId: panel.id,
-                  affectedStageId: stage.id
-                }
-              );
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // --------------------------------------------------------------------------
-  // D. CONTRADICTIONS ENTRE DONNÉES ET OBSERVATIONS (Section 28)
-  // --------------------------------------------------------------------------
-  for (const stage of selectedStages) {
-    for (const batch of selectedBatches) {
-      for (const panel of batch.panels) {
-        const obsKey = `${stage.id}__${panel.id}__OBSERVATIONS`;
-        const obsAcq = trial.acquisitions[obsKey];
-        if (obsAcq && obsAcq.raw) {
-          const rawObs = obsAcq.raw as { observations?: Array<{ category: string; rating: string | number | null | undefined; comment?: string }> };
-          if (rawObs.observations) {
-            for (const item of rawObs.observations) {
-              // Validation par la source de vérité commune parseObservationRating :
-              // seules les cotations réellement VALID et égales à 0 déclenchent le
-              // contrôle de cohérence. Une cotation MISSING ou INVALID n'est jamais
-              // transformée en 0 (pas de contradiction fabriquée par absence).
-              const { validity, value } = parseObservationRating(item.rating);
-              if (validity === 'VALID' && value === 0 && item.comment && /(important|sévère|marqué|fort|décollement)/i.test(item.comment)) {
-                addAnomaly(
-                  'CRITICAL',
-                  'DATA',
-                  'ANALYSIS_TEXT_CONTRADICTION',
-                  `Contradiction observation / cotation (${panel.label})`,
-                  `La cotation de ${item.category} est fixée à 0 (aucun défaut) alors que le commentaire textuel mentionne "${item.comment}".`,
-                  true,
-                  {
-                    affectedLotId: batch.id,
-                    affectedPanelId: panel.id,
-                    affectedStageId: stage.id
-                  }
-                );
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return anomalies;
-}
