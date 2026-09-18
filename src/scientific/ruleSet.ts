@@ -65,6 +65,7 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
         clause: '6.3.2',
         rationale: 'Mesure de couleur CIE L*a*b* en 4 points représentatifs de la surface exposée',
         standardRecommendedCount: 4,
+        minimumConfiguredCount: 4,
         configuredCount: 4,
         deviationFromStandard: false,
         configuredBy: 'SYSTEM',
@@ -79,6 +80,7 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
         clause: 'Méthode B (Amortissement pendulaire)',
         rationale: 'Mesure de dureté pendulaire Persoz en 3 répétitions (non-imposée par NF EN 927-6)',
         standardRecommendedCount: 3,
+        minimumConfiguredCount: 1,
         configuredCount: 3,
         deviationFromStandard: false,
         configuredBy: 'SYSTEM',
@@ -93,6 +95,7 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
         clause: '§5 & §6 (Essai de quadrillage)',
         rationale: 'Évaluation de la résistance du revêtement à la séparation par quadrillage (6×6 incisions, espacement selon épaisseur sèche). Standard QUV-Lab (Gate 57) : 2 mesures indépendantes par panneau ; 1 mesure uniquement en adaptation justifiée.',
         standardRecommendedCount: 2,
+        minimumConfiguredCount: 1,
         configuredCount: 2,
         deviationFromStandard: false,
         configuredBy: 'SYSTEM',
@@ -109,6 +112,8 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
         standardReference: 'NF EN 927-6',
         clause: '6.3.3',
         rationale: 'Mesure de brillance spéculaire sous géométrie 60° (2 séries : sens du fil + sens opposé au fil par rotation de 180°)',
+        minimumSeriesCount: 2,
+        minimumReadingsPerSeries: 2,
         standardConfiguration: {
           seriesCount: 2,
           readingsPerSeries: 2,
@@ -167,20 +172,21 @@ export function createCountConfiguration(
       `Configuration ${familyId} invalide : le nombre de mesures doit être un entier fini supérieur ou égal à 1 (reçu : ${String(configuredCount)}).`
     );
   }
-  if (familyId === 'ADHESION' && configuredCount !== 1 && configuredCount !== 2) {
-    throw new Error(
-      `Configuration ADHESION invalide : ${String(configuredCount)} mesure(s) demandée(s). Seules 2 mesures/panneau (standard) ou 1 mesure/panneau (adaptation justifiée) sont autorisées.`
-    );
-  }
-
   const ref = ruleSet.measurementConfigurations[familyId] || {
     standardRecommendedCount: 4,
+    minimumConfiguredCount: 1,
     origin: 'NORMATIVE_REQUIREMENT' as ScientificRuleOrigin,
     ruleSource: 'NORMATIVE_REQUIREMENT' as RuleSource,
     standardReference: ruleSet.standardReference,
     clause: 'N/A',
     rationale: 'Configuration de mesure'
   };
+
+  if (configuredCount < ref.minimumConfiguredCount) {
+    throw new Error(
+      `Configuration ${familyId} invalide : ${String(configuredCount)} mesure(s) sous le minimum QUV-Lab de ${String(ref.minimumConfiguredCount)}. Une valeur sous ce minimum n'est pas une adaptation valide.`
+    );
+  }
 
   const isStandard = configuredCount === ref.standardRecommendedCount;
   const justification = options?.justification?.trim() || '';
@@ -247,6 +253,8 @@ export function createSeriesConfiguration(
   }
 
   const ref = ruleSet.seriesConfigurations?.[familyId] || {
+    minimumSeriesCount: 1,
+    minimumReadingsPerSeries: 1,
     origin: 'NORMATIVE_REQUIREMENT' as ScientificRuleOrigin,
     standardReference: ruleSet.standardReference,
     clause: '6.3.3',
@@ -260,6 +268,12 @@ export function createSeriesConfiguration(
     },
     ruleSource: 'NORMATIVE_REQUIREMENT' as RuleSource
   };
+
+  if (seriesCount < ref.minimumSeriesCount || readingsPerSeries < ref.minimumReadingsPerSeries) {
+    throw new Error(
+      `Configuration ${familyId} invalide : minimum QUV-Lab ${ref.minimumSeriesCount} série(s) et ${ref.minimumReadingsPerSeries} mesure(s) par série.`
+    );
+  }
 
   const total = seriesCount * readingsPerSeries;
   const isStandard =
