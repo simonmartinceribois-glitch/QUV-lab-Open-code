@@ -2,36 +2,22 @@
  * Moteur de calcul NF EN 927-2:2014 (référentiel historique/transitoire —
  * HISTORICAL_TRANSITIONAL) — couche CALCULATIONS uniquement.
  *
- * Tous les traitements numériques (moyennes, sommes, différences, arrondis)
- * vivent ici. Cette couche ne connaît NI les seuils du référentiel
- * (en9272Requirements.ts) NI les évaluations (en9272Evaluator.ts) : elle
- * reçoit des nombres et retourne des nombres.
+ * Cette couche fournit uniquement les primitives numériques utilisées par
+ * l'évaluateur 2014 : moyenne arithmétique, somme et différence maximale.
+ * Elle ne connaît NI les seuils du référentiel (en9272Requirements.ts) NI les
+ * évaluations (en9272Evaluator.ts) : elle reçoit des nombres et retourne des
+ * nombres.
  *
  * Règles :
- *  - moyenne éprouvette (adhérence) : moyenne arithmétique des 2 mesures
- *    individuelles, arrondie à 1 décimale ;
- *  - moyenne système : moyenne arithmétique des moyennes éprouvettes exposées
- *    (E1/E2/E3), arrondie à 1 décimale ;
- *  - défauts (Blistering/Cracking/Flaking) : moyenne arithmétique des cotations
- *    éprouvette (0..5), arrondie à 1 décimale ;
- *  - classement séquentiel 2014 : la SOMME des 12 cotations individuelles
- *    (4 critères × 3 éprouvettes exposées) est calculée depuis les valeurs
- *    BRUTES, jamais depuis des moyennes arrondies ; de même, la DIFFÉRENCE
- *    maximale max(12) − min(12) porte sur les valeurs individuelles ;
- *    les moyennes comparées aux seuils (opérateur ≤) sont les moyennes
- *    arithmétiques NON arrondies (0,7 ≤ 0,7 PASS ; 0,7001 > 0,7 FAIL) ;
- *  - jamais de donnée fabriquée : toute entrée non finie est exclue ; si le
- *    minimum requis n'est pas atteint, le résultat est `null`.
+ *  - les moyennes comparées aux seuils sont arithmétiques et NON arrondies ;
+ *  - la SOMME des 12 cotations individuelles (4 critères × 3 éprouvettes
+ *    exposées) est calculée depuis les valeurs BRUTES, jamais depuis des
+ *    moyennes arrondies ;
+ *  - la DIFFÉRENCE maximale max(12) − min(12) porte sur les valeurs
+ *    individuelles ;
+ *  - jamais de donnée fabriquée : toute entrée non finie est exclue ; si
+ *    aucune donnée finie n'est disponible, le résultat est `null`.
  */
-
-export const NF9272_ADHESION_MEASURES_PER_SPECIMEN = 2;
-export const NF9272_MIN_EXPOSED_SPECIMENS = 3;
-export const NF9272_MIN_ADHESION_MEASURES_PER_SPECIMEN = 2;
-
-/** Arrondi à 1 décimale (valeur MongoDB/JS classique). */
-export function roundTo1Decimal(value: number): number {
-  return Math.round(value * 10) / 10;
-}
 
 /** Filtre les valeurs finies. */
 function finiteValues(values: number[]): number[] {
@@ -46,40 +32,8 @@ export function arithmeticMean(values: number[]): number | null {
 }
 
 /**
- * Moyenne d'éprouvette pour l'ADHÉRENCE : moyenne arithmétique des mesures
- * individuelles. Retourne `null` si moins de 2 mesures finies (aucune donnée
- * inventée). L'appelant est tenu de fournir les mesures individuelles.
- */
-export function specimenAdhesionMean(individualMeasures: number[]): number | null {
-  const finite = finiteValues(individualMeasures);
-  if (finite.length < NF9272_MIN_ADHESION_MEASURES_PER_SPECIMEN) return null;
-  return roundTo1Decimal(arithmeticMean(finite) as number);
-}
-
-/**
- * Moyenne SYSTEME (éprouvettes exposées E1/E2/E3) pour l'ADHÉRENCE : moyenne des
- * moyennes d'éprouvettes valides. Retourne `null` si aucune moyenne valide.
- */
-export function systemAdhesionMean(specimenMeans: (number | null)[]): number | null {
-  const valid = specimenMeans.filter((m): m is number => m !== null && Number.isFinite(m));
-  if (valid.length === 0) return null;
-  return roundTo1Decimal(arithmeticMean(valid) as number);
-}
-
-/**
- * Moyenne arithmétique des éprouvettes exposées pour un DÉFAUT
- * (Blistering/Cracking/Flaking) au jalon C12, arrondie à 1 décimale.
- * Retourne `null` si aucune cotation valide (aucune donnée fabriquée) ;
- * l'évaluateur gère le minimum de 3 éprouvettes.
- */
-export function defectMean(specimenRatings: number[]): number | null {
-  const mean = arithmeticMean(specimenRatings);
-  return mean === null ? null : roundTo1Decimal(mean);
-}
-
-/**
- * SOMME des 12 cotations individuelles (classement séquentiel 2014).
- * Somme des valeurs BRUTES finies, jamais depuis des moyennes arrondies.
+ * SOMME des cotations individuelles utilisées par le classement séquentiel
+ * 2014. Somme des valeurs BRUTES finies, jamais depuis des moyennes arrondies.
  * Retourne `null` si aucune valeur finie.
  */
 export function sumOfValues(values: number[]): number | null {
@@ -89,7 +43,7 @@ export function sumOfValues(values: number[]): number | null {
 }
 
 /**
- * DIFFÉRENCE maximale des 12 cotations individuelles : max(12) − min(12).
+ * DIFFÉRENCE maximale des cotations individuelles : max − min.
  * Porte sur les valeurs BRUTES finies. Retourne `null` si moins de 2 valeurs
  * finies (une différence exige au moins deux points).
  */

@@ -73,7 +73,7 @@ import {
   classifyNf9272Sequence
 } from '../criteria/en927/en9272Evaluator';
 import { findNf9272Jalon, prepareNf9272DefectData, prepareNf9272AdhesionData } from '../criteria/en927/en9272Preparation';
-import { defectMean, specimenAdhesionMean, systemAdhesionMean } from '../criteria/en927/en9272Calculations';
+import { arithmeticMean, sumOfValues, maxDifferenceOfValues } from '../criteria/en927/en9272Calculations';
 import {
   getNf9272CategoryRequirements,
   NF9272_STABLE_REQUIREMENTS,
@@ -489,18 +489,24 @@ export function runNfEn9272InfiperfTests(): {
       `SEMI=${semi.maxSum}/${semi.maxDifference}, NON=${non.maxSum}/${non.maxDifference}, B=${stable.criteria.BLISTERING?.comparison}, A=${stable.criteria.ADHESION?.comparison}`
     );
 
-    // Fonctions pures de calcul (conservées pour compatibilité, non utilisées
-    // par le classement 2014 pour la somme/écart).
-    const meanB = defectMean([0.2, 0.3, 0.5]); // 0.333… → arrondi 1 décimale → 0.3
-    const meanBNull = defectMean([]); // aucune valeur → null (aucune donnée fabriquée)
-    const oneDecimal = specimenAdhesionMean([1.4, 1.5]); // 1.45 → arrondi 1 décimale → 1.5
+    // Primitives numériques actuellement utilisées par le classement 2014.
+    const mean = arithmeticMean([0.2, 0.3, 0.5]);
+    const meanEmpty = arithmeticMean([]);
+    const sum = sumOfValues([0.2, 0.3, 0.5]);
+    const difference = maxDifferenceOfValues([0.2, 0.3, 0.5]);
     record(
       6,
-      'T3 Calculs : moyenne défauts arrondie à 1 décimale (0,333→0,3) ; moyenne éprouvette adhérence arrondie ; null sans données',
+      'T3 Calculs actifs : moyenne arithmétique, somme et différence maximale ; null sans données',
       'CALCULS',
-      meanB === 0.3 && meanBNull === null && oneDecimal === 1.5,
-      'defectMean([0.2,0.3,0.5])=0.333→0.3 ; defectMean([])=null ; specimenAdhesionMean([1.4,1.5])=1.45→1.5',
-      `meanB=${String(meanB)}, meanBNull=${String(meanBNull)}, oneDecimal=${String(oneDecimal)}`
+      mean !== null &&
+        Math.abs(mean - (1 / 3)) < 1e-12 &&
+        meanEmpty === null &&
+        sum !== null &&
+        Math.abs(sum - 1.0) < 1e-12 &&
+        difference !== null &&
+        Math.abs(difference - 0.3) < 1e-12,
+      'arithmeticMean([0.2,0.3,0.5])=0.333… ; arithmeticMean([])=null ; sum=1 ; maxDifference=0.3',
+      `mean=${String(mean)}, meanEmpty=${String(meanEmpty)}, sum=${String(sum)}, difference=${String(difference)}`
     );
   }
 
