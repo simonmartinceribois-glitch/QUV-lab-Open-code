@@ -342,26 +342,68 @@ Important : le terme **PROTOCOLE ADAPTÉ** désigne ici une **adaptation du cadr
 
 \`CONFIGURATION INVALIDE\` : la configuration est inférieure au minimum autorisé pour l'adaptation définie ci-dessous. Elle doit être refusée par le moteur.
 
-### 8.1.1 Minima de configuration pour une adaptation du cadre normatif
+### 8.1.1 Configuration du nombre de mesures lors de la création de l'essai
 
-Les minima ci-dessous définissent les **limites de l'adaptation du cadre normatif dans QUV-Lab**. Ils ne constituent pas une nouvelle exigence de la norme et ne permettent pas, à eux seuls, de déclarer la conformité à la norme.
+Le S0 **ne fixe pas de minimum logiciel générique par famille** pour qualifier une configuration d'adaptation.
 
-| Famille | Référence normative retenue | Minimum autorisé dans l'adaptation QUV-Lab | Règle |
-|---|---|---|---|
-| Couleur | 4 mesures/panneau | 4 mesures/panneau | <4 interdit ; 4 = référence ; >4 = adaptation documentée. |
-| Brillance | 2 séries × 2 mesures, une série par direction | 2 séries × 2 mesures, avec ≥2 mesures dans chaque direction | Une réduction sous 2×2 est interdite ; une configuration supérieure est une adaptation documentée. |
-| Persoz | 3 répétitions retenues par le protocole laboratoire | 1 mesure/panneau | 1 ou 2 = adaptation documentée ; 3 = référence. Cette règle relève du cadre laboratoire et non d'une exigence normative NF EN 927-6. |
-| Adhérence | 2 mesures/panneau retenues pour le protocole QUV | 1 mesure/panneau | 1 = adaptation documentée ; 2 = référence. Cette adaptation ne modifie pas le texte de la norme. |
-| Observations | Cotation qualitative | Sans minimum numérique | Hors mécanisme de comptage. |
+Lors de la création d'un essai, deux modes de configuration sont possibles :
 
-**Règle impérative :**
+1. **Configuration selon le cadre normatif / la référence scientifique retenue**
+   * le nombre de mesures est configuré conformément à la référence applicable retenue pour l'essai ;
+   * ce nombre constitue la configuration de référence de l'essai.
 
-* inférieur au minimum = **configuration invalide** ;
-* égal au minimum mais différent de la référence = **adaptation du cadre normatif** ;
-* supérieur à la référence = **adaptation du cadre normatif** ;
-* égal à la référence = **configuration standard** ;
-* toute adaptation doit être tracée et justifiée ;
-* aucune adaptation QUV-Lab ne doit être formulée comme une modification de la norme elle-même ni comme une conformité normative automatique.
+2. **Configuration adaptée**
+   * l'opérateur définit explicitement le nombre de mesures retenu pour l'essai ;
+   * ce nombre peut être différent, y compris inférieur, au nombre de mesures de la référence ;
+   * l'adaptation doit être explicitement identifiée ;
+   * une justification/commentaire est obligatoire et est conservé avec l'essai.
+
+**Important :** cette adaptation est une **adaptation du cadre appliqué à l'essai**. Elle ne constitue pas une modification du texte de la norme, ni une nouvelle exigence normative. Le logiciel ne doit donc jamais présenter le nombre adapté comme « conforme à la norme » du seul fait qu'il a été configuré et analysé.
+
+Il n'existe donc pas de règle du type « minimum QUV-Lab = X mesures » codée par famille dans `ruleSet.ts`.
+
+Le `RuleSet` conserve la référence scientifique/normative et sa configuration de référence. Le **nombre effectivement choisi appartient au protocole de l'essai**.
+
+| Famille | Référence/configuration normative ou scientifique | Nombre adapté |
+|---|---|---|
+| Couleur | Selon la référence applicable retenue | Défini lors de la création |
+| Brillance | Selon la structure méthodologique applicable retenue | Défini lors de la création |
+| Persoz | Selon la procédure laboratoire retenue | Défini lors de la création |
+| Adhérence | Selon la méthode et le protocole retenus | Défini lors de la création |
+
+Le moteur doit accepter et analyser la configuration réellement créée, qu'elle soit standard ou adaptée, sous réserve des contrôles génériques de validité du paramétrage (entiers, valeurs finies, structure cohérente, etc.).
+
+**Aucune adaptation ne doit désactiver l'analyse des résultats.**
+
+Dans les deux modes :
+
+```text
+configuration de l'essai
+        ↓
+acquisition RAW
+        ↓
+validation / qualité
+        ↓
+calculs COMPUTED
+        ↓
+critères applicables
+        ↓
+analyse
+        ↓
+restitution
+```
+
+La différence entre les deux modes est une **information de traçabilité du protocole**, pas une condition générale d'exécution du moteur.
+
+Pour une configuration adaptée, la restitution doit conserver au minimum :
+
+* le nombre réellement configuré ;
+* la référence utilisée pour identifier l'écart ;
+* le statut d'adaptation ;
+* le commentaire / la justification ;
+* les résultats calculés à partir des données réellement acquises.
+
+Le nombre configuré est verrouillé selon les règles générales de verrouillage du protocole : après la première acquisition scientifique, aucune modification silencieuse du plan de mesure n'est autorisée.
 
 Toute adaptation doit être :
 
