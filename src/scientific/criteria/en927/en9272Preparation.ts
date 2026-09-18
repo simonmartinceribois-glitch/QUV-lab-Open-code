@@ -12,17 +12,26 @@
  * uniquement (témoin T exclu).
  *
  * Cotation de l'ADHÉRENCE (classement séquentiel 2014) : le pipeline QUV-Lab est
- * exclusivement qualitatif (classes ISO 2409 0..5). Le classement 2014 évalue
- * l'adhérence par la cotation maximale des observations visuelles, lue depuis
- * `perCategoryMaxRating` sous la clé `CROSS_CUT_ADHESION` (repli `ADHESION`),
- * sur l'échelle 0..5, comparée au seuil par opérateur ≤. Le blocage "force en
- * MPa / 2 mesures par éprouvette" appartient à l'évolution de migration vers la
- * NF EN 927-2:2022 (traçabilité documentaire conservée dans
- * en9272Requirements.ts, jamais utilisée pour le calcul 2014). Aucune
- * conversion de classe vers une force en MPa n'est jamais réalisée.
+ * exclusivement qualitatif (classes ISO 2409 0..5). Depuis le correctif A1, la
+ * cotation de l'éprouvette est produite par la LOGIQUE ADHÉRENCE EXISTANTE
+ * (moteur `adhesionEngine`, famille ADHESION) selon le nombre de mesures
+ * réalisées par éprouvette : 1 mesure → la classe de cette mesure
+ * (`adhesionClass`) ; 2 mesures → la cotation de la règle 2 mesures
+ * (`panelMean`). La préparation lit UNIQUEMENT le COMPUTED déjà produit par le
+ * pipeline (`recalculateAcquisition` → `calculateAdhesion`) : aucun calcul
+ * n'est réimplémenté ici, aucune valeur RAW n'est lue directement. L'absence de
+ * cotation exploitable → INSUFFICIENT_DATA (jamais 0, jamais de fallback vers
+ * les observations). L'ancien chemin `perCategoryMaxRating['CROSS_CUT_ADHESION']`
+ * (OBSERVATIONS_RATING) a été supprimé : les observations visuelles n'alimentent
+ * plus l'adhérence NF EN 927-2:2014. Le blocage "force en MPa / 2 mesures par
+ * éprouvette" appartient à l'évolution de migration vers la NF EN 927-2:2022
+ * (traçabilité documentaire conservée dans en9272Requirements.ts, jamais
+ * utilisée pour le calcul 2014). Aucune conversion de classe vers une force en
+ * MPa n'est jamais réalisée.
  */
 
 import type { Trial, ExposureStage, BatchDefinition, PanelDefinition } from '../../../types/trial';
+import type { AdhesionRawData, AdhesionComputedData } from '../../../types/scientific';
 import {
   getActiveE1E2E3PanelsOfBatch,
   getActiveStages,
@@ -62,16 +71,18 @@ export interface Nf9272PreparedAdhesionData {
   /** Libellé système ciblé, ex. 'LOT A — Lasure'. */
   batchLabel: string | null;
   /**
-   * Cotation par éprouvette exposée E1/E2/E3 du lot ciblé, lue depuis les
-   * observations visuelles (`perCategoryMaxRating` sous la clé
-   * `CROSS_CUT_ADHESION`, repli `ADHESION`), échelle 0..5.
+   * Cotation par éprouvette exposée E1/E2/E3 du lot ciblé, produite par la
+   * logique ADHESION existante selon le nombre de mesures réalisées :
+   * 1 mesure → `adhesionClass` (classe de la mesure) ; 2 mesures → `panelMean`
+   * (règle 2 mesures). Lue depuis le COMPUTED de l'acquisition `__ADHESION`
+   * (jamais le RAW, jamais les observations), échelle 0..5.
    */
   specimens: Nf9272SpecimenValue[];
   /** Éprouvettes exposées REQUISES mais sans cotation exploitable (acquisition absente, cotation invalide). */
   missingSpecimens: { panelId: string; panelLabel: string }[];
   available: boolean;
-  /** Source de la valeur : cotation ISO 2409 issue des observations visuelles (aucune force MPa). */
-  source: 'OBSERVATIONS_RATING';
+  /** Source de la valeur : logique ADHESION existante (1 ou 2 mesures → cotation), aucune force MPa. */
+  source: 'ADHESION_MEASUREMENT';
 }
 
 export type Nf9272PreparedData = Nf9272PreparedDefectData | Nf9272PreparedAdhesionData;
@@ -126,6 +137,11 @@ export function observationsAcquisitionKey(stageId: string, panelId: string): st
   return `${stageId}__${panelId}__OBSERVATIONS`;
 }
 
+/** Tatouage d'une acquisition ADHESION : `${stage}__${panel}__ADHESION`. */
+export function adhesionAcquisitionKey(stageId: string, panelId: string): string {
+  return `${stageId}__${panelId}__ADHESION`;
+}
+
 function readCategoryRating(panel: PanelDefinition, stageId: string, trial: Trial, category: Nf9272DefectCategory): { value: number } | null {
   const acquisition = trial.acquisitions[observationsAcquisitionKey(stageId, panel.id)];
   const perCategory = (acquisition?.computed as { perCategoryMaxRating?: Record<string, number> | undefined } | undefined)
@@ -137,19 +153,33 @@ function readCategoryRating(panel: PanelDefinition, stageId: string, trial: Tria
 }
 
 /**
- * Clés d'observations reconnues pour la cotation de l'ADHÉRENCE (échelle 0..5) :
- * `CROSS_CUT_ADHESION` puis repli `ADHESION`.
+ * Cotation de l'ADHÉRENCE d'UNE éprouvette : produite par la LOGIQUE ADHESION
+ * EXISTANTE (moteur non modifié), lue depuis le COMPUTED de l'acquisition
+ * `__ADHESION` — jamais depuis RAW ni depuis les observations.
+ *
+ * Nombre de mesures réalisées (RAW conservé par le moteur) :
+ *  - 0 ou 1 mesure (scalaire legacy / mono-mesure) → `computed.adhesionClass`
+ *    (classe ISO 2409 0..5 de la mesure unique) ;
+ *  - 2 mesures → `computed.panelMean` (cotation de la règle 2 mesures du moteur,
+ *    moyenne des classes valides à 1 décimale).
+ *
+ * Aucune valeur n'est calculée ici : la préparation recopie la sortie métier.
+ * Acquisitions ERROR (cotation invalide bloquante) et absence de COMPUTED →
+ * `null` (→ éprouvette manquante → INSUFFICIENT_DATA). Jamais 0, jamais de
+ * fallback vers `OBSERVATIONS_RATING`.
  */
-export const NF9272_ADHESION_OBSERVATION_CATEGORIES = ['CROSS_CUT_ADHESION', 'ADHESION'] as const;
-
 function readAdhesionRating(panel: PanelDefinition, stageId: string, trial: Trial): { value: number } | null {
-  const acquisition = trial.acquisitions[observationsAcquisitionKey(stageId, panel.id)];
-  const perCategory = (acquisition?.computed as { perCategoryMaxRating?: Record<string, number> | undefined } | undefined)
-    ?.perCategoryMaxRating;
-  if (!acquisition || !perCategory) return null;
-  const rating = perCategory[NF9272_ADHESION_OBSERVATION_CATEGORIES[0]] ?? perCategory[NF9272_ADHESION_OBSERVATION_CATEGORIES[1]];
-  if (typeof rating !== 'number' || !Number.isFinite(rating)) return null;
-  return { value: rating };
+  const acquisition = trial.acquisitions[adhesionAcquisitionKey(stageId, panel.id)];
+  if (!acquisition || acquisition.status === 'ERROR') return null;
+  const raw = acquisition.raw as Partial<AdhesionRawData> | undefined;
+  const computed = acquisition.computed as AdhesionComputedData | null | undefined;
+  if (!computed || !raw) return null;
+  const measurementCount =
+    Array.isArray(raw.measurements) && raw.measurements.length > 0 ? raw.measurements.length : 1;
+  const value =
+    measurementCount <= 1 ? computed.adhesionClass : (computed.panelMean ?? null);
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  return { value };
 }
 
 function findTargetBatch(trial: Trial, options?: { batchId?: string }): BatchDefinition | null {
@@ -200,10 +230,15 @@ export function prepareNf9272DefectData(
  * Préparation de la cotation de l'ADHÉRENCE (classement séquentiel 2014) au
  * jalon C12, pour le SYSTÈME CIBLÉ (lot).
  *
- * Source : cotation maximale des OBSERVATIONS VISUELLES ISO 2409 (0..5), lue
- * depuis `perCategoryMaxRating` sous la clé `CROSS_CUT_ADHESION` (repli
- * `ADHESION`), éprouvette par éprouvette E1/E2/E3 du lot ciblé. Aucune force
- * en MPa, aucune conversion, aucun wrapper : mapping pur.
+ * Source (correctif A1) : cotation produite par la LOGIQUE ADHESION EXISTANTE
+ * selon le nombre de mesures réalisées par éprouvette E1/E2/E3 du lot ciblé —
+ * 1 mesure → `adhesionClass` ; 2 mesures → `panelMean` — lue depuis le COMPUTED
+ * de l'acquisition `__ADHESION`. Mapping pur : aucune mesure inventée, aucune
+ * moyenne recalculée, aucune force en MPa, aucun repli vers les observations.
+ *
+ * L'ancien chemin observations (`perCategoryMaxRating`/`CROSS_CUT_ADHESION`,
+ * source OBSERVATIONS_RATING) a été SUPPRIMÉ : les observations visuelles
+ * n'alimentent plus l'adhérence NF EN 927-2:2014.
  *
  * Le cas documentaire NF EN 927-2:2022 (2 mesures individuelles de force)
  * n'est PAS traité par ce référentiel de calcul : il relève de l'évolution de
@@ -236,7 +271,7 @@ export function prepareNf9272AdhesionData(
     specimens,
     missingSpecimens,
     available: specimens.length > 0,
-    source: 'OBSERVATIONS_RATING'
+    source: 'ADHESION_MEASUREMENT'
   };
 }
 
