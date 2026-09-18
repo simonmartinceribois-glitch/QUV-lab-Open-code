@@ -167,6 +167,10 @@ export function createCountConfiguration(
       `Configuration ${familyId} invalide : le nombre de mesures doit être un entier fini supérieur ou égal à 1 (reçu : ${String(configuredCount)}).`
     );
   }
+  if (familyId === 'ADHESION' && configuredCount > 3) {
+    throw new Error('Configuration ADHESION invalide : au maximum 3 mesures sont autorisées ; 1 et 3 sont des adaptations, 2 est la configuration de référence.');
+  }
+
   const ref = ruleSet.measurementConfigurations[familyId];
   if (!ref) {
     throw new Error(`Référentiel scientifique manquant pour la famille ${familyId} : configuration standard obligatoire.`);
