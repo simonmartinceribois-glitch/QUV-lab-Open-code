@@ -114,6 +114,8 @@ import {
 } from '../criteria/en927/en9272Requirements';
 import { TRACEABILITY_STATUS_TO_BE_DEFINED } from '../criteria/common/criterionTypes';
 import { evaluateAdhesionDelayCriterion } from '../criteria/criteriaAdhesion';
+import { calculateAdhesion } from '../adhesionEngine';
+import type { AdhesionRawData, MeasurementCountConfiguration } from '../../types/scientific';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -275,46 +277,107 @@ export function runNfEn9272InfiperfTests(): {
     };
   };
 
+  /**
+   * Sème UNE acquisition d'adhérence `__ADHESION` via le MOTEUR ADHESION EXISTANT
+   * (`calculateAdhesion`, non modifié) : les mesures RAW sont soumises à la logique
+   * 1 ou 2 mesures, et le COMPUTED produit est celui consommé par le classement 2014.
+   *
+   * Cela garantit que la préparation recopie EXCLUSIVEMENT la sortie métier du
+   * moteur (1 mesure → adhesionClass, 2 mesures → panelMean), jamais une valeur
+   * fabriquée dans le référentiel de calcul NF EN 927-2:2014.
+   */
+  const seedAdhesion = (
+    trial: Trial,
+    stageId: string,
+    panelId: string,
+    adhesionClasses: (number | null)[]
+  ) => {
+    const raw: AdhesionRawData = {
+      measurements: adhesionClasses.map((c, i) => ({ measurementIndex: i + 1, adhesionClass: c })),
+      measurementDateTime: '2026-09-10T08:00:00Z',
+      applicationDateTime: '2026-09-01T08:00:00Z',
+      gridSpacingMm: 2,
+      requiredMinimumDelayHours: 168,
+      normReference: 'NF EN ISO 2409:2020'
+    };
+    const countConfig: MeasurementCountConfiguration = {
+      familyId: 'ADHESION',
+      mode: adhesionClasses.length === 1 ? 'CUSTOM_JUSTIFIED' : 'STANDARD_DEFAULT',
+      origin: 'NORMATIVE_REQUIREMENT',
+      standardReference: 'NF EN ISO 2409:2020',
+      clause: '§5 & §6 (Essai de quadrillage)',
+      rationale: adhesionClasses.length === 1 ? 'Test A1 : adaptation justifiée à 1 mesure par panneau' : 'Test A1 : configuration standard 2 mesures par panneau',
+      standardRecommendedCount: 2,
+      configuredCount: adhesionClasses.length,
+      deviationFromStandard: adhesionClasses.length === 1,
+      justification: adhesionClasses.length === 1 ? 'Test : protocole à 1 mesure (pré-Gate 57)' : undefined,
+      configuredBy: 'SYSTEM',
+      configuredAt: '2026-09-01T00:00:00Z',
+      ruleSource: 'NORMATIVE_REQUIREMENT'
+    };
+    const { computed, alerts } = calculateAdhesion(raw, countConfig, ruleSet, { stageId, panelId });
+    const key = `${stageId}__${panelId}__ADHESION`;
+    trial.acquisitions[key] = {
+      id: `acq-${key}`,
+      trialId: trial.id,
+      stageId,
+      batchId: 'b1',
+      panelId,
+      familyId: 'ADHESION',
+      raw,
+      computed,
+      status: alerts.some((a) => a.severity === 'BLOCKING') ? 'ERROR' : 'COMPLETE',
+      alerts,
+      trace: { createdBy: 'Tester', createdAt: new Date().toISOString(), source: 'MANUAL_KEYPAD' },
+      mediaIds: []
+    };
+  };
+
   const seedFullDefects = (trial: Trial, ratings: { blistering?: number; cracking?: number; flaking?: number; adhesion?: number }) => {
     for (const panel of [P_E1, P_E2, P_E3]) {
       seedObservation(trial, C12_STAGE_ID, panel.id, {
         BLISTERING: ratings.blistering ?? 0,
         CRACKING: ratings.cracking ?? 0,
-        FLAKING: ratings.flaking ?? 0,
-        CROSS_CUT_ADHESION: ratings.adhesion ?? 0
+        FLAKING: ratings.flaking ?? 0
       });
+      // ADHÉRENCE : une acquisition __ADHESION par éprouvette (1 mesure → classe),
+      // conforme au correctif A1 — les observations ne l'alimentent plus.
+      seedAdhesion(trial, C12_STAGE_ID, panel.id, [ratings.adhesion ?? 0]);
     }
   };
 
   /**
-   * Sème un jeu de 12 COTATIONS INDIVIDUELLES (4 critères × 3 éprouvettes E1/E2/E3)
-   * directement exploitables par le classement séquentiel 2014 (sum12, écart).
+   * Sème un jeu de 12 COTATIONS INDIVIDUELLES (3 défauts × 3 éprouvettes E1/E2/E3
+   * + 3 adhérences résolues par le moteur ADHESION) exploitables par le classement
+   * séquentiel 2014 (sum12, écart).
+   * `ADHESION[i]` = classes ISO 2409 en 1 mesure pour l'éprouvette i.
    */
   const seedDataset = (
     trial: Trial,
-    data: { BLISTERING: number[]; CRACKING: number[]; FLAKING: number[]; CROSS_CUT_ADHESION: number[] }
+    data: { BLISTERING: number[]; CRACKING: number[]; FLAKING: number[]; ADHESION: number[] }
   ) => {
     for (let i = 0; i < 3; i += 1) {
       const panel = [P_E1, P_E2, P_E3][i];
       seedObservation(trial, C12_STAGE_ID, panel.id, {
         BLISTERING: data.BLISTERING[i],
         CRACKING: data.CRACKING[i],
-        FLAKING: data.FLAKING[i],
-        CROSS_CUT_ADHESION: data.CROSS_CUT_ADHESION[i]
+        FLAKING: data.FLAKING[i]
       });
+      seedAdhesion(trial, C12_STAGE_ID, panel.id, [data.ADHESION[i]]);
     }
   };
 
   // ----------------------------------------------------------------------------
-  // T1 — SÉPARATION DES COUCHES
+  // T1 — SÉPARATION DES COUCHES (CORRECTIF A1)
   // ----------------------------------------------------------------------------
   {
-    // Preparation : mapping pur de la cotation d'adhérence depuis les observations
-    // visuelles (perCategoryMaxRating CROSS_CUT_ADHESION) — AUCUN calcul ici.
+    // Preparation : mapping pur de la cotation ADHESION produite par le MOTEUR
+    // EXISTANT (1 mesure → adhesionClass, 2 mesures → panelMean), lue depuis le
+    // COMPUTED de l'acquisition __ADHESION — AUCUN calcul dans la préparation.
     const trialPrep = createTrial();
-    seedObservation(trialPrep, C12_STAGE_ID, P_E1.id, { CROSS_CUT_ADHESION: 1.2, BLISTERING: 0 });
-    seedObservation(trialPrep, C12_STAGE_ID, P_E2.id, { CROSS_CUT_ADHESION: 0.8, BLISTERING: 0 });
-    seedObservation(trialPrep, C12_STAGE_ID, P_E3.id, { CROSS_CUT_ADHESION: 1.0, BLISTERING: 0 });
+    seedAdhesion(trialPrep, C12_STAGE_ID, P_E1.id, [2]); // 1 mesure → classe 2
+    seedAdhesion(trialPrep, C12_STAGE_ID, P_E2.id, [1, 3]); // 2 mesures → panelMean (1+3)/2 = 2,0
+    seedAdhesion(trialPrep, C12_STAGE_ID, P_E3.id, [0]); // 1 mesure → classe 0
     const adhesionPrepared = prepareNf9272AdhesionData(trialPrep, {
       id: C12_STAGE_ID,
       cycleIndex: 12,
@@ -322,17 +385,18 @@ export function runNfEn9272InfiperfTests(): {
     } as unknown as Trial['stages'][number]);
     const prepIsPure =
       adhesionPrepared.available === true &&
-      adhesionPrepared.source === 'OBSERVATIONS_RATING' &&
+      adhesionPrepared.source === 'ADHESION_MEASUREMENT' &&
       adhesionPrepared.specimens.length === 3 &&
       adhesionPrepared.specimens.every((s) => typeof s.value === 'number' && s.value >= 0 && s.value <= 5) &&
+      adhesionPrepared.specimens.map((s) => s.value).join(',') === '2,2,0' &&
       adhesionPrepared.stageId === C12_STAGE_ID;
 
     record(
       1,
-      'T1 Adaptation adhérence : la préparation recopie la cotation observations (CROSS_CUT_ADHESION) sans calculer',
+      'T1 Correctif A1 : la préparation recopie la cotation du MOTEUR ADHESION (1 mesure → classe, 2 mesures → panelMean), source ADHESION_MEASUREMENT, sans calculer',
       'CRITERE_SEPARATION',
       prepIsPure,
-      'available=true, source=OBSERVATIONS_RATING, 3 éprouvettes, valeurs 0..5',
+      'available=true, source=ADHESION_MEASUREMENT, 3 éprouvettes, valeurs [2; 2; 0] (panelMean 2 mesures)',
       `available=${String(adhesionPrepared.available)}, source=${adhesionPrepared.source}, spec=${adhesionPrepared.specimens.length}, values=${adhesionPrepared.specimens.map((s) => s.value).join(',')}`
     );
   }
@@ -441,18 +505,18 @@ export function runNfEn9272InfiperfTests(): {
   }
 
   // ----------------------------------------------------------------------------
-  // T4 — ADHÉRENCE : COTATION OBSERVATIONS (CROSS_CUT_ADHESION), COMPARAISON ≤
+  // T4 — ADHÉRENCE : COTATION MOTEUR ADHESION (1 MESURE → CLASSE), COMPARAISON ≤
   // ----------------------------------------------------------------------------
   {
-    // Adhérence cotée via les observations visuelles (0,5 ≤ 1,0) → FAVORABLE.
+    // Adhérence produite par le moteur ADHESION : 1 mesure classe 0,0 ≤ 1,0 → FAVORABLE.
     const trial = createTrial();
-    seedFullDefects(trial, { adhesion: 0.5 });
+    seedFullDefects(trial, { adhesion: 0 });
     const evaluated = evaluateNf9272Criteria(trial);
     const adhesion = evaluated.results.ADHESION;
 
     record(
       7,
-      'T4 Adhérence cotée observations (CROSS_CUT_ADHESION 0,5 ≤ 1,0) : FAVORABLE, source OBSERVATIONS_RATING, aucune force MPa',
+      'T4 Adhérence moteur ADHESION (1 mesure classe 0 ≤ 1,0) : FAVORABLE, source ADHESION_MEASUREMENT, aucune force MPa',
       'ADHERENCE_COTATION',
       adhesion.status === 'FAVORABLE' &&
         adhesion.threshold === 1.0 &&
@@ -460,22 +524,22 @@ export function runNfEn9272InfiperfTests(): {
         adhesion.value !== null &&
         adhesion.value <= 1.0 &&
         evaluated.testValidity === 'VALID',
-      'status=FAVORABLE, threshold=1,0, value=0,5, opérateur ≤, source=cotation observations',
+      'status=FAVORABLE, threshold=1,0, value=0, opérateur ≤, source=cotation moteur ADHESION',
       `status=${adhesion.status}, threshold=${String(adhesion.threshold)}, value=${String(adhesion.value)}, testValidity=${evaluated.testValidity}`
     );
 
-    // Aucune conversion : le pipeline reste qualitatif (échelle 0..5).
+    // Aucune conversion : le pipeline reste qualitatif (échelle 0..5, classes ISO 2409).
     const trialHigh = createTrial();
-    seedFullDefects(trialHigh, { adhesion: 1.2 }); // cotée 1,2 > seuil 1,0
+    seedFullDefects(trialHigh, { adhesion: 2 }); // classe 2 > seuil 1,0
     const adhesionHigh = evaluateNf9272Criteria(trialHigh).results.ADHESION;
     record(
       8,
-      'T4 Adhérence cotée 1,2 > seuil 1,0 : DEFAVORABLE (échelle 0..5, pas de force, pas de conversion)',
+      'T4 Adhérence moteur ADHESION classe 2 > seuil 1,0 : DEFAVORABLE (classe ISO, pas de force, pas de conversion)',
       'ADHERENCE_COTATION',
       adhesionHigh.status === 'DEFAVORABLE' &&
         adhesionHigh.pass === false &&
         adhesionHigh.operator === 'LESS_OR_EQUAL',
-      'status=DEFAVORABLE, value=1,2 > 1,0, opérateur ≤',
+      'status=DEFAVORABLE, value=2 > 1,0, opérateur ≤',
       `status=${adhesionHigh.status}, pass=${String(adhesionHigh.pass)}, value=${String(adhesionHigh.value)}`
     );
   }
@@ -515,7 +579,7 @@ export function runNfEn9272InfiperfTests(): {
       BLISTERING: [0.7, 0.7, 0.7],
       CRACKING: [0.0, 1.5, 1.5],
       FLAKING: [0.7, 0.7, 0.8],
-      CROSS_CUT_ADHESION: [3.0, 3.0, 2.9]
+      ADHESION: [3, 3, 3] // classes ISO 2409 (1 mesure par éprouvette) → moyenne 3,0
     });
     const noCat = evaluateNf9272Criteria(trialNoCat);
     record(
@@ -533,8 +597,10 @@ export function runNfEn9272InfiperfTests(): {
     // Éprouvette manquante → INSUFFICIENT_DATA (testValidity) + classification null.
     {
       const trial = createTrial();
-      seedObservation(trial, C12_STAGE_ID, P_E1.id, { BLISTERING: 0.2, CRACKING: 0.1, FLAKING: 0.1, CROSS_CUT_ADHESION: 0 });
-      seedObservation(trial, C12_STAGE_ID, P_E2.id, { BLISTERING: 0.3, CRACKING: 0.2, FLAKING: 0.2, CROSS_CUT_ADHESION: 0 });
+      seedObservation(trial, C12_STAGE_ID, P_E1.id, { BLISTERING: 0.2, CRACKING: 0.1, FLAKING: 0.1 });
+      seedObservation(trial, C12_STAGE_ID, P_E2.id, { BLISTERING: 0.3, CRACKING: 0.2, FLAKING: 0.2 });
+      seedAdhesion(trial, C12_STAGE_ID, P_E1.id, [0]);
+      seedAdhesion(trial, C12_STAGE_ID, P_E2.id, [0]);
       // E3 absente.
       const evaluated = evaluateNf9272Criteria(trial);
       const insufficient =
@@ -1023,9 +1089,9 @@ export function runNfEn9272InfiperfTests(): {
     seedColor(trial, C12_STAGE_ID, P_E1.id, { deltaL: 1.2, deltaA: 0.3, deltaB: -0.5, deltaE: 1.4 });
     seedColor(trial, C12_STAGE_ID, P_E2.id, { deltaL: 1.2, deltaA: 0.3, deltaB: -0.5, deltaE: 1.4 });
     seedColor(trial, C12_STAGE_ID, P_E3.id, { deltaL: 1.2, deltaA: 0.3, deltaB: -0.5, deltaE: 1.4 }); // Couleur → ANALYSIS.
-    seedObservation(trial, C12_STAGE_ID, P_E1.id, { GENERAL_APPEARANCE: 2.0, BLISTERING: 0.1, CRACKING: 0.1, FLAKING: 0.1, CROSS_CUT_ADHESION: 0 });
-    seedObservation(trial, C12_STAGE_ID, P_E2.id, { GENERAL_APPEARANCE: 2.0, BLISTERING: 0.1, CRACKING: 0.1, FLAKING: 0.1, CROSS_CUT_ADHESION: 0 });
-    seedObservation(trial, C12_STAGE_ID, P_E3.id, { GENERAL_APPEARANCE: 2.0, BLISTERING: 0.1, CRACKING: 0.1, FLAKING: 0.1, CROSS_CUT_ADHESION: 0 }); // Aspect 2,0 < 2,5 → NO_SIGNAL.
+    seedObservation(trial, C12_STAGE_ID, P_E1.id, { GENERAL_APPEARANCE: 2.0, BLISTERING: 0.1, CRACKING: 0.1, FLAKING: 0.1 });
+    seedObservation(trial, C12_STAGE_ID, P_E2.id, { GENERAL_APPEARANCE: 2.0, BLISTERING: 0.1, CRACKING: 0.1, FLAKING: 0.1 });
+    seedObservation(trial, C12_STAGE_ID, P_E3.id, { GENERAL_APPEARANCE: 2.0, BLISTERING: 0.1, CRACKING: 0.1, FLAKING: 0.1 }); // Aspect 2,0 < 2,5 → NO_SIGNAL.
 
     const nf = evaluateNf9272Criteria(trial);
     const inf = evaluateInfiperfCriteria(trial, ruleSet, { stageId: C12_STAGE_ID });
@@ -1367,7 +1433,7 @@ export function runNfEn9272InfiperfTests(): {
   {
     // criteriaAdhesion = délai d'application avant essai (NF EN ISO 2409:2020),
     // verdict CONFORME/NON_CONFORME sur la condition de protocole. Indépendant
-    // de l'évaluation d'adhérence NF EN 927-2 (cotation observations 0..5) : le
+    // de l'évaluation d'adhérence NF EN 927-2 (cotation du moteur ADHESION) : le
     // critère NF n'importe pas cette couche ; sans données, il répond
     // INSUFFICIENT_DATA (jamais de force MPa inventée).
     const delay = evaluateAdhesionDelayCriterion({
@@ -1379,14 +1445,14 @@ export function runNfEn9272InfiperfTests(): {
 
     record(
       57,
-      'T17 §15 : criteriaAdhesion = condition de protocole ISO 2409 (délai), indépendant de l’évaluation NF 927-2 (cotation observations)',
+      'T17 §15 : criteriaAdhesion = condition de protocole ISO 2409 (délai), indépendant de l’évaluation NF 927-2 (cotation moteur ADHESION)',
       'ARCHITECTURE',
       delay.normativeReference === 'NF EN ISO 2409:2020' &&
         delay.origin === 'PROTOCOL_CONDITION' &&
         nfAdhesion.status === 'INSUFFICIENT_DATA' &&
         nfAdhesion.message.toLocaleLowerCase('fr-FR').includes('données insuffisantes') &&
         nfAdhesion.message.includes('Adhérence'),
-      'délai ISO 2409 séparé ; adhérence NF cotée observations, INSUFFICIENT_DATA sans données, aucune force inventée',
+      'délai ISO 2409 séparé ; adhérence NF cotée par le moteur ADHESION, INSUFFICIENT_DATA sans données, aucune force inventée',
       `normativeReference=${delay.normativeReference}, verdict=${delay.verdict}, NF adhésion=${nfAdhesion.status}, message=${nfAdhesion.message}`
     );
 
@@ -1417,119 +1483,119 @@ export function runNfEn9272InfiperfTests(): {
       BLISTERING: number[];
       CRACKING: number[];
       FLAKING: number[];
-      CROSS_CUT_ADHESION: number[];
+      ADHESION: number[];
     }) => {
       const trial = createTrial();
       seedDataset(trial, data);
       return evaluateNf9272Criteria(trial);
     };
 
-    // Jeu 1 — Stable : sum12 1,5 / écart 0,4 → STABLE.
+    // Jeu 1 — Stable : sum12 1,2 / écart 0,4 → STABLE.
     {
       const e = evaluateDataset({
         BLISTERING: [0.1, 0.1, 0.1],
         CRACKING: [0.4, 0.0, 0.2],
         FLAKING: [0.1, 0.1, 0.1],
-        CROSS_CUT_ADHESION: [0.1, 0.0, 0.2]
+        ADHESION: [0, 0, 0] // classes ISO (1 mesure/éprouvette)
       });
       record(
         59,
-        'T18 Jeu Stable (sum12 1,5 / écart 0,4) : classification STABLE, sum12=1,5, maxDiff=0,4',
+        'T18 Jeu Stable (sum12 1,2 / écart 0,4) : classification STABLE, sum12=1,2, maxDiff=0,4',
         'CLASSIFICATION_2014',
         e.testValidity === 'VALID' &&
           e.classification === 'STABLE' &&
-          close(e.sum12, 1.5) &&
+          close(e.sum12, 1.2) &&
           close(e.maxDifference, 0.4) &&
           e.categoryChecks.STABLE.passed === true,
-        'STABLE, sum12=1.5, maxDiff=0.4, categoryChecks.STABLE.passed=true',
+        'STABLE, sum12=1.2, maxDiff=0.4, categoryChecks.STABLE.passed=true',
         `testValidity=${e.testValidity}, classification=${String(e.classification)}, sum12=${String(e.sum12)}, maxDiff=${String(e.maxDifference)}`
       );
     }
 
-    // Jeu 2 — Semi-stable : sum12 6,0 / écart 1,2 → SEMI_STABLE.
+    // Jeu 2 — Semi-stable : sum12 6,9 / écart 1,3 → SEMI_STABLE.
     {
       const e = evaluateDataset({
         BLISTERING: [0.5, 0.5, 0.5],
         CRACKING: [1.3, 0.3, 0.3],
         FLAKING: [0.5, 0.5, 0.5],
-        CROSS_CUT_ADHESION: [0.1, 0.5, 0.5]
+        ADHESION: [0, 1, 1] // classes ISO (1 mesure/éprouvette)
       });
       record(
         60,
-        'T18 Jeu Semi-stable (sum12 6,0 / écart 1,2) : SEMI_STABLE (échoue la catégorie Stable sur les moyennes)',
+        'T18 Jeu Semi-stable (sum12 6,9 / écart 1,3) : SEMI_STABLE (échoue la catégorie Stable sur les moyennes)',
         'CLASSIFICATION_2014',
         e.testValidity === 'VALID' &&
           e.classification === 'SEMI_STABLE' &&
-          close(e.sum12, 6.0) &&
-          close(e.maxDifference, 1.2),
-        'SEMI_STABLE, sum12=6.0, maxDiff=1.2',
+          close(e.sum12, 6.9) &&
+          close(e.maxDifference, 1.3),
+        'SEMI_STABLE, sum12=6.9, maxDiff=1.3',
         `testValidity=${e.testValidity}, classification=${String(e.classification)}, sum12=${String(e.sum12)}, maxDiff=${String(e.maxDifference)}`
       );
     }
 
-    // Jeu 3 — Semi-stable LIMITE : sum12 12,0 / écart 1,0 → SEMI_STABLE (12,0 ≤ 12).
+    // Jeu 3 — Semi-stable LIMITE : sum12 12,0 / écart 0,9 → SEMI_STABLE (12,0 ≤ 12).
     {
       const e = evaluateDataset({
         BLISTERING: [0.7, 0.7, 0.7],
-        CRACKING: [1.7, 1.7, 1.7],
+        CRACKING: [1.6, 1.6, 1.6],
         FLAKING: [0.7, 0.7, 0.7],
-        CROSS_CUT_ADHESION: [0.9, 0.9, 0.9]
+        ADHESION: [1, 1, 1] // classes ISO (1 mesure/éprouvette)
       });
       record(
         61,
-        'T18 Jeu Semi-stable LIMITE (sum12 12,0 / écart 1,0) : SEMI_STABLE (l’égalité à la somme max passe)',
+        'T18 Jeu Semi-stable LIMITE (sum12 12,0 / écart 0,9) : SEMI_STABLE (l’égalité à la somme max passe)',
         'CLASSIFICATION_2014',
         e.testValidity === 'VALID' &&
           e.classification === 'SEMI_STABLE' &&
           close(e.sum12, 12.0) &&
-          close(e.maxDifference, 1.0) &&
+          close(e.maxDifference, 0.9) &&
           e.categoryChecks.SEMI_STABLE.sum.passed === true,
-        'SEMI_STABLE, sum12=12.0 (≤12 → PASS), maxDiff=1.0',
+        'SEMI_STABLE, sum12=12.0 (≤12 → PASS), maxDiff=0.9',
         `testValidity=${e.testValidity}, classification=${String(e.classification)}, sum12=${String(e.sum12)}, maxDiff=${String(e.maxDifference)}`
       );
     }
 
-    // Jeu 4 — Non-stable : sum12 13,5 / écart 3,0 → NON_STABLE.
+    // Jeu 4 — Non-stable : sum12 13,2 / écart 3,0 → NON_STABLE.
     {
       const e = evaluateDataset({
         BLISTERING: [0.7, 0.7, 0.7],
         CRACKING: [3.0, 3.0, 3.0],
         FLAKING: [0.7, 0.7, 0.7],
-        CROSS_CUT_ADHESION: [0.0, 0.3, 0.0]
+        ADHESION: [0, 0, 0] // classes ISO (1 mesure/éprouvette)
       });
       record(
         62,
-        'T18 Jeu Non-stable (sum12 13,5 / écart 3,0) : NON_STABLE (moyenne craquelage 3,0 > seuil Semi 1,7)',
+        'T18 Jeu Non-stable (sum12 13,2 / écart 3,0) : NON_STABLE (moyenne craquelage 3,0 > seuil Semi 1,7)',
         'CLASSIFICATION_2014',
         e.testValidity === 'VALID' &&
           e.classification === 'NON_STABLE' &&
           e.categoryChecks.NON_STABLE.passed === true &&
-          close(e.sum12, 13.5) &&
+          close(e.sum12, 13.2) &&
           close(e.maxDifference, 3.0),
-        'NON_STABLE, sum12=13.5, maxDiff=3.0',
+        'NON_STABLE, sum12=13.2, maxDiff=3.0',
         `testValidity=${e.testValidity}, classification=${String(e.classification)}, sum12=${String(e.sum12)}, maxDiff=${String(e.maxDifference)}`
       );
     }
 
-    // Jeu 5 — Aucune catégorie : sum12 16,2 / écart 3,0 → NO_CATEGORY_MET (essai VALID).
+    // Jeu 5 — Aucune catégorie : sum12 16,3 / écart 3,0 → NO_CATEGORY_MET (essai VALID).
     {
       const e = evaluateDataset({
         BLISTERING: [0.7, 0.7, 0.7],
         CRACKING: [0.0, 1.5, 1.5],
         FLAKING: [0.7, 0.7, 0.8],
-        CROSS_CUT_ADHESION: [3.0, 3.0, 2.9]
+        ADHESION: [3, 3, 3] // classes ISO (1 mesure/éprouvette)
       });
       const nonPassed = e.categoryChecks.NON_STABLE.passed;
       record(
         63,
-        'T18 Jeu Aucune catégorie (sum12 16,2 / écart 3,0) : NO_CATEGORY_MET — essai VALID, adhérence moyenne 2,97 > seuil 1,0',
+        'T18 Jeu Aucune catégorie (sum12 16,3 / écart 3,0) : NO_CATEGORY_MET — essai VALID, adhérence classe 3 > seuil 1,0',
         'CLASSIFICATION_2014',
         e.testValidity === 'VALID' &&
           e.classification === 'NO_CATEGORY_MET' &&
-          close(e.sum12, 16.2) &&
+          close(e.sum12, 16.3) &&
           close(e.maxDifference, 3.0) &&
           nonPassed === false,
-        'VALID + NO_CATEGORY_MET, sum12=16.2, maxDiff=3.0, aucune catégorie satisfaite',
+        'VALID + NO_CATEGORY_MET, sum12=16.3, maxDiff=3.0, aucune catégorie satisfaite',
         `testValidity=${e.testValidity}, classification=${String(e.classification)}, sum12=${String(e.sum12)}, maxDiff=${String(e.maxDifference)}, NON_STABLE.passed=${String(nonPassed)}`
       );
     }
@@ -1540,7 +1606,7 @@ export function runNfEn9272InfiperfTests(): {
         BLISTERING: [0.5, 0.5, 0.5],
         CRACKING: [4.0, 0.2, 0.2],
         FLAKING: [0.5, 0.5, 0.5],
-        CROSS_CUT_ADHESION: [0.0, 0.5, 0.5]
+        ADHESION: [0, 1, 1] // classes ISO (1 mesure/éprouvette)
       });
       record(
         64,
@@ -1557,7 +1623,7 @@ export function runNfEn9272InfiperfTests(): {
         BLISTERING: [0.5, 0.5, 0.5],
         CRACKING: [4.1, 0.2, 0.2],
         FLAKING: [0.5, 0.5, 0.5],
-        CROSS_CUT_ADHESION: [0.0, 0.5, 0.5]
+        ADHESION: [0, 1, 1] // classes ISO (1 mesure/éprouvette)
       });
       record(
         65,
@@ -1746,6 +1812,180 @@ export function runNfEn9272InfiperfTests(): {
       'chaque seuil : t−ε FAV, t FAV, t+ε DEFA (opérateur ≤, égalité favorable)',
       `seuils vérifiés=6 (0,3 ; 0,7 ; 1,0 ; 1,7 ; 3,0 ; 1,3)`
     );
+  }
+
+  // ----------------------------------------------------------------------------
+  // T21 — CORRECTIF A1 : L'ADHÉRENCE 2014 VIENT DU MOTEUR ADHESION (1/2 MESURES),
+  // JAMAIS DES OBSERVATIONS ; ABSENCE → INSUFFICIENT_DATA (JAMAIS 0)
+  // ----------------------------------------------------------------------------
+  {
+    // A1.1 — 1 MESURE → adhesionClass (classe ISO 2409), recopiée telle quelle.
+    const trialOne = createTrial();
+    seedAdhesion(trialOne, C12_STAGE_ID, P_E1.id, [1]);
+    seedAdhesion(trialOne, C12_STAGE_ID, P_E2.id, [2]);
+    seedAdhesion(trialOne, C12_STAGE_ID, P_E3.id, [0]);
+    const prepOne = prepareNf9272AdhesionData(trialOne, {
+      id: C12_STAGE_ID,
+      cycleIndex: 12,
+      scheduledExposureHours: 2016
+    } as unknown as Trial['stages'][number]);
+    record(
+      75,
+      'A1.1 : 1 mesure ADHESION → cotation = classe ISO (E1=1, E2=2, E3=0), source ADHESION_MEASUREMENT',
+      'CORRECTIF_A1',
+      prepOne.available === true &&
+        prepOne.source === 'ADHESION_MEASUREMENT' &&
+        prepOne.specimens.length === 3 &&
+        prepOne.specimens.map((s) => s.value).join(',') === '1,2,0',
+      'specimens=[1,2,0], source=ADHESION_MEASUREMENT, 3 éprouvettes',
+      `values=${prepOne.specimens.map((s) => s.value).join(',')}, source=${prepOne.source}, missing=${prepOne.missingSpecimens.length}`
+    );
+
+    // A1.2 — 2 MESURES → panelMean (règle 2 mesures du moteur), jamais une classe arrondie.
+    const trialTwo = createTrial();
+    seedAdhesion(trialTwo, C12_STAGE_ID, P_E1.id, [1, 2]); // panelMean 1,5
+    seedAdhesion(trialTwo, C12_STAGE_ID, P_E2.id, [3, 1]); // panelMean 2,0
+    seedAdhesion(trialTwo, C12_STAGE_ID, P_E3.id, [0, 1]); // panelMean 0,5
+    const prepTwo = prepareNf9272AdhesionData(trialTwo, {
+      id: C12_STAGE_ID,
+      cycleIndex: 12,
+      scheduledExposureHours: 2016
+    } as unknown as Trial['stages'][number]);
+    record(
+      76,
+      'A1.2 : 2 mesures ADHESION → panelMean (1,5 / 2,0 / 0,5), la classe unique n’est pas fabriquée',
+      'CORRECTIF_A1',
+      prepTwo.available === true &&
+        prepTwo.specimens.map((s) => s.value).join(',') === '1.5,2,0.5',
+      'specimens=[1.5,2.0,0.5] (moyenne des 2 mesures, 1 décimale)',
+      `values=${prepTwo.specimens.map((s) => s.value).join(',')}, missing=${prepTwo.missingSpecimens.length}`
+    );
+
+    // A1.3 — MIX 1/2 MESURES (E1=1, E2=2, E3=1) → EXACTEMENT 3 résultats d'adhérence
+    // (jamais 1 valeur globale, jamais 2, jamais 6) dans le sum12/écart 2014.
+    {
+      const trialMix = createTrial();
+      for (const panel of [P_E1, P_E2, P_E3]) {
+        seedObservation(trialMix, C12_STAGE_ID, panel.id, { BLISTERING: 0, CRACKING: 0, FLAKING: 0 });
+      }
+      seedAdhesion(trialMix, C12_STAGE_ID, P_E1.id, [2]);
+      seedAdhesion(trialMix, C12_STAGE_ID, P_E2.id, [1, 2]); // panelMean 1,5
+      seedAdhesion(trialMix, C12_STAGE_ID, P_E3.id, [0]);
+      const prepMix = prepareNf9272AdhesionData(trialMix, {
+        id: C12_STAGE_ID,
+        cycleIndex: 12,
+        scheduledExposureHours: 2016
+      } as unknown as Trial['stages'][number]);
+      const evalMix = evaluateNf9272Criteria(trialMix);
+      const threeResults =
+        prepMix.specimens.length === 3 &&
+        prepMix.specimens.map((s) => s.value).join(',') === '2,1.5,0' &&
+        evalMix.sum12 !== null &&
+        Math.abs(evalMix.sum12 - (2 + 1.5 + 0)) < 1e-9 &&
+        evalMix.maxDifference !== null &&
+        Math.abs(evalMix.maxDifference - 2) < 1e-9;
+
+      record(
+        77,
+        'A1.3 : mix E1=1/E2=2/E3=1 mesure → EXACTEMENT 3 résultats d’adhérence [2 ; 1,5 ; 0] intégrés au sum12 (3,5) et écart (2,0)',
+        'CORRECTIF_A1',
+        threeResults,
+        'specimens=3, 12 cotations individuelles (jamais 1/2/6 résultats d’adhérence)',
+        `values=${prepMix.specimens.map((s) => s.value).join(',')}, sum12=${String(evalMix.sum12)}, maxDiff=${String(evalMix.maxDifference)}`
+      );
+    }
+
+    // A1.4 — ABSENCE D'ADHESION (aucune acquisition, aucune observation nécessaire) :
+    // INSUFFICIENT_DATA, JAMAIS 0 (aucun 0 fabriqué, aucune moyenne inter-éprouvettes).
+    {
+      const trialNone = createTrial();
+      const prepNone = prepareNf9272AdhesionData(trialNone, {
+        id: C12_STAGE_ID,
+        cycleIndex: 12,
+        scheduledExposureHours: 2016
+      } as unknown as Trial['stages'][number]);
+      const evalNone = evaluateNf9272Criteria(trialNone);
+      const neverZero =
+        prepNone.available === false &&
+        prepNone.specimens.length === 0 &&
+        prepNone.missingSpecimens.length === 3 &&
+        evalNone.results.ADHESION.status === 'INSUFFICIENT_DATA' &&
+        evalNone.results.ADHESION.value === null;
+
+      record(
+        78,
+        'A1.4 : aucune donnée ADHESION → ADHESION INSUFFICIENT_DATA (value=null, JAMAIS 0), 3 éprouvettes manquantes',
+        'CORRECTIF_A1',
+        neverZero,
+        'INSUFFICIENT_DATA, value=null, available=false, missingSpecimens=3 — aucun 0 fabriqué',
+        `status=${evalNone.results.ADHESION.status}, value=${String(evalNone.results.ADHESION.value)}, available=${String(prepNone.available)}, missing=${prepNone.missingSpecimens.length}`
+      );
+    }
+
+    // A1.5 — CROSS_CUT_ADHESION PRÉSENT DANS LES OBSERVATIONS MAIS AUCUNE
+    // ACQUISITION __ADHESION : 0 → l'observation n'alimente PLUS le classement 2014.
+    {
+      const trialObs = createTrial();
+      seedObservation(trialObs, C12_STAGE_ID, P_E1.id, { CROSS_CUT_ADHESION: 0, BLISTERING: 0, CRACKING: 0, FLAKING: 0 });
+      seedObservation(trialObs, C12_STAGE_ID, P_E2.id, { CROSS_CUT_ADHESION: 0, BLISTERING: 0, CRACKING: 0, FLAKING: 0 });
+      seedObservation(trialObs, C12_STAGE_ID, P_E3.id, { CROSS_CUT_ADHESION: 0, BLISTERING: 0, CRACKING: 0, FLAKING: 0 });
+      const prepObs = prepareNf9272AdhesionData(trialObs, {
+        id: C12_STAGE_ID,
+        cycleIndex: 12,
+        scheduledExposureHours: 2016
+      } as unknown as Trial['stages'][number]);
+      const evalObs = evaluateNf9272Criteria(trialObs);
+      const noObsFallback =
+        prepObs.available === false &&
+        prepObs.specimens.length === 0 &&
+        prepObs.source === 'ADHESION_MEASUREMENT' &&
+        evalObs.results.ADHESION.status === 'INSUFFICIENT_DATA';
+
+      record(
+        79,
+        'A1.5 : observations CROSS_CUT_ADHESION=0 (sans acquisition __ADHESION) → NON utilisées, ADHESION INSUFFICIENT_DATA, aucun repli',
+        'CORRECTIF_A1',
+        noObsFallback,
+        'available=false, source=ADHESION_MEASUREMENT, INSUFFICIENT_DATA — repli observations supprimé',
+        `available=${String(prepObs.available)}, source=${prepObs.source}, status=${evalObs.results.ADHESION.status}`
+      );
+    }
+
+    // A1.6 — INTÉGRATION Σ12/Δmax AVEC 12 COTATIONS INDIVIDUELLES (3 défauts + 3
+    // adhérences via E1=1, E2=2, E3=1 mesure) : somme et écart sur les 12 valeurs.
+    {
+      const trialInt = createTrial();
+      // Défauts observés (3 éprouvettes)
+      seedObservation(trialInt, C12_STAGE_ID, P_E1.id, { BLISTERING: 0.2, CRACKING: 0.4, FLAKING: 0.1 });
+      seedObservation(trialInt, C12_STAGE_ID, P_E2.id, { BLISTERING: 0.3, CRACKING: 0.2, FLAKING: 0.1 });
+      seedObservation(trialInt, C12_STAGE_ID, P_E3.id, { BLISTERING: 0.5, CRACKING: 0.1, FLAKING: 0.1 });
+      // Adhérence : E1=1 mesure (classe 2), E2=2 mesures (panelMean (1+3)/2=2,0), E3=1 mesure (classe 0)
+      seedAdhesion(trialInt, C12_STAGE_ID, P_E1.id, [2]);
+      seedAdhesion(trialInt, C12_STAGE_ID, P_E2.id, [1, 3]);
+      seedAdhesion(trialInt, C12_STAGE_ID, P_E3.id, [0]);
+      const prepInt = prepareNf9272AdhesionData(trialInt, {
+        id: C12_STAGE_ID,
+        cycleIndex: 12,
+        scheduledExposureHours: 2016
+      } as unknown as Trial['stages'][number]);
+      const evalInt = evaluateNf9272Criteria(trialInt);
+      const defectSum12 = 0.2 + 0.3 + 0.5 + 0.4 + 0.2 + 0.1 + 0.1 + 0.1 + 0.1;
+      const adhesionSum12 = 2 + 2.0 + 0;
+      const expectedSum12 = Math.round((defectSum12 + adhesionSum12) * 10) / 10;
+
+      record(
+        80,
+        'A1.6 : 12 cotations individuelles (9 défauts + 3 adhérences 1/2 mesures) → Σ12 et Δmax calculés sur les 12 valeurs, sans moyenne de catégorie',
+        'CORRECTIF_A1',
+        prepInt.specimens.length === 3 &&
+          evalInt.sum12 !== null &&
+          Math.abs(evalInt.sum12 - expectedSum12) < 1e-9 &&
+          evalInt.maxDifference !== null &&
+          Math.abs(evalInt.maxDifference - 2.0) < 1e-9,
+        `Σ12=${expectedSum12} (défauts ${defectSum12} + adhérences ${adhesionSum12}), Δmax=2,0`,
+        `adhesion=${prepInt.specimens.map((s) => s.value).join(',')}, sum12=${String(evalInt.sum12)}, maxDiff=${String(evalInt.maxDifference)}`
+      );
+    }
   }
 
   // ----------------------------------------------------------------------------
