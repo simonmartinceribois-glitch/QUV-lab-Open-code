@@ -152,7 +152,7 @@ export function getApplicableGridSpacing(
 export function calculateDelayCompliance(
   applicationDateStr?: string,
   measurementDateStr?: string,
-  requiredMinimumHours: number = ADHESION_DEFAULT_REQUIRED_DELAY_HOURS
+  requiredMinimumHours?: number
 ): {
   elapsedTimeHours: number | null;
   formattedElapsedTime: string;
@@ -160,6 +160,16 @@ export function calculateDelayCompliance(
   complianceText: 'CONFORME' | 'DÉLAI INSUFFISANT' | 'DATE INVALIDE' | 'DATE NON RENSEIGNÉE';
   message: string;
 } {
+  if (requiredMinimumHours === undefined || !Number.isFinite(requiredMinimumHours) || requiredMinimumHours < 0) {
+    return {
+      elapsedTimeHours: null,
+      formattedElapsedTime: 'Délai requis non renseigné',
+      status: 'MISSING_REQUIRED_DELAY',
+      complianceText: 'DATE NON RENSEIGNÉE',
+      message: 'Délai minimal requis absent ou invalide dans la configuration du protocole.'
+    };
+  }
+
   if (!applicationDateStr || applicationDateStr.trim() === '') {
     return {
       elapsedTimeHours: null,
@@ -414,7 +424,7 @@ export function calculateAdhesion(
   // quel délai comme "conforme" dans calculateDelayCompliance).
   const requiredMinimumDelayHours = Number.isFinite(raw.requiredMinimumDelayHours) && raw.requiredMinimumDelayHours >= 0
     ? raw.requiredMinimumDelayHours
-    : ADHESION_DEFAULT_REQUIRED_DELAY_HOURS;
+    : undefined;
   const delayCheck = calculateDelayCompliance(
     raw.applicationDateTime,
     raw.measurementDateTime,
@@ -441,6 +451,8 @@ export function calculateAdhesion(
       stageId: options?.stageId,
       panelId: options?.panelId
     });
+  } else if (delayCheck.status === 'MISSING_REQUIRED_DELAY') {
+    alerts.push({ id: `alert-adh-missing-delay-config-${options?.stageId || ''}-${options?.panelId || ''}`, severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE', message: delayCheck.message, familyId: 'ADHESION', stageId: options?.stageId, panelId: options?.panelId });
   } else if (delayCheck.status === 'MISSING_APPLICATION_DATE') {
     alerts.push({
       id: `alert-adh-missing-appdate-${options?.stageId || ''}-${options?.panelId || ''}`,
