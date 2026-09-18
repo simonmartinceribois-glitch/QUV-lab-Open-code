@@ -105,7 +105,6 @@ export function runCriteriaSeparationTests(): {
     ],
     measurementDateTime: '2026-10-24T00:00:00Z',
     gridSpacingMm: 2,
-    requiredMinimumDelayHours: 168,
     normReference: 'NF EN ISO 2409:2020',
     ...overrides
   });
