@@ -110,7 +110,13 @@ export function runProtocolAdaptationsTests(): {
     assertRejected('P0-V-07', 'GLOSS 0 relevé → rejeté', '0', throws(() => createSeriesConfiguration('GLOSS', 2, 0, ruleSet)));
     assertRejected('P0-V-08', 'GLOSS 1.5 série (décimal) → rejeté', '1.5', throws(() => createSeriesConfiguration('GLOSS', 1.5, 2, ruleSet)));
     assertRejected('P0-V-09', 'ADHESION 0 → rejeté', '0', throws(() => createCountConfiguration('ADHESION', 0, ruleSet)));
-    assertRejected('P0-V-10', 'ADHESION 3 → rejeté (seul 1|2 autorisé)', '3', throws(() => createCountConfiguration('ADHESION', 3, ruleSet)), 'Seules 2 mesures/panneau');
+    {
+      const c3 = createCountConfiguration('ADHESION', 3, ruleSet, { justification: 'Adaptation protocole trois mesures.' });
+      const ok = c3.deviationFromStandard === true && c3.standardRecommendedCount === 2 && c3.configuredCount === 3 && c3.justification === 'Adaptation protocole trois mesures.';
+      record('P0-V-10', 'ADHESION 3 → accepté comme adaptation justifiée', ok,
+        'deviation true, std 2, cfg 3, justification conservée',
+        `cfg=${c3.configuredCount}, std=${c3.standardRecommendedCount}, dev=${c3.deviationFromStandard}`);
+    }
     assertRejected('P0-V-14', 'PERSOZ 0 → rejeté', '0', throws(() => createCountConfiguration('PERSOZ', 0, ruleSet)));
 
     {
@@ -344,9 +350,8 @@ export function runProtocolAdaptationsTests(): {
       comp(createCountConfiguration('ADHESION', 1, ruleSet, { justification: 'Éprouvette étroite' })), 'ADAPTED_JUSTIFIED');
     expectStatus('P0-J-25', 'ADHESION 2 (+ justification courte) → STANDARD (std prioritaire)',
       comp(createCountConfiguration('ADHESION', 2, ruleSet, { justification: 'test' })), 'STANDARD');
-    record('P0-J-26', 'ADHESION 3 → toujours rejeté (1|2 préservé)',
-      Boolean(throws(() => createCountConfiguration('ADHESION', 3, ruleSet, { justification: '12345678' }))),
-      'rejeté', 'la validation numérique est conservée');
+    expectStatus('P0-J-26', 'ADHESION 3 + justification → ADAPTED_JUSTIFIED',
+      comp(createCountConfiguration('ADHESION', 3, ruleSet, { justification: '12345678' })), 'ADAPTED_JUSTIFIED');
     record('P0-J-27', 'COLOR 0 → toujours rejeté (validation numérique inchangée)',
       Boolean(throws(() => createCountConfiguration('COLOR', 0, ruleSet, { justification: '12345678' }))),
       'rejeté', 'la validation numérique est conservée');
