@@ -43,7 +43,6 @@ function baseRaw(overrides: Partial<AdhesionRawData> = {}): AdhesionRawData {
     coatingThicknessMicrons: 90,
     measurementDateTime: '2026-10-24T00:00:00Z',
     applicationDateTime: '2026-08-01T00:00:00Z',
-    requiredMinimumDelayHours: 168,
     normReference: 'NF EN ISO 2409:2020',
     ...overrides
   };
@@ -534,7 +533,6 @@ export function runGate57AdhesionTwoMeasurementsTests(): {
         individualResults: [],
         panelMean,
         classDescription: 'Classe test',
-        elapsedTimeHours: 216,
         gridSpacingUsedMm: 2,
         qualityAssessment: {
           expectedCount: 2, actualCount: 2, validCount: 2, suspectCount: 0,
@@ -564,7 +562,6 @@ export function runGate57AdhesionTwoMeasurementsTests(): {
         individualResults: [],
         panelMean,
         classDescription: 'Classe test',
-        elapsedTimeHours: 216,
         gridSpacingUsedMm: 2,
         qualityAssessment: {
           expectedCount: 2, actualCount: 2, validCount: 2, suspectCount: 0,
@@ -589,7 +586,6 @@ export function runGate57AdhesionTwoMeasurementsTests(): {
         individualResults: [],
         panelMean,
         classDescription: 'Classe test',
-        elapsedTimeHours: 216,
         gridSpacingUsedMm: 2,
         qualityAssessment: {
           expectedCount: 2, actualCount: 2, validCount: 2, suspectCount: 0,
