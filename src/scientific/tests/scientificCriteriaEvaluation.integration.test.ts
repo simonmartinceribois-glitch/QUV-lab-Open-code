@@ -182,7 +182,6 @@ export function runScientificCriteriaEvaluationTests(): {
       measurementDateTime: '2026-09-10T08:00:00Z',
       applicationDateTime: '2026-09-01T08:00:00Z',
       gridSpacingMm: 2,
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020'
     };
     const countConfig: MeasurementCountConfiguration = {
