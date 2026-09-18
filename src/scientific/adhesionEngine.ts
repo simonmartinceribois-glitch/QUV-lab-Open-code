@@ -96,7 +96,15 @@ export function getApplicableGridSpacing(
   thicknessCategory: string;
   rationale: string;
 } {
-  const thickness = coatingThicknessMicrons ?? 60; // Valeur par défaut si non spécifié
+  if (coatingThicknessMicrons === undefined || coatingThicknessMicrons === null || !Number.isFinite(coatingThicknessMicrons) || coatingThicknessMicrons < 0) {
+    return {
+      gridSpacingMm: null as unknown as number,
+      cutsCount: 0,
+      thicknessCategory: 'Épaisseur de revêtement non renseignée',
+      rationale: 'Espacement de quadrillage non déterminable sans épaisseur de revêtement valide.'
+    };
+  }
+  const thickness = coatingThicknessMicrons;
 
   if (thickness <= 60) {
     if (isWoodOrSoftSubstrate) {
@@ -537,7 +545,7 @@ export function calculateAdhesion(
     initialPanelMean,
     deltaAdhesionClass,
     elapsedTimeHours: delayCheck.elapsedTimeHours,
-    gridSpacingUsedMm: raw.gridSpacingMm || 2,
+    gridSpacingUsedMm: raw.gridSpacingMm ?? null,
     qualityAssessment,
     protocolStatus,
     computation: {
