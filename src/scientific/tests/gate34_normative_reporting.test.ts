@@ -151,14 +151,14 @@ export function runGate34NormativeReportingTests(): {
     const evalStd = evaluateCountProtocolCompliance(stdCol, ruleSet);
 
     // B. Cas adapté avec justification obligatoire -> ADAPTED_JUSTIFIED
-    const adaptedCol = createCountConfiguration('COLOR', 2, ruleSet, {
+    const adaptedCol = createCountConfiguration('COLOR', 5, ruleSet, {
       justification: 'Éprouvettes de surface réduite 50x50 mm pour criblage R&D',
       operatorId: 'Ingénieur R&D'
     });
     const evalAdapted = evaluateCountProtocolCompliance(adaptedCol, ruleSet);
 
     // C. Cas adapté SANS justification -> ADAPTED_UNJUSTIFIED (bloquant)
-    const unjustifiedCol = createCountConfiguration('COLOR', 3, ruleSet, {
+    const unjustifiedCol = createCountConfiguration('COLOR', 5, ruleSet, {
       justification: '',
       operatorId: 'Opérateur'
     });
