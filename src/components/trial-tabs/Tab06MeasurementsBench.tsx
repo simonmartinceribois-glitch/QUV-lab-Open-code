@@ -344,7 +344,6 @@ export function Tab06MeasurementsBench({
             coatingThicknessMicrons: currentBatch.dryFilmThicknessMicrons,
             measurementDateTime: new Date().toISOString(),
             applicationDateTime: currentBatch.applicationDate,
-            requiredMinimumDelayHours: ADHESION_DEFAULT_REQUIRED_DELAY_HOURS,
             normReference: 'NF EN ISO 2409:2020'
           } as AdhesionRawData;
     } else if (selectedFamilyId === 'OBSERVATIONS') {
