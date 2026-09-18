@@ -115,6 +115,7 @@ export function recalculateAcquisition(
     );
     computed = res.computed;
     alerts = res.alerts;
+    }
   } else if (record.familyId === 'GLOSS') {
     const seriesConfig = famConfig?.seriesConfig;
     if (seriesConfig) {
