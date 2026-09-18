@@ -91,7 +91,7 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
         origin: 'NORMATIVE_REQUIREMENT',
         standardReference: 'NF EN ISO 2409:2020',
         clause: '§5 & §6 (Essai de quadrillage)',
-        rationale: 'Méthode d’essai d’adhérence selon NF EN ISO 2409:2020. Le nombre de mesures relève du protocole QUV-Lab : 2 mesures/panneau en configuration de référence ; 1 mesure/panneau est le minimum d’adaptation autorisé par le contrat logiciel QUV-Lab. Cette adaptation ne constitue pas une adaptation du cadre normatif.',
+        rationale: 'Méthode d’essai d’adhérence selon NF EN ISO 2409:2020. Le nombre de mesures relève du protocole retenu pour l’essai : 2 mesures/panneau en configuration de référence. Toute autre configuration entière ≥ 1 constitue une adaptation du cadre appliqué à l’essai et doit être explicitement justifiée ; cette adaptation ne modifie pas le texte de la norme.',
         standardRecommendedCount: 2,
         configuredCount: 2,
         deviationFromStandard: false,
