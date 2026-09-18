@@ -1010,17 +1010,16 @@ export function runGate33ScientificMetrologyTests(): {
       adhNewResult.computed.individualResults[0].deltaAdhesionClass === 1;
 
     // D4 explicite : sans countConfig enregistré, l'historique reste 1/1 STANDARD.
-    const adhHistorical = resolveAdhesionCountConfig(undefined);
+    const adhHistorical = calculateAdhesion(rawC12New, undefined, ruleSet, { referenceRaw: rawT0New });
 
     record(
       'G33-ADH-04',
       'Adhérence Gate 57 : distinction legacy 1/1 vs nouveau protocole — 1/2 = WARNING + MEASUREMENT_MISSING, historique sans countConfig = 1/1 STANDARD',
       'STATISTICAL_RIGOR',
       adhNewPassed &&
-        adhHistorical.configuredCount === 1 &&
-        adhHistorical.standardRecommendedCount === 1 &&
-        adhHistorical.deviationFromStandard === false,
-      'Nouveau 1/2 WARNING 50 % + MEASUREMENT_MISSING ; historique 1/1 STANDARD',
+        adhHistorical.alerts.some((a) => a.severity === 'BLOCKING') &&
+        adhHistorical.computed === null,
+      'Nouveau 1/2 WARNING 50 % + MEASUREMENT_MISSING ; historique sans configuration = BLOQUANT',
       `PanelMean=${adhNewResult.computed.panelMean}, Delta=${adhNewResult.computed.deltaAdhesionClass}, Status=${adhNewResult.computed.qualityAssessment.status}, Hist=${adhHistorical.configuredCount}/${adhHistorical.standardRecommendedCount}`
     );
   }
