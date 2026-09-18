@@ -266,24 +266,25 @@ export function evaluatePreExposureConditioning(
   panelId?: string
 ): PreExposureConditioningResult {
   const requiredHours = ruleSet?.preExposureConditioning?.requiredHours;
-  if (!Number.isFinite(requiredHours) || (requiredHours as number) < 0) {
-    return { status: 'MISSING_RULE', elapsedHours: null, requiredHours: null, alert: {
+  const normalizedRequiredHours = Number.isFinite(requiredHours) && (requiredHours as number) >= 0 ? (requiredHours as number) : null;
+  if (normalizedRequiredHours === null) {
+    return { status: 'MISSING_RULE', elapsedHours: null, requiredHours: normalizedRequiredHours, alert: {
       id: `alert-conditioning-rule-missing-${familyId || 'UNKNOWN'}`, severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE',
       message: 'Règle de conditionnement avant T0 absente du RuleSet.', familyId: familyId || 'UNKNOWN', stageId, panelId
     }};
   }
-  if (!applicationDate) return { status: 'MISSING_APPLICATION_DATE', elapsedHours: null, requiredHours, alert: {
+  if (!applicationDate) return { status: 'MISSING_APPLICATION_DATE', elapsedHours: null, requiredHours: normalizedRequiredHours, alert: {
     id: `alert-conditioning-application-date-${familyId || 'UNKNOWN'}`, severity: 'BLOCKING', code: 'MEASUREMENT_INVALID',
     message: 'Date d’application de la finition absente : le délai avant T0 ne peut pas être contrôlé.', familyId: familyId || 'UNKNOWN', stageId, panelId
   }};
   const app = Date.parse(applicationDate);
   const measured = measurementDate ? Date.parse(measurementDate) : NaN;
-  if (!Number.isFinite(app) || !Number.isFinite(measured) || measured < app) return { status: 'INVALID_DATE', elapsedHours: null, requiredHours, alert: {
+  if (!Number.isFinite(app) || !Number.isFinite(measured) || measured < app) return { status: 'INVALID_DATE', elapsedHours: null, requiredHours: normalizedRequiredHours, alert: {
     id: `alert-conditioning-date-${familyId || 'UNKNOWN'}`, severity: 'BLOCKING', code: 'MEASUREMENT_INVALID',
     message: 'Dates invalides pour le contrôle du conditionnement avant T0.', familyId: familyId || 'UNKNOWN', stageId, panelId
   }};
   const elapsedHours = (measured - app) / 3600000;
-  if (elapsedHours < requiredHours) return { status: 'INSUFFICIENT_DELAY', elapsedHours, requiredHours, alert: {
+  if (elapsedHours < normalizedRequiredHours) return { status: 'INSUFFICIENT_DELAY', elapsedHours, requiredHours: normalizedRequiredHours, alert: {
     id: `alert-conditioning-delay-${familyId || 'UNKNOWN'}`, severity: 'BLOCKING', code: 'PROTOCOL_ADAPTED',
     message: `Conditionnement avant T0 insuffisant : ${elapsedHours.toFixed(1)} h écoulées pour ${requiredHours} h requises selon ${ruleSet?.preExposureConditioning?.standardReference} ${ruleSet?.preExposureConditioning?.clause}.`, familyId: familyId || 'UNKNOWN', stageId, panelId
   }};
