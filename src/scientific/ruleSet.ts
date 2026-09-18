@@ -18,7 +18,7 @@ import {
  * - NORMATIVE_REQUIREMENT : NF EN 927-6:2018 (Couleur 4 pts cl. 6.3.2, Brillance 2x2 60° cl. 6.3.3)
  * - LAB_RECOMMENDATION : Dureté Persoz 3 reps (ISO 1522 / procédure labo, non-normative pour 927-6)
  * - METROLOGICAL_CHOICE : Écart-type échantillon n-1, seuils d'alerte dispersion
- * - PROTOCOL_ADAPTATION : Écart au protocole QUV-Lab de référence, dans les minima autorisés (avec justification obligatoire) ; ce n'est pas une adaptation du cadre normatif
+ * - PROTOCOL_ADAPTATION : Toute configuration s'écartant de la référence, avec justification obligatoire.
  */
 export function getDefaultScientificRuleSet(): ScientificRuleSet {
   return {
@@ -65,7 +65,6 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
         clause: '6.3.2',
         rationale: 'Mesure de couleur CIE L*a*b* en 4 points représentatifs de la surface exposée',
         standardRecommendedCount: 4,
-        minimumConfiguredCount: 4,
         configuredCount: 4,
         deviationFromStandard: false,
         configuredBy: 'SYSTEM',
@@ -80,7 +79,6 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
         clause: 'Méthode B (Amortissement pendulaire)',
         rationale: 'Mesure de dureté pendulaire Persoz en 3 répétitions (non-imposée par NF EN 927-6)',
         standardRecommendedCount: 3,
-        minimumConfiguredCount: 1,
         configuredCount: 3,
         deviationFromStandard: false,
         configuredBy: 'SYSTEM',
@@ -95,7 +93,6 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
         clause: '§5 & §6 (Essai de quadrillage)',
         rationale: 'Méthode d’essai d’adhérence selon NF EN ISO 2409:2020. Le nombre de mesures relève du protocole QUV-Lab : 2 mesures/panneau en configuration de référence ; 1 mesure/panneau est le minimum d’adaptation autorisé par le contrat logiciel QUV-Lab. Cette adaptation ne constitue pas une adaptation du cadre normatif.',
         standardRecommendedCount: 2,
-        minimumConfiguredCount: 1,
         configuredCount: 2,
         deviationFromStandard: false,
         configuredBy: 'SYSTEM',
@@ -112,8 +109,6 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
         standardReference: 'NF EN 927-6',
         clause: '6.3.3',
         rationale: 'Mesure de brillance spéculaire sous géométrie 60° (2 séries : sens du fil + sens opposé au fil par rotation de 180°)',
-        minimumSeriesCount: 2,
-        minimumReadingsPerSeries: 2,
         standardConfiguration: {
           seriesCount: 2,
           readingsPerSeries: 2,
@@ -174,19 +169,12 @@ export function createCountConfiguration(
   }
   const ref = ruleSet.measurementConfigurations[familyId] || {
     standardRecommendedCount: 4,
-    minimumConfiguredCount: 1,
     origin: 'NORMATIVE_REQUIREMENT' as ScientificRuleOrigin,
     ruleSource: 'NORMATIVE_REQUIREMENT' as RuleSource,
     standardReference: ruleSet.standardReference,
     clause: 'N/A',
     rationale: 'Configuration de mesure'
   };
-
-  if (configuredCount < ref.minimumConfiguredCount) {
-    throw new Error(
-      `Configuration ${familyId} invalide : ${String(configuredCount)} mesure(s) sous le minimum QUV-Lab de ${String(ref.minimumConfiguredCount)}. Une valeur sous ce minimum n'est pas une adaptation valide.`
-    );
-  }
 
   const isStandard = configuredCount === ref.standardRecommendedCount;
   const justification = options?.justification?.trim() || '';
@@ -205,7 +193,6 @@ export function createCountConfiguration(
     clause: ref.clause,
     rationale: ref.rationale,
     standardRecommendedCount: ref.standardRecommendedCount,
-    minimumConfiguredCount: ref.minimumConfiguredCount,
     configuredCount,
     deviationFromStandard: !isStandard,
     justification: isStandard ? undefined : justification,
@@ -254,8 +241,6 @@ export function createSeriesConfiguration(
   }
 
   const ref = ruleSet.seriesConfigurations?.[familyId] || {
-    minimumSeriesCount: 1,
-    minimumReadingsPerSeries: 1,
     origin: 'NORMATIVE_REQUIREMENT' as ScientificRuleOrigin,
     standardReference: ruleSet.standardReference,
     clause: '6.3.3',
@@ -269,12 +254,6 @@ export function createSeriesConfiguration(
     },
     ruleSource: 'NORMATIVE_REQUIREMENT' as RuleSource
   };
-
-  if (seriesCount < ref.minimumSeriesCount || readingsPerSeries < ref.minimumReadingsPerSeries) {
-    throw new Error(
-      `Configuration ${familyId} invalide : minimum QUV-Lab ${ref.minimumSeriesCount} série(s) et ${ref.minimumReadingsPerSeries} mesure(s) par série.`
-    );
-  }
 
   const total = seriesCount * readingsPerSeries;
   const isStandard =
@@ -296,8 +275,6 @@ export function createSeriesConfiguration(
     standardReference: ref.standardReference || ruleSet.standardReference,
     clause: ref.clause,
     rationale: ref.rationale,
-    minimumSeriesCount: ref.minimumSeriesCount,
-    minimumReadingsPerSeries: ref.minimumReadingsPerSeries,
     standardConfiguration: { ...ref.standardConfiguration },
     configuredConfiguration: {
       seriesCount,
