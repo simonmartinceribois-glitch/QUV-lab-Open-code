@@ -290,7 +290,7 @@ export function evaluatePreExposureConditioning(
   const requiredHours = ruleSet?.preExposureConditioning?.requiredHours;
   const normalizedRequiredHours = Number.isFinite(requiredHours) && (requiredHours as number) >= 0 ? (requiredHours as number) : null;
   if (normalizedRequiredHours === null) {
-    return { status: 'MISSING_RULE', elapsedHours: null, requiredHours: normalizedRequiredHours, alert: {
+    return { status: 'MISSING_RULE', elapsedHours: null, requiredHours: normalizedRequiredHours ?? 0, alert: {
       id: `alert-conditioning-rule-missing-${familyId || 'UNKNOWN'}`, severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE',
       message: 'Règle de conditionnement avant T0 absente du RuleSet.', familyId: familyId || 'UNKNOWN', stageId, panelId
     }};
