@@ -57,16 +57,16 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     record(1, '4 mesures couleur -> STANDARD', 'Protocole Couleur', passed, 'STANDARD (4/4 valides)', `${res.computed.protocolStatus} (${res.computed.validCount}/4 valides)`);
   }
 
-  // --- TEST 2 : 2 mesures couleur -> adaptation détectée ---
+  // --- TEST 2 : 5 mesures couleur -> adaptation détectée ---
   {
-    const config = createCountConfiguration('COLOR', 2, ruleSet);
+    const config = createCountConfiguration('COLOR', 5, ruleSet);
     const passed = config.deviationFromStandard === true && config.mode === 'CUSTOM_JUSTIFIED';
-    record(2, '2 mesures couleur -> adaptation détectée', 'Protocole Couleur', passed, 'deviationFromStandard === true', `deviationFromStandard: ${config.deviationFromStandard}`);
+    record(2, '5 mesures couleur -> adaptation détectée', 'Protocole Couleur', passed, 'deviationFromStandard === true', `deviationFromStandard: ${config.deviationFromStandard}`);
   }
 
-  // --- TEST 3 : 2 mesures couleur sans justification -> ADAPTED_UNJUSTIFIED ---
+  // --- TEST 3 : 5 mesures couleur sans justification -> ADAPTED_UNJUSTIFIED ---
   {
-    const config = createCountConfiguration('COLOR', 2, ruleSet, { justification: '' });
+    const config = createCountConfiguration('COLOR', 5, ruleSet, { justification: '' });
     const raw: ColorRawData = {
       readings: [
         { pointIndex: 1, L: 50.2, a: 1.2, b: -0.4 },
@@ -76,12 +76,12 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     const res = calculateColor(raw, config, ruleSet);
     const hasBlocking = res.alerts.some((a) => a.code === 'PROTOCOL_ADAPTATION_UNJUSTIFIED');
     const passed = res.computed.protocolStatus === 'ADAPTED_UNJUSTIFIED' && hasBlocking;
-    record(3, '2 mesures couleur sans justification -> ADAPTED_UNJUSTIFIED', 'Protocole Couleur', passed, 'ADAPTED_UNJUSTIFIED avec alerte bloquante', `${res.computed.protocolStatus} (bloquante: ${hasBlocking})`);
+    record(3, '5 mesures couleur sans justification -> ADAPTED_UNJUSTIFIED', 'Protocole Couleur', passed, 'ADAPTED_UNJUSTIFIED avec alerte bloquante', `${res.computed.protocolStatus} (bloquante: ${hasBlocking})`);
   }
 
-  // --- TEST 4 : 2 mesures couleur avec justification -> ADAPTED_JUSTIFIED ---
+  // --- TEST 4 : 5 mesures couleur avec justification -> ADAPTED_JUSTIFIED ---
   {
-    const config = createCountConfiguration('COLOR', 2, ruleSet, { justification: 'Étude exploratoire préliminaire R&D' });
+    const config = createCountConfiguration('COLOR', 5, ruleSet, { justification: 'Étude exploratoire préliminaire R&D' });
     const raw: ColorRawData = {
       readings: [
         { pointIndex: 1, L: 50.2, a: 1.2, b: -0.4 },
@@ -90,7 +90,7 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     };
     const res = calculateColor(raw, config, ruleSet);
     const passed = res.computed.protocolStatus === 'ADAPTED_JUSTIFIED';
-    record(4, '2 mesures couleur avec justification -> ADAPTED_JUSTIFIED', 'Protocole Couleur', passed, 'ADAPTED_JUSTIFIED', res.computed.protocolStatus);
+    record(4, '5 mesures couleur avec justification -> ADAPTED_JUSTIFIED', 'Protocole Couleur', passed, 'ADAPTED_JUSTIFIED', res.computed.protocolStatus);
   }
 
   // --- TEST 5 : 4 mesures attendues / 3 renseignées -> MISSING ---
@@ -227,7 +227,7 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     record(13, 'Brillance 2 × 2 -> STANDARD', 'Protocole Brillance', passed, 'STANDARD (4/4 valides)', `${res.computed.protocolStatus} (${res.computed.validCount}/4)`);
   }
 
-  // --- TEST 14 : Brillance 2 x 1 -> adaptation détectée ---
+  // --- TEST 14 : Brillance 2 x 3 -> adaptation détectée ---
   {
     const config = createSeriesConfiguration('GLOSS', 2, 1, ruleSet, { justification: 'Allègement plan de mesure' });
     const raw: GlossRawData = {
@@ -238,7 +238,7 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     };
     const res = calculateGloss(raw, config, ruleSet);
     const passed = res.computed.protocolStatus === 'ADAPTED_JUSTIFIED' && res.computed.totalReadings === 2;
-    record(14, 'Brillance 2 × 1 -> ADAPTED_JUSTIFIED', 'Protocole Brillance', passed, 'ADAPTED_JUSTIFIED (2 mesures)', `${res.computed.protocolStatus} (${res.computed.totalReadings} mesures)`);
+    record(14, 'Brillance 2 × 3 -> ADAPTED_JUSTIFIED', 'Protocole Brillance', passed, 'ADAPTED_JUSTIFIED (5 mesures)', `${res.computed.protocolStatus} (${res.computed.totalReadings} mesures)`);
   }
 
   // --- TEST 15 : Persoz avec répétitions personnalisées -> adaptation selon référentiel laboratoire ---
@@ -406,13 +406,13 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     // Dispersion inter-panneaux entre 50 et 60 = 7.07
     const panelA = calculateColor(
       { readings: [{ pointIndex: 1, L: 49.5, a: 0, b: 0 }, { pointIndex: 2, L: 50.5, a: 0, b: 0 }] },
-      createCountConfiguration('COLOR', 2, ruleSet, { justification: 'Test' }),
+      createCountConfiguration('COLOR', 5, ruleSet, { justification: 'Test' }),
       ruleSet
     ).computed;
 
     const panelB = calculateColor(
       { readings: [{ pointIndex: 1, L: 59.5, a: 0, b: 0 }, { pointIndex: 2, L: 60.5, a: 0, b: 0 }] },
-      createCountConfiguration('COLOR', 2, ruleSet, { justification: 'Test' }),
+      createCountConfiguration('COLOR', 5, ruleSet, { justification: 'Test' }),
       ruleSet
     ).computed;
 
@@ -441,7 +441,7 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
           COLOR: {
             familyId: 'COLOR',
             enabled: true,
-            countConfig: createCountConfiguration('COLOR', 2, ruleSet, { justification: 'Étude exploratoire R&D' })
+            countConfig: createCountConfiguration('COLOR', 5, ruleSet, { justification: 'Étude exploratoire R&D' })
           }
         }
       },
@@ -476,7 +476,7 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     const colorOrigin = ruleSet.measurementConfigurations.COLOR.origin;
     const persozOrigin = ruleSet.measurementConfigurations.PERSOZ.origin;
     const glossOrigin = ruleSet.seriesConfigurations?.GLOSS.origin;
-    const customConfig = createCountConfiguration('COLOR', 2, ruleSet, { justification: 'Test dérogation' });
+    const customConfig = createCountConfiguration('COLOR', 5, ruleSet, { justification: 'Test dérogation' });
 
     const passed =
       colorOrigin === 'NORMATIVE_REQUIREMENT' &&
@@ -535,7 +535,7 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
   // --- TEST 26 : Événement d\'audit MODIFY_MEASUREMENT_CONFIG ---
   {
     const oldConfig = createCountConfiguration('COLOR', 4, ruleSet);
-    const newConfig = createCountConfiguration('COLOR', 2, ruleSet, { justification: 'Série exploratoire R&D' });
+    const newConfig = createCountConfiguration('COLOR', 5, ruleSet, { justification: 'Série exploratoire R&D' });
     const auditEvent = createConfigChangeEvent(
       'trial-uuid-1',
       'Tech-01',
@@ -719,12 +719,12 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
           COLOR: {
             familyId: 'COLOR',
             enabled: true,
-            countConfig: createCountConfiguration('COLOR', 2, ruleSet, { justification: 'Échantillon surface réduite' })
+            countConfig: createCountConfiguration('COLOR', 5, ruleSet, { justification: 'Échantillon surface réduite' })
           },
           GLOSS: {
             familyId: 'GLOSS',
             enabled: true,
-            seriesConfig: createSeriesConfiguration('GLOSS', 1, 2, ruleSet, { justification: 'Mesure unidirectionnelle' })
+            seriesConfig: createSeriesConfiguration('GLOSS', 2, 3, ruleSet, { justification: 'Mesure unidirectionnelle' })
           }
         }
       },
@@ -844,7 +844,7 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
   // --- TEST 34 : Traçabilité opérateur et horodatage sur chaque adaptation ---
   {
     const timestampBefore = new Date().toISOString();
-    const configAdapted = createCountConfiguration('COLOR', 3, ruleSet, {
+    const configAdapted = createCountConfiguration('COLOR', 5, ruleSet, {
       justification: 'Panneau court',
       operatorId: 'Ingénieur Qualité M. Dupont'
     });
@@ -1223,6 +1223,18 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
 
   const passedCount = results.filter((r) => r.passed).length;
   const failedCount = results.length - passedCount;
+
+  // --- TEST 45 : Minima QUV-Lab — sous le minimum = configuration invalide ---
+  {
+    let colorRejected = false;
+    let glossRejected = false;
+    try { createCountConfiguration('COLOR', 3, ruleSet, { justification: 'Test adaptation' }); } catch { colorRejected = true; }
+    try { createSeriesConfiguration('GLOSS', 1, 2, ruleSet, { justification: 'Test adaptation' }); } catch { glossRejected = true; }
+    const persozMin = createCountConfiguration('PERSOZ', 1, ruleSet, { justification: 'Test adaptation' });
+    const adhesionMin = createCountConfiguration('ADHESION', 1, ruleSet, { justification: 'Test adaptation' });
+    const passed = colorRejected && glossRejected && persozMin.minimumConfiguredCount === 1 && adhesionMin.minimumConfiguredCount === 1;
+    record(45, 'Minima QUV-Lab : sous le minimum = invalide, pas adaptation', 'Configuration du protocole', passed, 'COLOR<4 et GLOSS<2×2 rejetés ; PERSOZ=1 et ADHESION=1 autorisés', `COLOR: ${colorRejected}, GLOSS: ${glossRejected}, PERSOZ: ${persozMin.minimumConfiguredCount}, ADHESION: ${adhesionMin.minimumConfiguredCount}`);
+  }
 
   return {
     results,
