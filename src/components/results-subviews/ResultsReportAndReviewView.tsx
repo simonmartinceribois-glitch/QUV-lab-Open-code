@@ -15,6 +15,7 @@ import {
   exportReportToCsv,
   exportRawDataToCsv
 } from '../../services/reportGenerator';
+import { evaluateScientificCriteriaPerBatch } from '../../services/scientificCriteriaEvaluationService';
 import { downloadTextFile, downloadJsonFile, printElementById } from '../../services/exportService';
 import { sanitizeTrialForExport } from '../../services/mediaMigrationService';
 import { globalTrialStore } from '../../services/trialStore';
@@ -105,7 +106,10 @@ export function ResultsReportAndReviewView({ trial, ruleSet, onTrialUpdated }: P
     downloadJsonFile(filename, {
       trial: sanitizeTrialForExport(trial),
       ruleSet,
-      activeReport
+      activeReport,
+      // Bloc ADDITIF : évaluations complémentaires par lot (NF EN 927-2:2014 &
+      // INFIPERF). Aucune clé existante n'est modifiée ou retirée.
+      criteriaEvaluation: evaluateScientificCriteriaPerBatch(trial, ruleSet)
     });
     globalTrialStore.logReportExport(trial.id, activeReport?.id || trial.id, 'COMPUTED_DATA_CSV', operatorId);
   };
@@ -366,6 +370,25 @@ export function ResultsReportAndReviewView({ trial, ruleSet, onTrialUpdated }: P
               <h3 className="font-bold text-slate-900 text-sm">11. Adaptations de Protocole & Dérogations</h3>
               <pre className="font-sans whitespace-pre-wrap text-slate-700 leading-relaxed">{activeReport.sections.deviationsAndAdaptations}</pre>
             </div>
+
+            {/* Sections 12 & 13 (optionnelles) : Critères complémentaires par lot */}
+            {activeReport.sections.nf9272CriteriaEvaluation && (
+              <div className="p-4 bg-slate-50/50 rounded-xl border border-slate-200/80 space-y-1.5">
+                <h3 className="font-bold text-slate-900 text-sm">
+                  12. Critères Complémentaires — NF EN 927-2:2014 (HISTORICAL_TRANSITIONAL)
+                </h3>
+                <pre className="font-sans whitespace-pre-wrap text-slate-700 leading-relaxed">{activeReport.sections.nf9272CriteriaEvaluation}</pre>
+              </div>
+            )}
+
+            {activeReport.sections.infiperfCriteriaEvaluation && (
+              <div className="p-4 bg-slate-50/50 rounded-xl border border-slate-200/80 space-y-1.5">
+                <h3 className="font-bold text-slate-900 text-sm">
+                  13. Critères Complémentaires — INFIPERF / FCBA
+                </h3>
+                <pre className="font-sans whitespace-pre-wrap text-slate-700 leading-relaxed">{activeReport.sections.infiperfCriteriaEvaluation}</pre>
+              </div>
+            )}
 
             {/* Section 23 : Conclusion Factuelle Obligatoire */}
             <div className="p-5 bg-blue-50/50 rounded-2xl border-2 border-blue-200 space-y-2">
