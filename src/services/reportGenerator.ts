@@ -187,7 +187,7 @@ export function auditTrialBeforeReport(trial: Trial, ruleSet: ScientificRuleSet)
     if (evaluation && protocolRank[evaluation.status] > protocolRank[reportProtocolStatus]) reportProtocolStatus = evaluation.status;
   }
   if (reportProtocolStatus === 'INCOMPLETE' || reportProtocolStatus === 'INVALID' || reportProtocolStatus === 'ADAPTED_UNJUSTIFIED') {
-    missingCriticalElements.push(\`Statut protocolaire bloquant : \${reportProtocolStatus}.\`);
+    missingCriticalElements.push(`Statut protocolaire bloquant : ${reportProtocolStatus}.`);
   }
 
   const isComplete =
