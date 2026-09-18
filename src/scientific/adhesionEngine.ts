@@ -407,50 +407,8 @@ export function calculateAdhesion(
         ? `Moyenne panneau : ${panelMean} — indicateur numérique complémentaire (hors classification ISO 2409)`
         : 'Non mesurée';
 
-  // 2. Contrôle du délai d'application.
-  // Le délai requis doit être présent dans les RAW issus d'une configuration protocolaire
-  // valide. Aucune valeur par défaut n'est injectée par le moteur : une absence ou une
-  // valeur invalide produit MISSING_REQUIRED_DELAY et bloque l'évaluation.
-  const requiredMinimumDelayHours = raw.requiredMinimumDelayHours;
-  const delayCheck = calculateDelayCompliance(
-    raw.applicationDateTime,
-    raw.measurementDateTime,
-    requiredMinimumDelayHours
-  );
-
-  if (delayCheck.status === 'INVALID_DATE') {
-    alerts.push({
-      id: `alert-adh-date-${options?.stageId || ''}-${options?.panelId || ''}`,
-      severity: 'BLOCKING',
-      code: 'MEASUREMENT_INVALID',
-      message: delayCheck.message,
-      familyId: 'ADHESION',
-      stageId: options?.stageId,
-      panelId: options?.panelId
-    });
-  } else if (delayCheck.status === 'INSUFFICIENT_DELAY') {
-    alerts.push({
-      id: `alert-adh-delay-${options?.stageId || ''}-${options?.panelId || ''}`,
-      severity: 'WARNING',
-      code: 'PROTOCOL_ADAPTED',
-      message: delayCheck.message,
-      familyId: 'ADHESION',
-      stageId: options?.stageId,
-      panelId: options?.panelId
-    });
-  } else if (delayCheck.status === 'MISSING_REQUIRED_DELAY') {
-    alerts.push({ id: `alert-adh-missing-delay-config-${options?.stageId || ''}-${options?.panelId || ''}`, severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE', message: delayCheck.message, familyId: 'ADHESION', stageId: options?.stageId, panelId: options?.panelId });
-  } else if (delayCheck.status === 'MISSING_APPLICATION_DATE') {
-    alerts.push({
-      id: `alert-adh-missing-appdate-${options?.stageId || ''}-${options?.panelId || ''}`,
-      severity: 'WARNING',
-      code: 'MEASUREMENT_MISSING',
-      message: delayCheck.message,
-      familyId: 'ADHESION',
-      stageId: options?.stageId,
-      panelId: options?.panelId
-    });
-  }
+  // Le délai avant T0 est contrôlé au niveau du protocole général (RuleSet NF EN 927-6),
+  // et ne fait pas partie de l'évaluation spécifique ADHESION.
 
   // 3. Référence T0 & Évolution (Gate 5.6 : T0 du témoin ; Gate 57 : moyennes de panneau).
   // La référence est normalisée comme une mesure (scalaire historique = mesure unique),
