@@ -69,7 +69,6 @@ export interface InfiperfCriteriaPresentation {
 export interface ScientificCriteriaPresentation {
   nf9272: Nf9272CriteriaPresentation;
   infiperf: InfiperfCriteriaPresentation;
-  evaluatedAt: string;
   ruleSetVersion: string;
   sourceTrialId: string;
   batchId: string | null;
@@ -151,7 +150,6 @@ export function buildScientificCriteriaPresentation(evalData: ScientificCriteria
   return {
     nf9272: buildNf9272Presentation(evalData),
     infiperf: buildInfiperfPresentation(evalData),
-    evaluatedAt: evalData.evaluatedAt,
     ruleSetVersion: evalData.ruleSetVersion,
     sourceTrialId: evalData.sourceTrialId,
     batchId: evalData.batchId
