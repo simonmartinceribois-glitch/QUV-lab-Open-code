@@ -730,7 +730,7 @@ export function runAllAcceptanceTests(): {
   }
 
   // --------------------------------------------------------------------------
-  // TEST 29 : Aucune conclusion normative automatique sur protocole adapté
+  // TEST 29 : Adaptations de toutes les familles scalaires tracées dans la synthèse
   // --------------------------------------------------------------------------
   {
     const trial = createMockTrial('T29');
@@ -739,17 +739,52 @@ export function runAllAcceptanceTests(): {
       enabled: true,
       countConfig: createCountConfiguration('COLOR', 5, ruleSet, { justification: 'Largeur réduite' })
     };
+    trial.config.familyConfigs.PERSOZ = {
+      familyId: 'PERSOZ',
+      enabled: true,
+      countConfig: createCountConfiguration('PERSOZ', 4, ruleSet, { justification: 'Série complémentaire' })
+    };
+    trial.config.familyConfigs.ADHESION = {
+      familyId: 'ADHESION',
+      enabled: true,
+      countConfig: createCountConfiguration('ADHESION', 3, ruleSet, { justification: 'Adaptation labo 3 mesures' })
+    };
+    trial.config.familyConfigs.GLOSS = {
+      familyId: 'GLOSS',
+      enabled: true,
+      seriesConfig: {
+        familyId: 'GLOSS',
+        mode: 'CUSTOM_JUSTIFIED',
+        origin: 'PROTOCOL_ADAPTATION',
+        standardReference: 'NF EN 927-6',
+        clause: '6.3.3',
+        rationale: 'Adaptation de structure de mesure',
+        standardConfiguration: { seriesCount: 2, readingsPerSeries: 2, totalReadings: 4, orientations: ['GRAIN_DIRECTION', 'OPPOSITE_GRAIN_DIRECTION'], description: '2×2' },
+        configuredConfiguration: { seriesCount: 1, readingsPerSeries: 2, totalReadings: 2, orientations: ['GRAIN_DIRECTION'], description: '1×2' },
+        deviationFromStandard: true,
+        justification: 'Surface disponible réduite',
+        configuredBy: 'TestRunner',
+        configuredAt: '2026-09-18T00:00:00Z',
+        ruleSource: 'PROTOCOL_ADAPTATION'
+      }
+    };
     const analysis = runQUVAnalysis(trial, ruleSet);
+    const adaptations = analysis.protocolAdaptationsMention;
     const passed = analysis.normativeConclusionStatus === 'NON_EVALUEE' &&
-                   !analysis.technicalSynthesis.includes('conforme malgré l\'adaptation');
+      adaptations.length === 4 &&
+      adaptations.some((a) => a.includes('colorimétriques')) &&
+      adaptations.some((a) => a.includes('brillance')) &&
+      adaptations.some((a) => a.includes('Persoz')) &&
+      adaptations.some((a) => a.includes('adhérence')) &&
+      !analysis.technicalSynthesis.includes('conforme malgré l\'adaptation');
     results.push({
       id: 29,
-      code: 'TEST_29_NO_AUTO_NORMATIVE_ON_ADAPTATION',
-      title: 'Aucune conclusion normative automatique sur protocole adapté',
+      code: 'TEST_29_ALL_ADAPTATIONS_TRACED',
+      title: 'Toutes les adaptations de mesure sont tracées dans la synthèse',
       category: 'NEUTRALITY',
       passed,
-      expected: 'Statut NON_EVALUEE sans conclusion normative forcée',
-      actual: `Statut: ${analysis.normativeConclusionStatus}`
+      expected: 'Couleur, brillance, Persoz et adhérence présents dans protocolAdaptationsMention',
+      actual: `Adaptations tracées: ${adaptations.length} | Statut: ${analysis.normativeConclusionStatus}`
     });
   }
 
