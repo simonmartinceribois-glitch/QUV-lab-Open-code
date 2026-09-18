@@ -278,7 +278,8 @@ export function resolveAdhesionCountConfig(
   stored: MeasurementCountConfiguration | undefined
 ): MeasurementCountConfiguration {
   if (stored) return stored;
-  return {
+  throw new Error('Configuration ADHESION absente : aucune configuration scientifique implicite ne doit être synthétisée.');
+  /*
     familyId: 'ADHESION',
     mode: 'STANDARD_DEFAULT',
     origin: 'NORMATIVE_REQUIREMENT',
@@ -292,6 +293,7 @@ export function resolveAdhesionCountConfig(
     configuredAt: '2026-08-30T00:00:00Z',
     ruleSource: 'NORMATIVE_REQUIREMENT'
   };
+  */
 }
 
 /**
@@ -307,6 +309,12 @@ export function calculateAdhesion(
   alerts: MeasurementAlert[];
 } {
   const alerts: MeasurementAlert[] = [];
+  if (!countConfig) {
+    alerts.push({ id: 'alert-adh-protocol-missing', severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE', message: 'Configuration ADHESION absente : évaluation scientifique incomplète.', familyId: 'ADHESION', stageId: options?.stageId, panelId: options?.panelId });
+  }
+  if (countConfig && (!Number.isInteger(countConfig.configuredCount) || countConfig.configuredCount < 1 || countConfig.configuredCount > 3)) {
+    alerts.push({ id: 'alert-adh-count-invalid', severity: 'BLOCKING', code: 'MEASUREMENT_INVALID', message: 'Le nombre de mesures ADHESION doit être un entier compris entre 1 et 3.', familyId: 'ADHESION', stageId: options?.stageId, panelId: options?.panelId });
+  }
   const version = options?.calculationVersion || ADHESION_CALCULATION_VERSION;
 
   // 1. Mesures individuelles : le nombre attendu vient de la configuration du protocole ; la référence standard est portée par le RuleSet.
@@ -315,7 +323,7 @@ export function calculateAdhesion(
   // TOUJOURS interprété comme 1 mesure attendue (1/1), quelle que soit la
   // configuration live — jamais de 1/2 WARNING rétroactif sur l'historique.
   const isLegacyScalar = !Array.isArray(raw.measurements) || raw.measurements.length === 0;
-  const expectedCount = isLegacyScalar ? 1 : (countConfig?.configuredCount ?? 2);
+  const expectedCount = isLegacyScalar ? 1 : (countConfig?.configuredCount ?? 0);
   const measurements = normalizeAdhesionMeasurements(raw);
 
   // Référence T0 (Gate 5.6 : témoin) normalisée une seule fois, en lecture seule.
@@ -512,11 +520,13 @@ export function calculateAdhesion(
     warnings: alerts.map((a) => a.message)
   };
 
-  const protocolStatus: ProtocolComplianceStatus = countConfig?.deviationFromStandard
-    ? countConfig.justification?.trim()
-      ? 'ADAPTED_JUSTIFIED'
-      : 'ADAPTED_UNJUSTIFIED'
-    : 'STANDARD';
+  const protocolStatus: ProtocolComplianceStatus = !countConfig
+    ? 'INCOMPLETE'
+    : countConfig.configuredCount > 3 || countConfig.configuredCount < 1 || !Number.isInteger(countConfig.configuredCount)
+      ? 'INVALID'
+      : countConfig.deviationFromStandard
+        ? countConfig.justification?.trim() ? 'ADAPTED_JUSTIFIED' : 'ADAPTED_UNJUSTIFIED'
+        : 'STANDARD';
 
   const computed: AdhesionComputedData = {
     adhesionClass,
