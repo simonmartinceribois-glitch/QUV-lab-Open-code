@@ -98,7 +98,7 @@ export function getApplicableGridSpacing(
 } {
   if (coatingThicknessMicrons === undefined || coatingThicknessMicrons === null || !Number.isFinite(coatingThicknessMicrons) || coatingThicknessMicrons < 0) {
     return {
-      gridSpacingMm: null as unknown as number,
+      gridSpacingMm: null,
       cutsCount: 0,
       thicknessCategory: 'Épaisseur de revêtement non renseignée',
       rationale: 'Espacement de quadrillage non déterminable sans épaisseur de revêtement valide.'
