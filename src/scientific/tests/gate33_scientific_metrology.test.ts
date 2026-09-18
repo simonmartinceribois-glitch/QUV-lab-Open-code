@@ -931,7 +931,6 @@ export function runGate33ScientificMetrologyTests(): {
       gridSpacingMm: 2,
       coatingThicknessMicrons: 65,
       measurementDateTime: '2026-08-01T00:00:00Z',
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020',
       observation: 'Incisions nettes, 0% décollement'
     };
@@ -942,7 +941,6 @@ export function runGate33ScientificMetrologyTests(): {
       coatingThicknessMicrons: 65,
       measurementDateTime: '2026-10-24T00:00:00Z',
       applicationDateTime: '2026-08-01T00:00:00Z',
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020',
       observation: 'Léger détachement aux intersections'
     };
@@ -982,7 +980,6 @@ export function runGate33ScientificMetrologyTests(): {
       coatingThicknessMicrons: 65,
       measurementDateTime: '2026-10-24T00:00:00Z',
       applicationDateTime: '2026-08-01T00:00:00Z',
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020'
     };
     const rawT0New: AdhesionRawData = {
@@ -993,7 +990,6 @@ export function runGate33ScientificMetrologyTests(): {
       gridSpacingMm: 2,
       coatingThicknessMicrons: 65,
       measurementDateTime: '2026-08-01T00:00:00Z',
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020'
     };
     const adhStandard2 = createCountConfiguration('ADHESION', 2, ruleSet);
