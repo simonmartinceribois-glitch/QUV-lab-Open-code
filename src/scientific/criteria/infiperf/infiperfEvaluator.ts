@@ -15,10 +15,12 @@
 
 import type { Trial } from '../../../types/trial';
 import type { ScientificRuleSet } from '../../../types/scientific';
+import { resolveBatchScope } from '../../panelUtils';
 import {
   INFIPERF_REFERENCE,
   INFIPERF_EDITION,
   INFIPERF_DOCUMENT,
+  INFIPERF_TRACEABILITY_STATUS,
   INFIPERF_COMPLEMENTARY_NOTICE,
   INFIPERF_PERSOZ_INITIAL_HARDNESS_INDICATOR_SECONDS,
   INFIPERF_PERSOZ_AGEING_HARDNESS_INDICATOR_SECONDS,
@@ -52,6 +54,7 @@ export interface InfiperfGlossRetentionResult {
     reference: string;
     edition: string | null;
     document: string | null;
+    traceabilityStatus: string | null;
     evaluationMode: 'COMPLEMENTARY';
   };
   message: string;
@@ -59,6 +62,11 @@ export interface InfiperfGlossRetentionResult {
 
 export interface InfiperfEvaluateOptions {
   stageId?: string;
+  /**
+   * Système de finition (lot) ciblé. Requis lorsque l'essai contient plusieurs
+   * lots : sans lui, l'évaluation est refusée (aucune moyenne inter-systèmes).
+   */
+  batchId?: string;
 }
 
 export interface InfiperfCriteriaEvaluation {
@@ -81,6 +89,29 @@ export function compareInfiperfRetention(mean: number, threshold: number): 'FAVO
 }
 
 /**
+ * Résout la portée système (lot) d'une évaluation INFIPERF.
+ * Retourne le `batchId` à transmettre aux préparations, ou la raison du blocage
+ * lorsque plusieurs lots sont présents sans sélection (aucun mélange).
+ */
+function resolveInfiperfBatchScope(
+  trial: Trial,
+  options?: InfiperfEvaluateOptions
+): { batchId: string | null; blockedReason: string | null } {
+  const scope = resolveBatchScope(trial.batches, options?.batchId);
+  if (scope.kind === 'OK') return { batchId: scope.batch.id, blockedReason: null };
+  if (scope.kind === 'MULTIPLE_BATCHES_NO_SELECTION') {
+    return {
+      batchId: null,
+      blockedReason: `Essai multi-lots (${scope.batchCount} systèmes de finition détectés) : l’évaluation INFIPERF s’applique PAR SYSTÈME. Fournissez batchId pour cibler un système.`
+    };
+  }
+  if (scope.kind === 'UNKNOWN_BATCH_ID') {
+    return { batchId: null, blockedReason: `batchId « ${scope.batchId} » introuvable dans l’essai.` };
+  }
+  return { batchId: null, blockedReason: 'Aucun lot (système de finition) dans l’essai.' };
+}
+
+/**
  * Évalue le critère de rétention de brillance de l'essai à un jalon (défaut C12).
  * Le seuil est lu UNIQUEMENT depuis le ScientificRuleSet : aucune valeur passée
  * par l'appelant ne peut le remplacer.
@@ -91,6 +122,7 @@ export function evaluateInfiperfGlossRetention(
   options?: InfiperfEvaluateOptions
 ): InfiperfCriteriaEvaluation {
   const stageId = options?.stageId ?? null;
+  const { batchId, blockedReason } = resolveInfiperfBatchScope(trial, options);
 
   const threshold = getInfiperfGlossRetentionThreshold(ruleSet);
 
@@ -98,6 +130,7 @@ export function evaluateInfiperfGlossRetention(
     reference: INFIPERF_REFERENCE,
     edition: INFIPERF_EDITION,
     document: INFIPERF_DOCUMENT,
+    traceabilityStatus: INFIPERF_TRACEABILITY_STATUS,
     evaluationMode: 'COMPLEMENTARY' as const
   };
 
@@ -140,7 +173,26 @@ export function evaluateInfiperfGlossRetention(
     };
   }
 
-  const prepared = prepareInfiperfRetentionData(trial, stageId);
+  if (blockedReason) {
+    return {
+      ...base,
+      complementaryNotice: INFIPERF_COMPLEMENTARY_NOTICE,
+      result: {
+        criterionId: 'GLOSS_RETENTION',
+        label: 'Rétention de brillance (INFIPERF / FCBA)',
+        status: 'INSUFFICIENT_DATA',
+        value: null,
+        threshold,
+        stageId,
+        provenance: base,
+        message: `${blockedReason} Aucune moyenne inter-systèmes n'est produite.`
+      },
+      isComplementaryStudyCriterion: true,
+      hasGlobalVerdict: false
+    };
+  }
+
+  const prepared = prepareInfiperfRetentionData(trial, stageId, { batchId: batchId ?? undefined });
   if (!prepared.available) {
     return {
       ...base,
@@ -238,6 +290,7 @@ export interface InfiperfPersozResult {
     reference: string;
     edition: string | null;
     document: string | null;
+    traceabilityStatus: string | null;
     evaluationMode: 'COMPLEMENTARY';
     stage: string | null;
     cycleIndex: number | null;
@@ -251,12 +304,14 @@ export function evaluateInfiperfPersoz(
   options?: InfiperfEvaluateOptions
 ): InfiperfPersozResult {
   const stageId = options?.stageId ?? null;
+  const { batchId, blockedReason } = resolveInfiperfBatchScope(trial, options);
   const stage = stageId ? trial.stages.find((s) => s.id === stageId) : null;
 
   const base = {
     reference: INFIPERF_REFERENCE,
     edition: INFIPERF_EDITION,
     document: INFIPERF_DOCUMENT,
+    traceabilityStatus: INFIPERF_TRACEABILITY_STATUS,
     evaluationMode: 'COMPLEMENTARY' as const,
     stage: stageId,
     cycleIndex: stage?.cycleIndex ?? null,
@@ -277,7 +332,21 @@ export function evaluateInfiperfPersoz(
     };
   }
 
-  const prepared = prepareInfiperfPersozData(trial, stageId);
+  if (blockedReason) {
+    return {
+      criterionId: 'PERSOZ',
+      label: 'Dureté Persoz (INFIPERF / FCBA)',
+      status: 'INSUFFICIENT_DATA',
+      value: null,
+      threshold: null,
+      rule: null,
+      stageId,
+      provenance: base,
+      message: `${blockedReason} Aucune moyenne inter-systèmes n'est produite.`
+    };
+  }
+
+  const prepared = prepareInfiperfPersozData(trial, stageId, { batchId: batchId ?? undefined });
   if (!prepared.available) {
     return {
       criterionId: 'PERSOZ',
@@ -354,6 +423,7 @@ export interface InfiperfColorResult {
     reference: string;
     edition: string | null;
     document: string | null;
+    traceabilityStatus: string | null;
     evaluationMode: 'COMPLEMENTARY';
   };
   message: string;
@@ -361,14 +431,19 @@ export interface InfiperfColorResult {
 
 /**
  * Analyse colorimétrique INFIPERF : rapporte les évolutions moyennes
- * ΔL*, Δa*, Δb*, ΔE* des éprouvettes exposées E1/E2/E3 sur les cycles
- * réellement mesurés. Aucun seuil, aucun verdict, aucune interpolation.
+ * ΔL*, Δa*, Δb*, ΔE* des éprouvettes exposées E1/E2/E3 du système ciblé sur
+ * les cycles réellement mesurés. Aucun seuil, aucun verdict, aucune
+ * interpolation, aucun mélange inter-systèmes.
  */
-export function evaluateInfiperfColor(trial: Trial): InfiperfColorResult {
+export function evaluateInfiperfColor(
+  trial: Trial,
+  options?: InfiperfEvaluateOptions
+): InfiperfColorResult {
+  const { batchId, blockedReason } = resolveInfiperfBatchScope(trial, options);
   const cycles: InfiperfColorCycleValue[] = [];
 
   for (const stage of trial.stages) {
-    const prepared = prepareInfiperfColorData(trial, stage.id);
+    const prepared = prepareInfiperfColorData(trial, stage.id, { batchId: batchId ?? undefined });
     if (!prepared.available) continue;
     const deltaL = meanColorComponent(
       prepared.specimens.map((s) => s.deltaL).filter((v): v is number => v !== null)
@@ -396,8 +471,20 @@ export function evaluateInfiperfColor(trial: Trial): InfiperfColorResult {
     reference: INFIPERF_REFERENCE,
     edition: INFIPERF_EDITION,
     document: INFIPERF_DOCUMENT,
+    traceabilityStatus: INFIPERF_TRACEABILITY_STATUS,
     evaluationMode: 'COMPLEMENTARY' as const
   };
+
+  if (blockedReason) {
+    return {
+      criterionId: 'COLOR',
+      label: 'Couleur (INFIPERF / FCBA)',
+      status: 'INSUFFICIENT_DATA',
+      cycles,
+      provenance: base,
+      message: `${blockedReason} Aucune moyenne inter-systèmes n'est produite.`
+    };
+  }
 
   if (cycles.length === 0) {
     return {
@@ -447,6 +534,7 @@ export interface InfiperfAspectResult {
     reference: string;
     edition: string | null;
     document: string | null;
+    traceabilityStatus: string | null;
     evaluationMode: 'COMPLEMENTARY';
     stage: string | null;
     cycleIndex: number | null;
@@ -460,12 +548,14 @@ export function evaluateInfiperfGeneralAppearance(
   options?: InfiperfEvaluateOptions
 ): InfiperfAspectResult {
   const stageId = options?.stageId ?? null;
+  const { batchId, blockedReason } = resolveInfiperfBatchScope(trial, options);
   const stage = stageId ? trial.stages.find((s) => s.id === stageId) : null;
 
   const base = {
     reference: INFIPERF_REFERENCE,
     edition: INFIPERF_EDITION,
     document: INFIPERF_DOCUMENT,
+    traceabilityStatus: INFIPERF_TRACEABILITY_STATUS,
     evaluationMode: 'COMPLEMENTARY' as const,
     stage: stageId,
     cycleIndex: stage?.cycleIndex ?? null,
@@ -485,7 +575,20 @@ export function evaluateInfiperfGeneralAppearance(
     };
   }
 
-  const prepared = prepareInfiperfAspectData(trial, stageId);
+  if (blockedReason) {
+    return {
+      criterionId: 'GENERAL_APPEARANCE',
+      label: 'Aspect général (INFIPERF / FCBA)',
+      status: 'INSUFFICIENT_DATA',
+      value: null,
+      alertThreshold: INFIPERF_ASPECT_ALERT_RATING,
+      stageId,
+      provenance: base,
+      message: `${blockedReason} Aucune moyenne inter-systèmes n'est produite.`
+    };
+  }
+
+  const prepared = prepareInfiperfAspectData(trial, stageId, { batchId: batchId ?? undefined });
   if (!prepared.available) {
     return {
       criterionId: 'GENERAL_APPEARANCE',
@@ -565,7 +668,7 @@ export function evaluateInfiperfCriteria(
     results: {
       GLOSS_RETENTION: evaluateInfiperfGlossRetention(trial, ruleSet, options).result!,
       PERSOZ: evaluateInfiperfPersoz(trial, options),
-      COLOR: evaluateInfiperfColor(trial),
+      COLOR: evaluateInfiperfColor(trial, options),
       GENERAL_APPEARANCE: evaluateInfiperfGeneralAppearance(trial, options)
     },
     hasGlobalVerdict: false

@@ -7,7 +7,7 @@
  * 2. Les étapes inactives (désactivées par l'opérateur) sont exclues des calculs actifs.
  */
 
-import { PanelDefinition, ExposureStage } from '../types/trial';
+import { PanelDefinition, ExposureStage, BatchDefinition } from '../types/trial';
 import { MeasurementFamilyId } from '../types/scientific';
 
 /**
@@ -132,6 +132,58 @@ export function getWitnessPanel<T extends { label?: string; roleCode?: string; r
  */
 export function getActiveStages<T extends { status: string }>(stages: T[]): T[] {
   return stages.filter((s) => s.status !== 'INACTIVE');
+}
+
+/**
+ * Portée d'évaluation par système de finition.
+ *
+ * Un essai QUV-Lab peut contenir PLUSIEURS lots (`trial.batches`), chacun
+ * portant son propre système de finition (`coatingSystem` / `productReference`)
+ * et ses 4 éprouvettes (T, E1, E2, E3). Une agrégation scientifique qui mélange
+ * les éprouvettes de systèmes différents dans une même moyenne est proscrite.
+ *
+ * Cette résolution détermine le lot ciblé :
+ *  - `batchId` fourni         → lot ciblé (OK / UNKNOWN_BATCH_ID) ;
+ *  - un seul lot dans l'essai → ce lot (OK, SINGLE_BATCH) ;
+ *  - plusieurs lots sans sélection → MULTIPLE_BATCHES (refus, pas de mélange).
+ */
+export type BatchScopeResolution =
+  | { kind: 'OK'; batch: BatchDefinition }
+  | { kind: 'UNKNOWN_BATCH_ID'; batchId: string }
+  | { kind: 'MULTIPLE_BATCHES_NO_SELECTION'; batchCount: number }
+  | { kind: 'NO_BATCHES' };
+
+export function resolveBatchScope(batches: BatchDefinition[], batchId?: string): BatchScopeResolution {
+  if (!batches || batches.length === 0) return { kind: 'NO_BATCHES' };
+  if (batchId) {
+    const batch = batches.find((b) => b.id === batchId);
+    if (!batch) return { kind: 'UNKNOWN_BATCH_ID', batchId };
+    return { kind: 'OK', batch };
+  }
+  if (batches.length === 1) return { kind: 'OK', batch: batches[0] };
+  return { kind: 'MULTIPLE_BATCHES_NO_SELECTION', batchCount: batches.length };
+}
+
+/**
+ * Éprouvettes exposées E1/E2/E3 actives du lot ciblé.
+ * `batches` = 0 lot → []. `batchId` inconnu → [] (aucun mélange inter-lots).
+ */
+export function getActiveE1E2E3PanelsOfBatch(
+  batches: BatchDefinition[],
+  batchId?: string
+): PanelDefinition[] {
+  if (!batches || batches.length === 0) return [];
+  const target = batchId ? batches.filter((b) => b.id === batchId) : batches;
+  return target.flatMap((batch) => getActiveE1E2E3Panels(batch.panels));
+}
+
+/**
+ * Libellé d'un système de finition (lot) pour messages d'évaluation :
+ * `référence — coatingSystem` (ou retours de repli explicites).
+ */
+export function formatBatchSystem(batch: BatchDefinition): string {
+  if (!batch) return 'système inconnu';
+  return `${batch.reference || 'lot sans référence'} — ${batch.coatingSystem || 'système non renseigné'}`;
 }
 
 /**

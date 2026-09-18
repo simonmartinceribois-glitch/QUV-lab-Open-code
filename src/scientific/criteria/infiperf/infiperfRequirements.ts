@@ -22,16 +22,29 @@
 
 import type { ScientificRuleSet } from '../../../types/scientific';
 import type { CriterionSource } from '../common/criterionTypes';
+import { TRACEABILITY_STATUS_TO_BE_DEFINED } from '../common/criterionTypes';
 
 export const INFIPERF_SOURCE: CriterionSource = 'INFIPERF';
 export const INFIPERF_REFERENCE = 'INFIPERF / FCBA';
 /** Édition non documentée dans la source scientifique du projet. */
 export const INFIPERF_EDITION: string | null = null;
-export const INFIPERF_DOCUMENT: string | null = 'Critère complémentaire d’étude INFIPERF / FCBA';
+
+/**
+ * Document source INFIPERF.
+ *
+ * La source scientifique du projet (S0 §4) nomme uniquement une « référence
+ * complémentaire INFIPERF FCBA 2024 » : il ne s'agit pas d'un titre officiel
+ * de document publié vérifié dans le corpus. Par application du principe de
+ * non-invention, le titre du document source vaut `null` (jamais une
+ * dénomination présentée comme titre officiel) ; le statut de traçabilité
+ * porte explicitement « À DÉFINIR / À VALIDER SCIENTIFIQUEMENT ».
+ */
+export const INFIPERF_DOCUMENT: string | null = null;
+export const INFIPERF_TRACEABILITY_STATUS = TRACEABILITY_STATUS_TO_BE_DEFINED;
 
 /** Notice obligatoire du critère INFIPERF (mode COMPLEMENTARY). */
 export const INFIPERF_COMPLEMENTARY_NOTICE =
-  'Critère complémentaire d’étude (référentiel INFIPERF / FCBA) : les indicateurs observés (rétention de brillance, dureté Persoz, évolutions colorimétriques, aspect général) sont comparés aux seuils d’étude INFIPERF. Ce critère n’est en aucun cas une exigence de conformité NF EN 927-6 et ne produit aucun verdict de conformité, aucun score global.';
+  'Critère complémentaire d’étude (référence complémentaire INFIPERF / FCBA — désignée « INFIPERF FCBA 2024 » dans le S0 §4 ; titre/édition du document source À DÉFINIR / À VALIDER SCIENTIFIQUEMENT) : les indicateurs observés (rétention de brillance, dureté Persoz, évolutions colorimétriques, aspect général) sont comparés aux seuils d’étude INFIPERF. Ce critère n’est en aucun cas une exigence de conformité NF EN 927-6 et ne produit aucun verdict de conformité, aucun score global.';
 
 /**
  * Seuil de rétention de brillance : SOURCE DE VÉRITÉ = ScientificRuleSet.

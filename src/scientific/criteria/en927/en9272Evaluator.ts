@@ -28,6 +28,7 @@ import {
   NF9272_REFERENCE,
   NF9272_EDITION,
   NF9272_DOCUMENT,
+  NF9272_TRACEABILITY_STATUS,
   NF9272_COMPLEMENTARY_NOTICE,
   NF9272_TOTAL_VALUE_CHECK,
   getNf9272CategoryRequirements,
@@ -38,6 +39,7 @@ import {
   findNf9272Jalon,
   prepareNf9272CriterionData
 } from './en9272Preparation';
+import { resolveBatchScope, formatBatchSystem } from '../../panelUtils';
 import { defectMean } from './en9272Calculations';
 
 export type Nf9272EvaluatedCriterionId = Nf9272CriterionId;
@@ -65,6 +67,7 @@ export interface Nf9272CriterionEvaluationResult {
     reference: string;
     edition: string;
     document: string | null;
+    traceabilityStatus: string | null;
     section: string | null;
     paragraph: string | null;
     table: string | null;
@@ -87,6 +90,19 @@ export interface Nf9272CriteriaEvaluation {
   /** Jalon C12 effectivement évalué (null si absent). */
   jalon: Nf9272EvaluatedStageInfo;
   /**
+   * Système de finition (lot) sur lequel l'évaluation est portée.
+   *  - `batchId` fourni : ce lot ;
+   *  - un seul lot dans l'essai : ce lot ;
+   *  - plusieurs lots sans sélection : `null` + `scopeBlockedReason` non nul —
+   *    AUCUNE agrégation inter-systèmes n'est produite.
+   */
+  batchScoped: {
+    batchId: string | null;
+    batchLabel: string | null;
+    /** Raison de refus si l'évaluation est bloquée par la portée système. `null` sinon. */
+    scopeBlockedReason: string | null;
+  };
+  /**
    * Contrôle de valeur totale : systématiquement NOT_APPLICABLE. Les anciennes
    * règles de comparaison de totaux (7/12/19) et d'écarts max (2/3/4) ne sont
    * pas réintroduites.
@@ -101,6 +117,11 @@ export interface Nf9272CriteriaEvaluation {
 export interface Nf9272EvaluateOptions {
   /** Catégorie de performance (défaut STABLE). */
   category?: Nf9272PerformanceCategory;
+  /**
+   * Système de finition (lot) ciblé. Requis lorsque l'essai contient plusieurs
+   * lots : sans lui, l'évaluation est refusée (aucune moyenne inter-systèmes).
+   */
+  batchId?: string;
 }
 
 const CRITERION_LABELS: Record<Nf9272CriterionId, string> = {
@@ -132,6 +153,7 @@ function buildResultFor(
       reference: NF9272_REFERENCE,
       edition: NF9272_EDITION,
       document: NF9272_DOCUMENT,
+      traceabilityStatus: NF9272_TRACEABILITY_STATUS,
       section: null,
       paragraph: null,
       table: null,
@@ -167,6 +189,32 @@ export function evaluateNf9272Criteria(trial: Trial, options?: Nf9272EvaluateOpt
   const categoryRequirements = getNf9272CategoryRequirements(category);
   const jalonStage = findNf9272Jalon(trial);
 
+  const scope = resolveBatchScope(trial.batches, options?.batchId);
+  const batchScoped: Nf9272CriteriaEvaluation['batchScoped'] =
+    scope.kind === 'OK'
+      ? {
+          batchId: scope.batch.id,
+          batchLabel: formatBatchSystem(scope.batch),
+          scopeBlockedReason: null
+        }
+      : scope.kind === 'MULTIPLE_BATCHES_NO_SELECTION'
+        ? {
+            batchId: null,
+            batchLabel: null,
+            scopeBlockedReason: `Essai multi-lots (${scope.batchCount} systèmes de finition détectés) : l’évaluation NF EN 927-2:2022 s’applique PAR SYSTÈME. Aucune agrégation inter-systèmes n'est produite. Fournissez batchId pour cibler un système (LOT).`
+          }
+        : scope.kind === 'UNKNOWN_BATCH_ID'
+          ? {
+              batchId: null,
+              batchLabel: null,
+              scopeBlockedReason: `batchId « ${scope.batchId} » introuvable dans l’essai : évaluation refusée.`
+            }
+          : {
+              batchId: null,
+              batchLabel: null,
+              scopeBlockedReason: 'Aucun lot (système de finition) dans l’essai : évaluation refusée.'
+            };
+
   const jalon: Nf9272CriteriaEvaluation['jalon'] = jalonStage
     ? {
         stageId: jalonStage.id,
@@ -180,9 +228,9 @@ export function evaluateNf9272Criteria(trial: Trial, options?: Nf9272EvaluateOpt
 
   const defectCriterionIds: Nf9272DefectCriterionId[] = ['BLISTERING', 'CRACKING', 'FLAKING'];
   for (const criterionId of defectCriterionIds) {
-    results[criterionId] = evaluateDefectCriterion(criterionId, category, categoryRequirements, jalon, trial);
+    results[criterionId] = evaluateDefectCriterion(criterionId, category, categoryRequirements, jalon, trial, batchScoped);
   }
-  results['ADHESION'] = evaluateAdhesionCriterion('ADHESION', category, categoryRequirements, jalon, trial);
+  results['ADHESION'] = evaluateAdhesionCriterion('ADHESION', category, categoryRequirements, jalon, trial, batchScoped);
 
   return {
     reference: NF9272_REFERENCE,
@@ -191,6 +239,7 @@ export function evaluateNf9272Criteria(trial: Trial, options?: Nf9272EvaluateOpt
     complementaryNotice: NF9272_COMPLEMENTARY_NOTICE,
     category,
     jalon,
+    batchScoped,
     totalValueCheck: NF9272_TOTAL_VALUE_CHECK,
     results,
     hasGlobalVerdict: false
@@ -202,10 +251,17 @@ function evaluateDefectCriterion(
   category: Nf9272PerformanceCategory,
   categoryRequirements: ReturnType<typeof getNf9272CategoryRequirements>,
   jalon: Nf9272CriteriaEvaluation['jalon'],
-  trial: Trial
+  trial: Trial,
+  batchScoped: Nf9272CriteriaEvaluation['batchScoped']
 ): Nf9272CriterionEvaluationResult {
   const result = buildResultFor(criterionId, category, jalon);
   if (!jalon.stageId) return result;
+
+  if (batchScoped.scopeBlockedReason) {
+    result.status = 'INSUFFICIENT_DATA';
+    result.message = `${batchScoped.scopeBlockedReason} → ${CRITERION_LABELS[criterionId]} non évalué.`;
+    return result;
+  }
 
   const requirement = criterionRequirements(categoryRequirements, criterionId);
   if (!requirement) {
@@ -217,7 +273,7 @@ function evaluateDefectCriterion(
   result.threshold = requirement.threshold;
 
   const stage = findStageById(trial, jalon.stageId);
-  const prepared = stage ? prepareNf9272CriterionData(trial, stage, criterionId) : null;
+  const prepared = stage ? prepareNf9272CriterionData(trial, stage, criterionId, { batchId: batchScoped.batchId ?? undefined }) : null;
   if (!prepared) {
     result.status = 'INSUFFICIENT_DATA';
     result.message = `Jalon ${jalon.display} introuvable : données insuffisantes pour ${CRITERION_LABELS[criterionId]}.`;
@@ -240,7 +296,7 @@ function evaluateDefectCriterion(
   result.value = mean;
   result.status = compareNf9272Mean(requirement.comparison, mean, requirement.threshold);
   const relation = requirement.comparison === 'LESS_OR_EQUAL' ? '≤' : '≥';
-  result.message = `Moyenne C12 des éprouvettes exposées E1/E2/E3 : ${mean}. Seuil documenté ${relation} ${requirement.threshold} → ${result.status}.`;
+  result.message = `Moyenne C12 des éprouvettes exposées E1/E2/E3 (système ${batchScoped.batchLabel}): ${mean}. Seuil documenté ${relation} ${requirement.threshold} → ${result.status}.`;
   return result;
 }
 
@@ -249,10 +305,17 @@ function evaluateAdhesionCriterion(
   category: Nf9272PerformanceCategory,
   categoryRequirements: ReturnType<typeof getNf9272CategoryRequirements>,
   jalon: Nf9272CriteriaEvaluation['jalon'],
-  trial: Trial
+  trial: Trial,
+  batchScoped: Nf9272CriteriaEvaluation['batchScoped']
 ): Nf9272CriterionEvaluationResult {
   const result = buildResultFor(criterionId, category, jalon);
   if (!jalon.stageId) return result;
+
+  if (batchScoped.scopeBlockedReason) {
+    result.status = 'INSUFFICIENT_DATA';
+    result.message = `${batchScoped.scopeBlockedReason} → ${CRITERION_LABELS[criterionId]} non évalué.`;
+    return result;
+  }
 
   const requirement = criterionRequirements(categoryRequirements, criterionId);
   if (!requirement) {

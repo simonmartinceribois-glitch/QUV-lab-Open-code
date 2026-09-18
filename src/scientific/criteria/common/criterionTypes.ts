@@ -36,6 +36,14 @@ export type CriterionEvaluationStatus =
 export type CriterionEvaluationMode = 'COMPLEMENTARY';
 
 /**
+ * Statut de traçabilité documentaire porté par une provenance.
+ * Utilisé lorsqu'un emplacement/document précis n'est PAS vérifié dans la source
+ * scientifique du projet : aucune valeur (section, paragraphe, tableau, page,
+ * éditeur, titre officiel) n'est alors inventée.
+ */
+export const TRACEABILITY_STATUS_TO_BE_DEFINED = 'À DÉFINIR / À VALIDER SCIENTIFIQUEMENT';
+
+/**
  * Provenance documentaire d'un critère. Les champs inconnus valent `null`
  * (aucune valeur inventée).
  */
@@ -44,8 +52,15 @@ export interface CriterionProvenance {
   reference: string;
   /** Édition du référentiel, ex. '2022'. `null` si non documentée. */
   edition: string | null;
-  /** Document source, ex. 'NF EN 927-2:2022'. */
+  /** Document source, ex. 'NF EN 927-2:2022'. `null` si le titre exact n'est pas vérifié. */
   document: string | null;
+  /**
+   * Statut de traçabilité de la provenance. Exactement
+   * `TRACEABILITY_STATUS_TO_BE_DEFINED` lorsque l'emplacement précis
+   * (section/paragraphe/tableau/page) ou le titre exact n'est pas vérifié dans
+   * la source scientifique du projet.
+   */
+  traceabilityStatus: string | null;
   /** Section / article du document. */
   section: string | null;
   /** Paragraphe du document. */

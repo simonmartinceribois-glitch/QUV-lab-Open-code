@@ -26,6 +26,16 @@
  *         verdict de conformité NF.
  *   T12 — Orchestration multicritères INFIPERF : statuts simultanés
  *         (FAVORABLE + DEFAVORABLE + VIGILANCE + ANALYSIS), aucun score global.
+ *   T13 — Verrou jalon C12 (correctif audit, P2) : cycle 12 + 2016 h + actif ;
+ *         jalon absent / INACTIVE / mauvais cycle / mauvaise durée exclus.
+ *   T14 — Traçabilité P1/P3 : statut « À DÉFINIR / À VALIDER SCIENTIFIQUEMENT »
+ *         partagé, emplacements null jamais inventés, document INFIPERF null.
+ *   T15 — Agrégation par système : multi-lots sans sélection refusés, aucun
+ *         mélange inter-systèmes, batchId requis pour cibler un système.
+ *   T16 — Données incomplètes INFIPERF : une seule valeur valide → moyenne
+ *         calculée (règle S0 §10), valeur nulle traitée comme absente.
+ *   T17 — Architecture (§15) : criteriaAdhesion (délai ISO 2409) indépendant
+ *         de l'adhérence NF EN 927-2 (force MPa), aucun import croisé.
  *
  * Aucun accès à RAW/COMPUTED : évaluations en lecture seule.
  * Aucun pixel des moteurs (gloss/adhesion/observations) modifié.
@@ -52,10 +62,24 @@ import {
 import { meanRetentionRate, meanDampingTime, meanColorComponent, meanAspectRating } from '../criteria/infiperf/infiperfCalculations';
 import {
   getInfiperfGlossRetentionThreshold,
+  INFIPERF_EDITION,
   INFIPERF_PERSOZ_INITIAL_HARDNESS_INDICATOR_SECONDS,
   INFIPERF_PERSOZ_AGEING_HARDNESS_INDICATOR_SECONDS,
-  INFIPERF_ASPECT_ALERT_RATING
+  INFIPERF_ASPECT_ALERT_RATING,
+  INFIPERF_DOCUMENT,
+  INFIPERF_TRACEABILITY_STATUS,
+  INFIPERF_COMPLEMENTARY_NOTICE
 } from '../criteria/infiperf/infiperfRequirements';
+import {
+  NF9272_REFERENCE,
+  NF9272_EDITION,
+  NF9272_DOCUMENT,
+  NF9272_TRACEABILITY_STATUS
+} from '../criteria/en927/en9272Requirements';
+import { TRACEABILITY_STATUS_TO_BE_DEFINED } from '../criteria/common/criterionTypes';
+import { evaluateAdhesionDelayCriterion } from '../criteria/criteriaAdhesion';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 export interface NfEn9272InfiperfTestResult {
   id: number;
@@ -91,6 +115,7 @@ export function runNfEn9272InfiperfTests(): {
   const createTrial = (overrides?: {
     stages?: Trial['stages'];
     acquisitions?: Trial['acquisitions'];
+    batches?: Trial['batches'];
   }): Trial => ({
     id: 'trial-nf9272',
     schemaVersion: '1.2.0',
@@ -119,18 +144,19 @@ export function runNfEn9272InfiperfTests(): {
       [
         { id: C12_STAGE_ID, trialId: 'trial-nf9272', cycleIndex: 12, stageType: 'FINAL_POST_EXPOSURE', name: '2016 h', scheduledExposureHours: 2016, status: 'VALIDATED' }
       ],
-    batches: [
-      {
-        id: 'b1',
-        trialId: 'trial-nf9272',
-        reference: 'LOT A',
-        orderIndex: 1,
-        coatingSystem: 'Lasure',
-        woodSpecies: 'Pin',
-        productReference: 'PROD-01',
-        panels: [P_T, P_E1, P_E2, P_E3]
-      }
-    ],
+    batches: overrides?.batches ??
+      [
+        {
+          id: 'b1',
+          trialId: 'trial-nf9272',
+          reference: 'LOT A',
+          orderIndex: 1,
+          coatingSystem: 'Lasure',
+          woodSpecies: 'Pin',
+          productReference: 'PROD-01',
+          panels: [P_T, P_E1, P_E2, P_E3]
+        }
+      ],
     acquisitions: overrides?.acquisitions ?? {},
     auditTrail: [],
     mediaReferences: []
@@ -905,6 +931,351 @@ export function runNfEn9272InfiperfTests(): {
       inf.hasGlobalVerdict === false,
       'hasGlobalVerdict=false',
       `hasGlobalVerdict=${String(inf.hasGlobalVerdict)}`
+    );
+  }
+
+  // ----------------------------------------------------------------------------
+  // T13 — VERROU JALON C12 (CORRECTIF AUDIT 4, P2) : cycle 12 + 2016 h + actif
+  // ----------------------------------------------------------------------------
+  {
+    // Cas 1 : jalon C12 valide, actif (VALIDATED), cycle 12, 2016 h → retenu.
+    const valid = findNf9272Jalon(createTrial());
+    record(
+      39,
+      'T13 Verrou C12 : jalon actif cycle 12 / 2016 h retenu',
+      'JALON_C12_VERROU',
+      valid !== null && valid.cycleIndex === 12 && valid.scheduledExposureHours === 2016,
+      'jalon retenu (cycle 12, 2016 h)',
+      `jalon=${valid ? `${valid.cycleIndex}/${valid.scheduledExposureHours}h` : 'null'}`
+    );
+
+    // Cas 2 : jalon absent (ni cycle 12, ni 2016 h).
+    const absent = createTrial({
+      stages: [
+        { id: 'st-t0', trialId: 'trial-nf9272', cycleIndex: 0, stageType: 'INITIAL_PRE_EXPOSURE', name: 'T0', scheduledExposureHours: 0, status: 'VALIDATED' },
+        { id: C11_STAGE_ID, trialId: 'trial-nf9272', cycleIndex: 11, stageType: 'INTERMEDIATE_DURING_EXPOSURE', name: '1848 h', scheduledExposureHours: 1848, status: 'VALIDATED' }
+      ]
+    });
+    record(
+      40,
+      'T13 Verrou C12 : jalon absent (T0 + C11) → null',
+      'JALON_C12_VERROU',
+      findNf9272Jalon(absent) === null,
+      'jalon=null',
+      `jalon=${String(findNf9272Jalon(absent))}`
+    );
+
+    // Cas 3 : jalon cycle 12 mais statut INACTIVE → exclu.
+    const inactive = createTrial({
+      stages: [
+        { id: C12_STAGE_ID, trialId: 'trial-nf9272', cycleIndex: 12, stageType: 'FINAL_POST_EXPOSURE', name: '2016 h', scheduledExposureHours: 2016, status: 'INACTIVE' }
+      ]
+    });
+    record(
+      41,
+      'T13 Verrou C12 : jalon cycle 12 / 2016 h mais INACTIVE → exclu',
+      'JALON_C12_VERROU',
+      findNf9272Jalon(inactive) === null,
+      'jalon=null (INACTIVE exclu)',
+      `jalon=${String(findNf9272Jalon(inactive))}`
+    );
+
+    // Cas 4 : jalon cycle 12 mais durée ≠ 2016 h → exclu.
+    const wrongHours = createTrial({
+      stages: [
+        { id: 'st-12-1848', trialId: 'trial-nf9272', cycleIndex: 12, stageType: 'FINAL_POST_EXPOSURE', name: '1848 h', scheduledExposureHours: 1848, status: 'VALIDATED' }
+      ]
+    });
+    record(
+      42,
+      'T13 Verrou C12 : jalon cycle 12 mais 1848 h → exclu (2016 h exigées)',
+      'JALON_C12_VERROU',
+      findNf9272Jalon(wrongHours) === null,
+      'jalon=null (durée 1848 ≠ 2016)',
+      `jalon=${String(findNf9272Jalon(wrongHours))}`
+    );
+
+    // Cas 5 : jalon 2016 h mais cycle ≠ 12 → exclu.
+    const wrongCycle = createTrial({
+      stages: [
+        { id: 'st-11-2016', trialId: 'trial-nf9272', cycleIndex: 11, stageType: 'INTERMEDIATE_DURING_EXPOSURE', name: '2016 h', scheduledExposureHours: 2016, status: 'VALIDATED' }
+      ]
+    });
+    record(
+      43,
+      'T13 Verrou C12 : jalon 2016 h mais cycle 11 → exclu (cycle 12 exigé)',
+      'JALON_C12_VERROU',
+      findNf9272Jalon(wrongCycle) === null,
+      'jalon=null (cycle 11 ≠ 12)',
+      `jalon=${String(findNf9272Jalon(wrongCycle))}`
+    );
+  }
+
+  // ----------------------------------------------------------------------------
+  // T14 — TRACABILITÉ P1/P3 : STATUTS « À DÉFINIR » SANS INVENTER D'EMPLACEMENT
+  // ----------------------------------------------------------------------------
+  {
+    // Constante partagée de statut de traçabilité.
+    record(
+      44,
+      'T14 Constante TRACEABILITY_STATUS_TO_BE_DEFINED = « À DÉFINIR / À VALIDER SCIENTIFIQUEMENT »',
+      'TRACABILITE',
+      TRACEABILITY_STATUS_TO_BE_DEFINED === 'À DÉFINIR / À VALIDER SCIENTIFIQUEMENT',
+      `statut=${TRACEABILITY_STATUS_TO_BE_DEFINED}`,
+      String(TRACEABILITY_STATUS_TO_BE_DEFINED)
+    );
+
+    // NF : provenance du critère avec statut À DÉFINIR, emplacements null.
+    const stable = getNf9272CategoryRequirements('STABLE');
+    const prov = stable.criteria.BLISTERING?.provenance;
+    record(
+      45,
+      'T14 NF provenance foncière : document=NF EN 927-2:2022, statut À DÉFINIR, section/paragraphe/tableau/page null',
+      'TRACABILITE',
+      prov?.document === NF9272_DOCUMENT &&
+        prov?.edition === '2022' &&
+        prov?.traceabilityStatus === NF9272_TRACEABILITY_STATUS &&
+        prov?.reference === NF9272_REFERENCE &&
+        prov?.section === null &&
+        prov?.paragraph === null &&
+        prov?.table === null &&
+        prov?.page === null,
+      'document/document/edition renseignés, emplacements null, statut À DÉFINIR',
+      `document=${prov?.document}, edition=${prov?.edition}, section=${String(prov?.section)}, paragraph=${String(prov?.paragraph)}, table=${String(prov?.table)}, page=${String(prov?.page)}, statut=${prov?.traceabilityStatus}`
+    );
+
+    // NF : évaluation complète → provenance du résultat avec statut À DÉFINIR.
+    const evalProv = evaluateNf9272Criteria(createTrial());
+    record(
+      46,
+      'T14 NF évaluation : provenance résultat avec document/statut À DÉFINIR, pas d’emplacement inventé',
+      'TRACABILITE',
+      evalProv.results.BLISTERING.provenance.document === NF9272_DOCUMENT &&
+        evalProv.results.BLISTERING.provenance.traceabilityStatus === NF9272_TRACEABILITY_STATUS &&
+        evalProv.results.BLISTERING.provenance.section === null &&
+        evalProv.results.BLISTERING.provenance.page === null,
+      'provenance résultat = document NF EN 927-2:2022, statut À DÉFINIR, emplacement null',
+      `document=${evalProv.results.BLISTERING.provenance.document}, statut=${evalProv.results.BLISTERING.provenance.traceabilityStatus}, section=${String(evalProv.results.BLISTERING.provenance.section)}`
+    );
+
+    // INFIPERF : document source null (statut À DÉFINIR), constantes cohérentes.
+    record(
+      47,
+      'T14 INFIPERF : document source null et statut À DÉFINIR (P3)',
+      'TRACABILITE',
+      INFIPERF_DOCUMENT === null &&
+        INFIPERF_TRACEABILITY_STATUS === TRACEABILITY_STATUS_TO_BE_DEFINED,
+      'document=null, statut=À DÉFINIR',
+      `document=${String(INFIPERF_DOCUMENT)}, statut=${INFIPERF_TRACEABILITY_STATUS}`
+    );
+
+    // INFIPERF : provenance des résultats porte le statut À DÉFINIR.
+    const infProv = evaluateInfiperfGlossRetention(createTrial(), ruleSet, { stageId: C12_STAGE_ID }).result!;
+    record(
+      48,
+      'T14 INFIPERF évaluation : provenance résultat avec document null et statut À DÉFINIR',
+      'TRACABILITE',
+      infProv.provenance.document === null &&
+        infProv.provenance.traceabilityStatus === INFIPERF_TRACEABILITY_STATUS &&
+        infProv.provenance.reference === 'INFIPERF / FCBA',
+      'provenance résultat = document null, statut À DÉFINIR, reference INFIPERF / FCBA',
+      `document=${String(infProv.provenance.document)}, statut=${infProv.provenance.traceabilityStatus}, reference=${infProv.provenance.reference}`
+    );
+
+    // Notice INFIPERF enrichie (P3) : désignation S0 §4 présente, aucun titre de
+    // document inventé, statut de traçabilité explicite, édition null.
+    record(
+      49,
+      'T14 INFIPERF notice : « INFIPERF FCBA 2024 » (S0 §4) présente, titre/édition À DÉFINIR',
+      'TRACABILITE',
+      INFIPERF_COMPLEMENTARY_NOTICE.includes('INFIPERF FCBA 2024') &&
+        INFIPERF_COMPLEMENTARY_NOTICE.includes('À DÉFINIR / À VALIDER SCIENTIFIQUEMENT') &&
+        INFIPERF_EDITION === null,
+      'notice mentionne la désignation S0 + statut À DÉFINIR ; édition null',
+      `notice=${INFIPERF_COMPLEMENTARY_NOTICE.slice(0, 80)}…`
+    );
+  }
+
+  // ----------------------------------------------------------------------------
+  // T15 — AGRÉGATION PAR SYSTÈME : JAMAIS INTER-SYSTÈMES (§8)
+  // ----------------------------------------------------------------------------
+  {
+    // Deux lots sans sélection → blocage par portée (aucun mélange), statut refusé.
+    const P_B2_E1 = { id: 'p-b2-e1', batchId: 'b2', index: 1, label: 'E1', role: 'EXPOSED_1', roleCode: 'E1', status: 'ACTIVE' } as const;
+    const P_B2_E2 = { id: 'p-b2-e2', batchId: 'b2', index: 2, label: 'E2', role: 'EXPOSED_2', roleCode: 'E2', status: 'ACTIVE' } as const;
+    const P_B2_E3 = { id: 'p-b2-e3', batchId: 'b2', index: 3, label: 'E3', role: 'EXPOSED_3', roleCode: 'E3', status: 'ACTIVE' } as const;
+    const trialMulti = createTrial({
+      batches: [
+        {
+          id: 'b1',
+          trialId: 'trial-nf9272',
+          reference: 'LOT A',
+          orderIndex: 1,
+          coatingSystem: 'Lasure',
+          woodSpecies: 'Pin',
+          productReference: 'PROD-01',
+          panels: [P_E1, P_E2, P_E3]
+        },
+        {
+          id: 'b2',
+          trialId: 'trial-nf9272',
+          reference: 'LOT B',
+          orderIndex: 2,
+          coatingSystem: 'Huile',
+          woodSpecies: 'Mélèze',
+          productReference: 'PROD-02',
+          panels: [P_B2_E1, P_B2_E2, P_B2_E3]
+        }
+      ]
+    });
+
+    const nfMulti = evaluateNf9272Criteria(trialMulti);
+    const multiBlocked =
+      nfMulti.batchScoped.batchId === null &&
+      nfMulti.batchScoped.scopeBlockedReason !== null &&
+      nfMulti.results.BLISTERING.status === 'INSUFFICIENT_DATA' &&
+      nfMulti.results.CRACKING.status === 'INSUFFICIENT_DATA' &&
+      nfMulti.results.FLAKING.status === 'INSUFFICIENT_DATA' &&
+      nfMulti.results.ADHESION.status === 'INSUFFICIENT_DATA';
+    record(
+      50,
+      'T15 NF multi-lots sans sélection : refusé (aucune moyenne inter-systèmes)',
+      'PORTEE_SYSTEME',
+      multiBlocked,
+      'batchScoped.bloque, tous critères INSUFFICIENT_DATA',
+      `batchId=${String(nfMulti.batchScoped.batchId)}, blocage=${String(nfMulti.batchScoped.scopeBlockedReason)}, BLISTERING=${nfMulti.results.BLISTERING.status}, ADHESION=${nfMulti.results.ADHESION.status}`
+    );
+
+    // La sélection d'un lot cible les éprouvettes UNIQUEMENT de ce lot.
+    seedFullDefects(trialMulti, { blistering: 0.1, cracking: 0.1, flaking: 0.1 });
+    const nfScoped = evaluateNf9272Criteria(trialMulti, { batchId: 'b1' });
+    record(
+      51,
+      'T15 NF batchId=b1 : évaluation ciblée, scope déverrouillé, statut FAVORABLE',
+      'PORTEE_SYSTEME',
+      nfScoped.batchScoped.batchId === 'b1' &&
+        nfScoped.batchScoped.scopeBlockedReason === null &&
+        nfScoped.batchScoped.batchLabel !== null &&
+        nfScoped.results.BLISTERING.status === 'FAVORABLE',
+      'batchId=b1, scope libre, BLISTERING=FAVORABLE',
+      `batchId=${String(nfScoped.batchScoped.batchId)}, label=${String(nfScoped.batchScoped.batchLabel)}, BLISTERING=${nfScoped.results.BLISTERING.status}`
+    );
+
+    // batchId inconnu → refusé.
+    const nfUnknown = evaluateNf9272Criteria(trialMulti, { batchId: 'b-x' });
+    record(
+      52,
+      'T15 NF batchId inconnu : refusé',
+      'PORTEE_SYSTEME',
+      nfUnknown.batchScoped.batchId === null &&
+        nfUnknown.batchScoped.scopeBlockedReason !== null &&
+        nfUnknown.results.BLISTERING.status === 'INSUFFICIENT_DATA',
+      'batchScoped.bloque + INSUFFICIENT_DATA',
+      `blocage=${String(nfUnknown.batchScoped.scopeBlockedReason)}, BLISTERING=${nfUnknown.results.BLISTERING.status}`
+    );
+
+    // INFIPERF : multi-lots sans sélection → chacun des indicateurs refusé.
+    const infMulti = evaluateInfiperfCriteria(trialMulti, ruleSet, { stageId: C12_STAGE_ID });
+    record(
+      53,
+      'T15 INFIPERF multi-lots sans sélection : gloss/persoz/couleur/aspect refusés',
+      'PORTEE_SYSTEME',
+      infMulti.results.GLOSS_RETENTION.status === 'INSUFFICIENT_DATA' &&
+        infMulti.results.PERSOZ.status === 'INSUFFICIENT_DATA' &&
+        infMulti.results.COLOR.status === 'INSUFFICIENT_DATA' &&
+        infMulti.results.GENERAL_APPEARANCE.status === 'INSUFFICIENT_DATA',
+      '4 indicateurs INSUFFICIENT_DATA',
+      `gloss=${infMulti.results.GLOSS_RETENTION.status}, persoz=${infMulti.results.PERSOZ.status}, couleur=${infMulti.results.COLOR.status}, aspect=${infMulti.results.GENERAL_APPEARANCE.status}`
+    );
+
+    // INFIPERF : sélection batchId=b2 cible le second système.
+    const infScoped = evaluateInfiperfCriteria(trialMulti, ruleSet, { stageId: C12_STAGE_ID, batchId: 'b2' });
+    record(
+      54,
+      'T15 INFIPERF batchId=b2 : refusé car données absentes (sélection système respectée, pas de mélange)',
+      'PORTEE_SYSTEME',
+      infScoped.results.GLOSS_RETENTION.status === 'INSUFFICIENT_DATA' &&
+        infScoped.results.GLOSS_RETENTION.message.toLowerCase().includes('données insuffisantes'),
+      'gloss=INSUFFICIENT_DATA (données absentes du lot b2), aucune donnée du lot b1 utilisée',
+      `gloss=${infScoped.results.GLOSS_RETENTION.status}`
+    );
+  }
+
+  // ----------------------------------------------------------------------------
+  // T16 — §9 DONNÉES INCOMPLÈTES INFIPERF : UNE DONNÉE VALIDE SUFFIT (§10)
+  // ----------------------------------------------------------------------------
+  {
+    const trialOneValue = createTrial();
+    seedGloss(trialOneValue, C12_STAGE_ID, P_E1.id, 40); // Seule E1 porte une valeur.
+    const glossOne = evaluateInfiperfGlossRetention(trialOneValue, ruleSet, { stageId: C12_STAGE_ID }).result!;
+    record(
+      55,
+      'T16 §10 : une seule éprouvette valide → moyenne calculée (40 %) et seuil appliqué',
+      'DONNEES_INCOMPLETES',
+      glossOne.status === (40 >= 50 ? 'FAVORABLE' : 'DEFAVORABLE') &&
+        glossOne.value === 40 &&
+        glossOne.threshold === 50,
+      'moyenne=40, seuil=50, statut=DEFAVORABLE (40 < 50)',
+      `status=${glossOne.status}, value=${String(glossOne.value)}, threshold=${String(glossOne.threshold)}`
+    );
+
+    const tolerances3 = createTrial();
+    seedGloss(tolerances3, C12_STAGE_ID, P_E1.id, 55);
+    seedGloss(tolerances3, C12_STAGE_ID, P_E2.id, null); // Valeur invalide : comptée absente, pas rejetée par blocage.
+    seedGloss(tolerances3, C12_STAGE_ID, P_E3.id, 55);
+    const glossMixed = evaluateInfiperfGlossRetention(tolerances3, ruleSet, { stageId: C12_STAGE_ID }).result!;
+    record(
+      56,
+      'T16 §10 : valeur nulle traitée comme absente, moyenne sur valeurs valides (55 %)',
+      'DONNEES_INCOMPLETES',
+      glossMixed.value === 55 && glossMixed.status === 'FAVORABLE',
+      'moyenne=55 (2 valeurs valides), statut=FAVORABLE',
+      `value=${String(glossMixed.value)}, status=${glossMixed.status}`
+    );
+  }
+
+  // ----------------------------------------------------------------------------
+  // T17 — §15 ARCHITECTURE : SÉPARATION DÉLAI ISO 2409 / ADHÉRENCE NF 927-2
+  // ----------------------------------------------------------------------------
+  {
+    // criteriaAdhesion = délai d'application avant essai (NF EN ISO 2409:2020),
+    // verdict CONFORME/NON_CONFORME sur la condition de protocole. Indépendant
+    // de l'évaluation d'adhérence NF EN 927-2 (force en MPa) ; le critère NF
+    // n'importe pas cette couche et part de FORCE_MEASURES_ABSENT.
+    const delay = evaluateAdhesionDelayCriterion({
+      applicationDateTime: '2026-09-01T08:00:00Z',
+      measurementDateTime: '2026-09-10T08:00:00Z',
+      requiredMinimumDelayHours: 48
+    });
+    const nfAdhesion = evaluateNf9272Criteria(createTrial()).results.ADHESION;
+
+    record(
+      57,
+      'T17 §15 : criteriaAdhesion = condition de protocole ISO 2409 (délai), indépendant de l’évaluation NF 927-2',
+      'ARCHITECTURE',
+      delay.normativeReference === 'NF EN ISO 2409:2020' &&
+        delay.origin === 'PROTOCOL_CONDITION' &&
+        nfAdhesion.status === 'INSUFFICIENT_DATA' &&
+        nfAdhesion.message.includes('FORCE') &&
+        nfAdhesion.message.includes('aucune conversion'),
+      'délai ISO 2409 séparé ; adhérence NF force-métrique sans conversion ni donnée fabriquée',
+      `normativeReference=${delay.normativeReference}, verdict=${delay.verdict}, NF adhésion=${nfAdhesion.status}, message=${nfAdhesion.message}`
+    );
+
+    // Emplacement documenté du test d'adhérence NF : le fichier de critère de
+    // délai n'est pas référencé par l'évaluateur NF (vérification statique du
+    // couplage) : le répertoire en927/ n'importe pas criteriaAdhesion.
+    const en927EvaluatorSource = readFileSync(
+      fileURLToPath(new URL('../criteria/en927/en9272Evaluator.ts', import.meta.url)),
+      'utf-8'
+    );
+    record(
+      58,
+      'T17 §15 : l’évaluateur NF EN 927-2 n’importe pas criteriaAdhesion (ISO 2409 délai)',
+      'ARCHITECTURE',
+      !en927EvaluatorSource.includes('criteriaAdhesion'),
+      'aucun import de criteriaAdhesion dans en9272Evaluator.ts',
+      `imports couplants=${en927EvaluatorSource.includes('criteriaAdhesion') ? 'OUI' : 'non'}`
     );
   }
 

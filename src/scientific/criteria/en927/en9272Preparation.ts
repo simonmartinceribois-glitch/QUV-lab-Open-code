@@ -18,7 +18,11 @@
  */
 
 import type { Trial, ExposureStage, BatchDefinition, PanelDefinition } from '../../../types/trial';
-import { getActiveE1E2E3Panels } from '../../panelUtils';
+import {
+  getActiveE1E2E3PanelsOfBatch,
+  getActiveStages,
+  formatBatchSystem
+} from '../../panelUtils';
 import { NF9272_REQUIRED_CYCLE_INDEX, NF9272_REQUIRED_EXPOSURE_HOURS } from './en9272Requirements';
 
 export type Nf9272DefectCategory = 'BLISTERING' | 'CRACKING' | 'FLAKING';
@@ -34,7 +38,11 @@ export interface Nf9272SpecimenValue {
 export interface Nf9272PreparedDefectData {
   category: Nf9272DefectCategory;
   stageId: string | null;
-  /** Valeurs par éprouvette exposée E1/E2/E3. */
+  /** Lot (système de finition) ciblé par l'évaluation. `null` si non résolu. */
+  batchId: string | null;
+  /** Libellé système ciblé, ex. 'LOT A — Lasure'. */
+  batchLabel: string | null;
+  /** Valeurs par éprouvette exposée E1/E2/E3 du lot ciblé. */
   specimens: Nf9272SpecimenValue[];
   /** Éprouvettes exposées REQUISES mais sans donnée exploitable (acquisition absente, cotation invalide). */
   missingSpecimens: { panelId: string; panelLabel: string }[];
@@ -56,11 +64,27 @@ export interface Nf9272PreparedAdhesionData {
 export type Nf9272PreparedData = Nf9272PreparedDefectData | Nf9272PreparedAdhesionData;
 
 /**
- * Retourne le jalon C12 du référentiel (cycle 12, 2016 h), ou `null`.
+ * Retourne le jalon C12 du référentiel (cycle 12, 2016 h, statut exploitable),
+ * ou `null`.
+ *
+ * Conditions CUMULATIVES (verrou P2 de l'audit 4) :
+ *  - cycleIndex === 12 ET scheduledExposureHours === 2016 (identité, pas un
+ *    simple repère cyclique) ;
+ *  - statut du jalon EXPLOITABLE selon le modèle `StageStatus` du projet :
+ *    `status !== 'INACTIVE'` (règle officielle `getActiveStages`). Un jalon
+ *    désactivé (INACTIVE) ne peut JAMAIS produire d'évaluation scientifique,
+ *    même s'il porte les bonnes valeurs cycle/durée.
+ *
+ * Cas renvoyant `null` (→ INSUFFICIENT_DATA à l'évaluation) :
+ *  - C12 absent de l'essai ;
+ *  - C12 présent mais INACTIVE ;
+ *  - cycle 12 avec une durée ≠ 2016 h, ou cycle ≠ 12 avec 2016 h.
+ *
  * Aucune autre étape n'est acceptée ; aucun calcul de durée.
  */
 export function findNf9272Jalon(trial: Trial): ExposureStage | null {
-  const stage = trial.stages.find(
+  const activeStages = getActiveStages(trial.stages);
+  const stage = activeStages.find(
     (s) =>
       s.cycleIndex === NF9272_REQUIRED_CYCLE_INDEX &&
       s.scheduledExposureHours === NF9272_REQUIRED_EXPOSURE_HOURS
@@ -68,9 +92,20 @@ export function findNf9272Jalon(trial: Trial): ExposureStage | null {
   return stage ?? null;
 }
 
-/** Éprouvettes exposées E1/E2/E3 actives de toutes les séries de l'essai. */
-export function collectExposedE1E2E3Panels(batches: BatchDefinition[]): PanelDefinition[] {
-  return batches.flatMap((batch) => getActiveE1E2E3Panels(batch.panels));
+/**
+ * Éprouvettes exposées E1/E2/E3 actives du SYSTÈME CIBLÉ (lot).
+ *
+ * Règle d'agrégation (testée) : N'importe quel mélange entre systèmes A/B dans
+ * une même moyenne est proscrit. `batchId` cible UN lot ; sans `batchId`, seul
+ * un essai à UN SEUL lot est exploitable (retour des E1/E2/E3 de ce lot).
+ * Un essai multi-lots sans sélection doit être REJETÉ par l'évaluateur
+ * (resolveBatchScope → MULTIPLE_BATCHES_NO_SELECTION) avant tout calcul.
+ */
+export function collectExposedE1E2E3Panels(
+  batches: BatchDefinition[],
+  batchId?: string
+): PanelDefinition[] {
+  return getActiveE1E2E3PanelsOfBatch(batches, batchId);
 }
 
 /** Tatouage d'une acquisition d'observations visuelles : `${stage}__${panel}__OBSERVATIONS`. */
@@ -90,18 +125,26 @@ function readCategoryRating(panel: PanelDefinition, stageId: string, trial: Tria
 
 /**
  * Prépare les cotations de défauts (Blistering/Cracking/Flaking) d'UNE catégorie
- * au jalon C12. Mapping pur : recopie des valeurs par éprouvette E1/E2/E3 ;
- * aucune agrégation.
+ * au jalon C12, pour le SYSTÈME CIBLÉ (lot). Mapping pur : recopie des valeurs
+ * par éprouvette E1/E2/E3 du lot ; aucune agrégation. Un lot multi-système non
+ * sélectionné DOIT être rejeté en amont par le résolveur de lot.
  */
 export function prepareNf9272DefectData(
   trial: Trial,
   stage: ExposureStage,
-  category: Nf9272DefectCategory
+  category: Nf9272DefectCategory,
+  options?: { batchId?: string }
 ): Nf9272PreparedDefectData {
   const specimens: Nf9272SpecimenValue[] = [];
   const missingSpecimens: Nf9272PreparedDefectData['missingSpecimens'] = [];
 
-  for (const panel of collectExposedE1E2E3Panels(trial.batches)) {
+  const batch = options?.batchId
+    ? (trial.batches.find((b) => b.id === options.batchId) ?? null)
+    : trial.batches.length === 1
+      ? trial.batches[0]
+      : null;
+
+  for (const panel of collectExposedE1E2E3Panels(trial.batches, batch?.id)) {
     const read = readCategoryRating(panel, stage.id, trial, category);
     if (read) {
       specimens.push({ panelId: panel.id, panelLabel: panel.label, value: read.value });
@@ -113,6 +156,8 @@ export function prepareNf9272DefectData(
   return {
     category,
     stageId: stage.id,
+    batchId: batch?.id ?? null,
+    batchLabel: batch ? formatBatchSystem(batch) : null,
     specimens,
     missingSpecimens,
     available: specimens.length > 0
@@ -141,12 +186,14 @@ export function prepareNf9272AdhesionData(trial: Trial, stage: ExposureStage): N
 /**
  * Point d'entrée PREPARATION : choisi la préparation adaptée à un critère.
  * Ne contient, par construction, aucun calcul métier.
+ * `options.batchId` cible un système (lot) unique ; voir `resolveBatchScope`.
  */
 export function prepareNf9272CriterionData(
   trial: Trial,
   stage: ExposureStage,
-  criterion: Nf9272DefectCategory | 'ADHESION'
+  criterion: Nf9272DefectCategory | 'ADHESION',
+  options?: { batchId?: string }
 ): Nf9272PreparedData {
   if (criterion === 'ADHESION') return prepareNf9272AdhesionData(trial, stage);
-  return prepareNf9272DefectData(trial, stage, criterion);
+  return prepareNf9272DefectData(trial, stage, criterion, options);
 }

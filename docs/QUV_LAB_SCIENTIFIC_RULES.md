@@ -103,6 +103,12 @@ Elle ne doit pas être présentée comme équivalente à la référence normativ
 
 Un critère complémentaire ne doit jamais être élevé au rang d'exigence normative NF EN 927-6.
 
+### NF EN 927-2:2022
+
+Référence normative complémentaire pour l'évaluation des critères de performance des systèmes de finition — étend les critères QUV-Lab définis pour NF EN 927-6:2018 (voir section 25).
+
+Elle ne doit pas être présentée comme équivalente à la référence normative principale NF EN 927-6:2018, et l'évaluation NF EN 927-2:2022 réalisée par QUV-Lab est une évaluation complémentaire après vieillissement QUV — jamais une déclaration de conformité du produit à la norme.
+
 ## 5. Durées scientifiques QUV
 
 ```text
@@ -1258,3 +1264,65 @@ Source canonique unique : `getTodayLocalISODate()` (`src/utils/dateUtils.ts`). T
 ### Hors périmètre
 
 Cette règle ne modifie pas le format ou le fuseau des horodatages techniques (`measurementDateTime`, `applicationDateTime` complets avec heure) utilisés dans les calculs de délai (ex. délai minimal avant contrôle d'adhérence, §15.9/15.10) : ces horodatages restent des instants précis comparés entre eux, indépendamment du fuseau d'affichage, et ne sont pas concernés par R9-DATE.
+
+## 25. NF EN 927-2:2022 — Critères complémentaires
+
+Ajouté a posteriori (correctif post-audit du 18/09/2026) pour documenter les critères complémentaires NF EN 927-2:2022 implémentés dans le module `src/scientific/criteria/en927/` — régularisation de la gouvernance décrite en §21.
+
+### 25.1 Référence et statut
+
+* Référence : NF EN 927-2:2022 — « Peintures et vernis — Produits de peinture et systèmes de revêtement pour bois en extérieur — Partie 2 : Exigences de performance ».
+* Édition : 2022.
+* Emplacement exact (section/paragraphe/tableau/page) des seuils : **À DÉFINIR / À VALIDER SCIENTIFIQUEMENT** — aucun emplacement n'est inventé.
+* Titre/édition du document source : **À DÉFINIR / À VALIDER SCIENTIFIQUEMENT**.
+* Nature : évaluation complémentaire de performance après vieillissement QUV, jamais une déclaration de conformité du produit à NF EN 927-2.
+
+### 25.2 Objet
+
+L'évaluation NF EN 927-2:2022 s'applique au jalon **C12** du vieillissement QUV (12 cycles × 168 h = **2016 h**, voir §5). Elle porte sur les critères de performance du **système de finition** (lot) exposé aux éprouvettes E1/E2/E3.
+
+### 25.3 Verrou du jalon C12
+
+Le jalon C12 est identifié **uniquement** par :
+* statut de jalon actif (statut `INACTIVE` exclu) ;
+* `cycleIndex === 12` ;
+* `scheduledExposureHours === 2016` (12 × 168 h).
+
+Cet identifiant ne dépend jamais des données de mesure. Toute absence du jalon C12 (jalon absent, inactif, ou cycle/durée ne correspondant pas) rend l'évaluation impossible et produit `INSUFFICIENT_DATA` sans évaluation partielle.
+
+### 25.4 Catégories de performance et seuils (système STABLE par défaut)
+
+| Critère | Sens | Seuil documenté (STABLE) |
+| --- | --- | --- |
+| Cloquage (Blistering) | favorable si moyenne ≤ seuil | **0,3** |
+| Craquelage / fissuration (Cracking) | favorable si moyenne ≤ seuil | **0,7** |
+| Écaillage (Flaking) | favorable si moyenne ≤ seuil | **0,3** |
+| Adhérence (force, MPa) | favorable si moyenne ≥ seuil | **1,0** |
+
+* La catégorie par défaut est **STABLE** ; elle est documentée comme seule catégorie évaluable (aucune hypersensibilité variable ni mécanisme de robustesse partielles).
+* Catégorie **Semi-stable** et **Non-stable** : critères **non applicables** (`NOT_APPLICABLE`), aucune exigence ne leur est associée.
+* **Aucun verdict global** n'est produit : chaque critère reste indépendant, sans score global ni valeur totale.
+* L'adhérence pour l'évaluation NF EN 927-2:2022 exige une **force en MPa** mesurée par éprouvette. Le pipeline QUV-Lab ne produit que des classes ISO 2409 (0..5) ; **aucune conversion** de classe vers une force n'est réalisée — l'adhérence est donc signalée `INSUFFICIENT_DATA` documenté (blocage « FORCE_MEASURES_ABSENT »).
+
+### 25.5 Évaluation par système (lot), jamais inter-systèmes
+
+NF EN 927-2:2022 s'applique **par système de finition** :
+* chaque lot (`trial.batches`) porteur d'un système est évalué séparément sur ses propres éprouvettes E1/E2/E3 ;
+* **aucune agrégation inter-systèmes** (moyenne entre lots différents) n'est produite, à aucun niveau ;
+* un essai contenant plusieurs lots sans sélection explicite (`batchId`) est refusé pour l'évaluation NF EN 927-2:2022 (`INSUFFICIENT_DATA`, message de portée) : l'auteur doit cibler un système ;
+* un `batchId` inconnu est refusé.
+
+### 25.6 Données insuffisantes
+
+* NF EN 927-2:2022 : l'évaluation d'un critère de défaut exige les **trois éprouvettes exposées E1/E2/E3** ; à défaut, `INSUFFICIENT_DATA` explicite (éprouvettes manquantes).
+* INFIPERF (complémentaire) : conformément à la règle §10 (« la moyenne est possible si au moins une donnée valide est disponible »), aucune donnée valide → `INSUFFICIENT_DATA` ; une donnée valide unique → moyenne calculée et signalée comme portant sur 1 éprouvette.
+
+### 25.7 Interdits (non-réintroduction de règles historiques)
+
+Ne sont **jamais** réintroduits, même à titre indicatif :
+* les règles de la version 2014 du référentiel (totaux 7/12/19, différences 2/3/4) ;
+* tout mécanisme de robustesse fondé sur le nombre d'éprouvettes défaillantes ou sur une dégradation partielle « tolérée ».
+
+### 25.8 Emplacements non vérifiés
+
+Toute localisation d'exigence (section/paragraphe/tableau/page) non encore vérifiée à la date de la présente rédaction est signalée **« À DÉFINIR / À VALIDER SCIENTIFIQUEMENT »** — jamais une valeur inventée. Un rapport utilisant ces critères doit afficher la provenance (référence, édition, statut de traçabilité, emplacement) ; une provenance dont les emplacements sont null reste honnête et conforme à S0.

@@ -13,7 +13,13 @@
  */
 
 import type { Trial } from '../../../types/trial';
-import { getActiveE1E2E3Panels } from '../../panelUtils';
+import { getActiveE1E2E3PanelsOfBatch } from '../../panelUtils';
+
+/** Portée système (lot) transmise aux préparations INFIPERF. */
+export interface InfiperfPreparationOptions {
+  /** Lot ciblé ; sans lui, seuls les essais mono-lot sont exploités (aucun mélange inter-systèmes). */
+  batchId?: string;
+}
 
 export interface InfiperfSpecimenRetention {
   panelId: string;
@@ -58,14 +64,18 @@ function readRetention(trial: Trial, stageId: string, panelId: string): number |
 }
 
 /**
- * Prépare les rétentions de brillance d'un jalon pour les éprouvettes E1/E2/E3.
- * Mapping pur : aucune agrégation n'est réalisée ici.
+ * Prépare les rétentions de brillance d'un jalon pour les éprouvettes E1/E2/E3
+ * du système ciblé (lot). Mapping pur : aucune agrégation n'est réalisée ici.
  */
-export function prepareInfiperfRetentionData(trial: Trial, stageId: string): InfiperfPreparedRetentionData {
+export function prepareInfiperfRetentionData(
+  trial: Trial,
+  stageId: string,
+  options?: InfiperfPreparationOptions
+): InfiperfPreparedRetentionData {
   const specimens: InfiperfSpecimenRetention[] = [];
   const missingSpecimens: InfiperfPreparedRetentionData['missingSpecimens'] = [];
 
-  for (const panel of getActiveE1E2E3Panels(trial.batches.flatMap((b) => b.panels))) {
+  for (const panel of getActiveE1E2E3PanelsOfBatch(trial.batches, options?.batchId)) {
     const retention = readRetention(trial, stageId, panel.id);
     if (retention !== null) {
       specimens.push({ panelId: panel.id, panelLabel: panel.label, retentionRatePercent: retention });
@@ -105,11 +115,15 @@ function readPersoz(trial: Trial, stageId: string, panelId: string): number | nu
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-export function prepareInfiperfPersozData(trial: Trial, stageId: string): InfiperfPreparedPersozData {
+export function prepareInfiperfPersozData(
+  trial: Trial,
+  stageId: string,
+  options?: InfiperfPreparationOptions
+): InfiperfPreparedPersozData {
   const specimens: InfiperfSpecimenPersoz[] = [];
   const missingSpecimens: InfiperfPreparedPersozData['missingSpecimens'] = [];
 
-  for (const panel of getActiveE1E2E3Panels(trial.batches.flatMap((b) => b.panels))) {
+  for (const panel of getActiveE1E2E3PanelsOfBatch(trial.batches, options?.batchId)) {
     const value = readPersoz(trial, stageId, panel.id);
     if (value !== null) {
       specimens.push({ panelId: panel.id, panelLabel: panel.label, meanDampingTime: value });
@@ -159,11 +173,15 @@ function readColor(trial: Trial, stageId: string, panelId: string): Pick<Infiper
   };
 }
 
-export function prepareInfiperfColorData(trial: Trial, stageId: string): InfiperfPreparedColorData {
+export function prepareInfiperfColorData(
+  trial: Trial,
+  stageId: string,
+  options?: InfiperfPreparationOptions
+): InfiperfPreparedColorData {
   const specimens: InfiperfSpecimenColor[] = [];
   const missingSpecimens: InfiperfPreparedColorData['missingSpecimens'] = [];
 
-  for (const panel of getActiveE1E2E3Panels(trial.batches.flatMap((b) => b.panels))) {
+  for (const panel of getActiveE1E2E3PanelsOfBatch(trial.batches, options?.batchId)) {
     const read = readColor(trial, stageId, panel.id);
     if (read) {
       specimens.push({ panelId: panel.id, panelLabel: panel.label, ...read });
@@ -206,11 +224,15 @@ function readGeneralAppearance(trial: Trial, stageId: string, panelId: string): 
   return rating;
 }
 
-export function prepareInfiperfAspectData(trial: Trial, stageId: string): InfiperfPreparedAspectData {
+export function prepareInfiperfAspectData(
+  trial: Trial,
+  stageId: string,
+  options?: InfiperfPreparationOptions
+): InfiperfPreparedAspectData {
   const specimens: InfiperfSpecimenAspect[] = [];
   const missingSpecimens: InfiperfPreparedAspectData['missingSpecimens'] = [];
 
-  for (const panel of getActiveE1E2E3Panels(trial.batches.flatMap((b) => b.panels))) {
+  for (const panel of getActiveE1E2E3PanelsOfBatch(trial.batches, options?.batchId)) {
     const value = readGeneralAppearance(trial, stageId, panel.id);
     if (value !== null) {
       specimens.push({ panelId: panel.id, panelLabel: panel.label, generalAppearanceRating: value });

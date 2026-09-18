@@ -11,11 +11,21 @@
  */
 
 import type { CriterionSource } from '../common/criterionTypes';
+import { TRACEABILITY_STATUS_TO_BE_DEFINED } from '../common/criterionTypes';
 
 export const NF9272_SOURCE: CriterionSource = 'NF_EN_927_2';
 export const NF9272_REFERENCE = 'NF EN 927-2';
 export const NF9272_EDITION = '2022';
 export const NF9272_DOCUMENT = 'NF EN 927-2:2022';
+
+/**
+ * Statut de traçabilité des seuils NF EN 927-2:2022 : les emplacements précis
+ * (section/paragraphe/tableau/page) au sein du document édition 2022 et la
+ * page d'édition exacte ne sont PAS vérifiés dans la source scientifique du
+ * projet. Aucun emplacement n'est inventé ; la provenance porte explicitement
+ * « À DÉFINIR / À VALIDER SCIENTIFIQUEMENT ».
+ */
+export const NF9272_TRACEABILITY_STATUS = TRACEABILITY_STATUS_TO_BE_DEFINED;
 
 /** Jalon d'évaluation exigé : cycle 12, 2016 h. */
 export const NF9272_REQUIRED_CYCLE_INDEX = 12;
@@ -64,6 +74,7 @@ export interface Nf9272CriterionRequirement {
     reference: typeof NF9272_REFERENCE;
     edition: typeof NF9272_EDITION;
     document: typeof NF9272_DOCUMENT;
+    traceabilityStatus: typeof NF9272_TRACEABILITY_STATUS;
     section: string | null;
     paragraph: string | null;
     table: string | null;
@@ -89,6 +100,7 @@ const NF9272_SOURCE_PROVENANCE = {
   reference: NF9272_REFERENCE,
   edition: NF9272_EDITION,
   document: NF9272_DOCUMENT,
+  traceabilityStatus: NF9272_TRACEABILITY_STATUS,
   section: null,
   paragraph: null,
   table: null,
