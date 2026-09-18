@@ -411,9 +411,12 @@ export function runProtocolAdaptationsTests(): {
         rt2.config.familyConfigs.PERSOZ?.countConfig?.justification === '12345678';
       record('P0-J-41', 'Service adaptProtocolConfig PERSOZ 2 + « 12345678 » (pad) → accepté (trim normalisé)',
         ok32, 'deviation true, 2 répétitions, justification persistée (trim)', ok32 ? 'OK' : 'BLOQUÉ');
-      record('P0-J-42', 'Service : ADHESION 3 (même justifiée) → rejeté « Seules 2 mesures/panneau »',
-        throws(() => globalTrialStore.adaptProtocolConfig(t2.id, 'ADHESION', 3, '12345678', 'TEST_OP')) !== null,
-        'rejeté', 'ADHESION reste 1|2');
+      const rt42 = globalTrialStore.adaptProtocolConfig(t2.id, 'ADHESION', 3, '12345678', 'TEST_OP');
+      const ok42 = rt42.config.familyConfigs.ADHESION?.countConfig?.configuredCount === 3 &&
+        rt42.config.familyConfigs.ADHESION?.countConfig?.deviationFromStandard === true &&
+        rt42.config.familyConfigs.ADHESION?.countConfig?.justification === '12345678';
+      record('P0-J-42', 'Service : ADHESION 3 + 8 chars → accepté (adaptation préservée)',
+        ok42, 'deviation true, 3 mesures, justification persistée', ok42 ? 'OK' : 'BLOQUÉ');
       {
         const t3 = pact(33);
         const rt3 = globalTrialStore.adaptProtocolConfig(t3.id, 'ADHESION', 1, '12345678', 'TEST_OP');
