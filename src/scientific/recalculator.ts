@@ -20,7 +20,7 @@ import {
 import { calculateColor } from './colorEngine';
 import { calculateGloss } from './glossEngine';
 import { calculatePersoz } from './persozEngine';
-import { calculateAdhesion, resolveAdhesionCountConfig } from './adhesionEngine';
+import { calculateAdhesion } from './adhesionEngine';
 import { calculateObservations } from './observationsEngine';
 import { getWitnessPanel, isAdhesionEligiblePanel, isPersozEligiblePanel } from './panelUtils';
 import { VisualObservationsRawData, AdhesionRawData } from '../types/scientific';
@@ -96,7 +96,7 @@ export function recalculateAcquisition(
   const famConfig = trial.config.familyConfigs[record.familyId];
 
   if (record.familyId === 'COLOR') {
-    const countConfig = famConfig?.countConfig || ruleSet.measurementConfigurations.COLOR;
+    const countConfig = famConfig?.countConfig;
     const res = calculateColor(
       record.raw as ColorRawData,
       countConfig,
@@ -112,7 +112,7 @@ export function recalculateAcquisition(
     computed = res.computed;
     alerts = res.alerts;
   } else if (record.familyId === 'GLOSS') {
-    const seriesConfig = famConfig?.seriesConfig || ruleSet.seriesConfigurations?.GLOSS;
+    const seriesConfig = famConfig?.seriesConfig;
     if (seriesConfig) {
       const res = calculateGloss(
         record.raw as GlossRawData,
@@ -137,7 +137,7 @@ export function recalculateAcquisition(
       computed = null;
       alerts = [];
     } else {
-      const countConfig = famConfig?.countConfig || ruleSet.measurementConfigurations.PERSOZ;
+      const countConfig = famConfig?.countConfig;
       const res = calculatePersoz(
         record.raw as PersozRawData,
         countConfig,
@@ -164,7 +164,7 @@ export function recalculateAcquisition(
       // (essais pré-Gate 57) est interprétée comme le protocole historique 1/1,
       // SANS modifier la configuration stockée. Le référentiel live ne rétrograde
       // jamais un essai historique en 1/2 WARNING.
-      const countConfig = resolveAdhesionCountConfig(famConfig?.countConfig);
+      const countConfig = famConfig?.countConfig;
       const res = calculateAdhesion(
         record.raw as AdhesionRawData,
         countConfig,
