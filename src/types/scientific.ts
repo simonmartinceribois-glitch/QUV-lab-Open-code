@@ -408,9 +408,12 @@ export interface AdhesionRawData {
   tapeType?: string; // 'IEC 60454-2' | string
   conditioning?: string; // ex: "23°C / 50% HR"
   /** Compatibilité historique : le délai T0 est désormais porté par le protocole général, pas par ADHESION. */
-  requiredMinimumDelayHours?: never;
-  elapsedTimeHours?: never;
-  delayStatus?: never;
+  /** Deprecated persisted field; ignored by ADHESION calculation. */
+  requiredMinimumDelayHours?: number;
+  /** Deprecated persisted field; ignored by ADHESION calculation. */
+  elapsedTimeHours?: number;
+  /** Deprecated persisted field; ignored by ADHESION calculation. */
+  delayStatus?: string;
   mediaId?: UUID | null;
   operatorId?: string;
   normReference: string; // "NF EN ISO 2409:2020"
