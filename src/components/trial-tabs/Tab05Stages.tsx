@@ -45,6 +45,10 @@ export function Tab05Stages({
   onNavigateToFamilyBench,
   onTrialUpdated
 }: Props) {
+  // Gate 54 (D-2) : verrouillage strict du plan après la 1ère acquisition
+  const hasAcquisitions = Object.keys(trial.acquisitions || {}).length > 0;
+  const isPlanLocked = trial.configurationStatus === 'LOCKED' || hasAcquisitions;
+
   const formatDateTimeLocal = (iso?: string) => {
     if (!iso) return '';
     const d = new Date(iso);
@@ -64,9 +68,6 @@ export function Tab05Stages({
     }
   };
 
-  // Gate 54 (D-2) : verrouillage strict du plan après la 1ère acquisition
-  const hasAcquisitions = Object.keys(trial.acquisitions || {}).length > 0;
-  const isPlanLocked = trial.configurationStatus === 'LOCKED' || hasAcquisitions;
 
   const activePanels = trial.batches.flatMap((b) => b.panels).filter((p) => p.status === 'ACTIVE');
   const totalActivePanelsCount = activePanels.length;
