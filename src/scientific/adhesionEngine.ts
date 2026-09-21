@@ -237,7 +237,6 @@ export function calculateAdhesion(
   // 1. Mesures individuelles : le nombre attendu vient de la configuration du protocole ; la référence standard est portée par le RuleSet.
   // Le nombre attendu vient du protocole. Un RAW scalaire historique reste une
   // mesure unique pour la normalisation des données persistées, sans créer de config implicite.
-  const isLegacyScalar = !Array.isArray(raw.measurements) || raw.measurements.length === 0;
   const expectedCount = countConfig?.configuredCount ?? 0;
   const measurements = normalizeAdhesionMeasurements(raw);
 
