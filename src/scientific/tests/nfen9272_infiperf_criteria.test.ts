@@ -297,13 +297,13 @@ export function runNfEn9272InfiperfTests(): {
       measurementDateTime: '2026-09-10T08:00:00Z',
       applicationDateTime: '2026-09-01T08:00:00Z',
       gridSpacingMm: 2,
-      normReference: 'NF EN ISO 2409:2020'
+      normReference: 'NF EN 927-6:2018'
     };
     const countConfig: MeasurementCountConfiguration = {
       familyId: 'ADHESION',
       mode: adhesionClasses.length === 1 ? 'CUSTOM_JUSTIFIED' : 'STANDARD_DEFAULT',
       origin: 'NORMATIVE_REQUIREMENT',
-      standardReference: 'NF EN ISO 2409:2020',
+      standardReference: 'NF EN 927-6:2018',
       clause: '§5 & §6 (Essai de quadrillage)',
       rationale: adhesionClasses.length === 1 ? 'Test A1 : adaptation justifiée à 1 mesure par panneau' : 'Test A1 : configuration standard 2 mesures par panneau',
       standardRecommendedCount: 2,
@@ -1436,7 +1436,7 @@ export function runNfEn9272InfiperfTests(): {
   // T17 — §15 ARCHITECTURE : SÉPARATION DÉLAI ISO 2409 / ADHÉRENCE NF 927-2
   // ----------------------------------------------------------------------------
   {
-    // criteriaAdhesion = délai d'application avant essai (NF EN ISO 2409:2020),
+    // criteriaAdhesion = délai d'application avant essai (NF EN 927-6:2018),
     // verdict CONFORME/NON_CONFORME sur la condition de protocole. Indépendant
     // de l'évaluation d'adhérence NF EN 927-2 (cotation du moteur ADHESION) : le
     // critère NF n'importe pas cette couche ; sans données, il répond
@@ -1452,7 +1452,7 @@ export function runNfEn9272InfiperfTests(): {
       57,
       'T17 §15 : criteriaAdhesion = condition de protocole ISO 2409 (délai), indépendant de l’évaluation NF 927-2 (cotation moteur ADHESION)',
       'ARCHITECTURE',
-      delay.normativeReference === 'NF EN ISO 2409:2020' &&
+      delay.normativeReference === 'NF EN 927-6:2018' &&
         delay.origin === 'PROTOCOL_CONDITION' &&
         nfAdhesion.status === 'INSUFFICIENT_DATA' &&
         nfAdhesion.message.toLocaleLowerCase('fr-FR').includes('données insuffisantes') &&
