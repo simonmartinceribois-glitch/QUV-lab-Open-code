@@ -596,8 +596,8 @@ export function runGate33ScientificMetrologyTests(): {
   ];
 
   const batches: BatchDefinition[] = [
-    { id: b1Id, trialId, orderIndex: 0, reference: 'LOT-A-SYST1', productReference: 'Système A', woodSpecies: 'Pin', panels: panelsB1 },
-    { id: b2Id, trialId, orderIndex: 1, reference: 'LOT-B-SYST2', productReference: 'Système B', woodSpecies: 'Pin', panels: panelsB2 }
+    { id: b1Id, trialId, orderIndex: 0, reference: 'LOT-A-SYST1', productReference: 'Système A', woodSpecies: 'Pin', applicationDate: '2026-08-01', panels: panelsB1 },
+    { id: b2Id, trialId, orderIndex: 1, reference: 'LOT-B-SYST2', productReference: 'Système B', woodSpecies: 'Pin', applicationDate: '2026-08-01', panels: panelsB2 }
   ];
 
   const trial: Trial = {
@@ -612,9 +612,9 @@ export function runGate33ScientificMetrologyTests(): {
       standardReference: 'NF EN 927-6',
       activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'OBSERVATIONS'],
       familyConfigs: {
-        COLOR: { familyId: 'COLOR', enabled: true },
-        GLOSS: { familyId: 'GLOSS', enabled: true },
-        PERSOZ: { familyId: 'PERSOZ', enabled: true },
+        COLOR: { familyId: 'COLOR', enabled: true, countConfig: createCountConfiguration('COLOR', 4, ruleSet) },
+        GLOSS: { familyId: 'GLOSS', enabled: true, seriesConfig: createSeriesConfiguration('GLOSS', 2, 2, ruleSet) },
+        PERSOZ: { familyId: 'PERSOZ', enabled: true, countConfig: createCountConfiguration('PERSOZ', 3, ruleSet) },
         OBSERVATIONS: { familyId: 'OBSERVATIONS', enabled: true }
       }
     },
