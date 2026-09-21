@@ -317,21 +317,21 @@ export function runCriteriaSeparationTests(): {
     const app84Days = '2026-08-01T00:00:00Z'; // 2016 h → CONFORME
     const app4Days = '2026-10-20T00:00:00Z'; // 96 h → NON_CONFORME
 
-    const conforme = evaluateAdhesionDelayCriterion({
+    const conforme = evaluatePreExposureConditioningCriterion({
       applicationDateTime: app84Days,
       measurementDateTime: measurementDate,
       requiredMinimumDelayHours: 168
     });
-    const nonConforme = evaluateAdhesionDelayCriterion({
+    const nonConforme = evaluatePreExposureConditioningCriterion({
       applicationDateTime: app4Days,
       measurementDateTime: measurementDate,
       requiredMinimumDelayHours: 168
     });
-    const missing = evaluateAdhesionDelayCriterion({
+    const missing = evaluatePreExposureConditioningCriterion({
       measurementDateTime: measurementDate,
       requiredMinimumDelayHours: 168
     });
-    const invalide = evaluateAdhesionDelayCriterion({
+    const invalide = evaluatePreExposureConditioningCriterion({
       applicationDateTime: 'date-invalide',
       measurementDateTime: measurementDate,
       requiredMinimumDelayHours: 168
@@ -450,8 +450,8 @@ export function runCriteriaSeparationTests(): {
       applicationDateTime: '2026-08-01T00:00:00Z', // 2016 h → CONFORME avec 168 h
       measurementDateTime: '2026-10-24T00:00:00Z'
     };
-    const skipped = evaluateAdhesionDelayCriterion(dates);
-    const explicit = evaluateAdhesionDelayCriterion({ ...dates, requiredMinimumDelayHours: 168 });
+    const skipped = evaluatePreExposureConditioningCriterion(dates);
+    const explicit = evaluatePreExposureConditioningCriterion({ ...dates, requiredMinimumDelayHours: 168 });
 
     const passed =
       skipped.verdict === 'NON_EVALUE' &&
@@ -479,7 +479,7 @@ export function runCriteriaSeparationTests(): {
   // négatif serait TOUJOURS faux (un délai écoulé, toujours >= 0, satisferait
   // n'importe quel seuil négatif) → le contrôle de délai serait silencieusement
   // neutralisé (toujours "CONFORME", quel que soit le délai réel). Vérifié sur
-  // les DEUX couches : CRITÈRE (evaluateAdhesionDelayCriterion) doit traiter -1
+  // les DEUX couches : CRITÈRE (evaluatePreExposureConditioningCriterion) doit traiter -1
   // comme non configuré (NON_EVALUE/DELAY_CHECK_SKIPPED, comme undefined/NaN) ;
   // RAW (calculateAdhesion) doit retomber sur 168
   // (168 h), jamais utiliser -1 tel quel.
@@ -490,7 +490,7 @@ export function runCriteriaSeparationTests(): {
 
     // Couche CRITÈRE : -1 doit être traité comme "non configuré", au même
     // titre qu'une valeur absente.
-    const negativeDelayCriterion = evaluateAdhesionDelayCriterion({
+    const negativeDelayCriterion = evaluatePreExposureConditioningCriterion({
       applicationDateTime: appDate,
       measurementDateTime: measDate,
       requiredMinimumDelayHours: -1
