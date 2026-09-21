@@ -23,7 +23,7 @@ import {
   exportReportToCsv,
   exportRawDataToCsv
 } from '../../services/reportGenerator';
-import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration, createSeriesConfiguration } from '../ruleSet';
 import {
   evaluateCountProtocolCompliance,
   evaluateSeriesProtocolCompliance
@@ -213,6 +213,7 @@ export function runGate34NormativeReportingTests(): {
       trialId,
       orderIndex: 0,
       reference: 'LOT-ACRYLIQUE-01',
+      applicationDate: '2026-08-01',
       coatingSystem: 'Système Acrylique Hydro',
       productReference: 'Peinture ACRY-TOP',
       woodSpecies: 'Pin sylvestre',
@@ -223,6 +224,7 @@ export function runGate34NormativeReportingTests(): {
       trialId,
       orderIndex: 1,
       reference: 'LOT-ALKYDE-02',
+      applicationDate: '2026-08-01',
       coatingSystem: 'Système Alkyde Solvant',
       productReference: 'Peinture ALKY-MAX',
       woodSpecies: 'Pin sylvestre',
@@ -247,9 +249,9 @@ export function runGate34NormativeReportingTests(): {
       standardReference: 'NF EN 927-6',
       activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'OBSERVATIONS'],
       familyConfigs: {
-        COLOR: { familyId: 'COLOR', enabled: true },
-        GLOSS: { familyId: 'GLOSS', enabled: true },
-        PERSOZ: { familyId: 'PERSOZ', enabled: true },
+        COLOR: { familyId: 'COLOR', enabled: true, countConfig: createCountConfiguration('COLOR', 4, ruleSet) },
+        GLOSS: { familyId: 'GLOSS', enabled: true, seriesConfig: createSeriesConfiguration('GLOSS', 2, 2, ruleSet) },
+        PERSOZ: { familyId: 'PERSOZ', enabled: true, countConfig: createCountConfiguration('PERSOZ', 3, ruleSet) },
         OBSERVATIONS: { familyId: 'OBSERVATIONS', enabled: true }
       }
     },
