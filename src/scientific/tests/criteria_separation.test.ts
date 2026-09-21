@@ -29,7 +29,7 @@ import {
   evaluateGlossRetentionCriterion,
   getGlossRetentionThreshold
 } from '../criteria/criteriaGloss';
-import { evaluateAdhesionDelayCriterion } from '../criteria/criteriaAdhesion';
+import { evaluatePreExposureConditioningCriterion } from '../criteria/criteriaAdhesion';
 import { compareSystemsAtStage } from '../analysis/MultiSystemComparator';
 import {
   ColorRawData,
