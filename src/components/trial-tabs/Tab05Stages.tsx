@@ -64,8 +64,6 @@ export function Tab05Stages({
     }
   };
 
-  const formatDateTimeLocal = (iso?: string) => {\n    if (!iso) return '';\n    const d = new Date(iso);\n    if (Number.isNaN(d.getTime())) return '';\n    const pad = (n: number) => String(n).padStart(2, '0');\n    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;\n  };\n\n  const handleT0EffectiveDateChange = (value: string) => {\n    if (!value || currentStage.cycleIndex !== 0 || isPlanLocked) return;\n    try {\n      globalTrialStore.updateT0EffectiveDate(trial.id, value, operatorId);\n      onTrialUpdated();\n    } catch (err: any) {\n      setStatusMessage({ type: 'error', text: err?.message || 'Date T0 invalide.' });\n      setTimeout(() => setStatusMessage(null), 4000);\n    }\n  };
-
   // Gate 54 (D-2) : verrouillage strict du plan après la 1ère acquisition
   const hasAcquisitions = Object.keys(trial.acquisitions || {}).length > 0;
   const isPlanLocked = trial.configurationStatus === 'LOCKED' || hasAcquisitions;
