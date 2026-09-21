@@ -113,7 +113,7 @@ import {
   NF9272_TRACEABILITY_STATUS
 } from '../criteria/en927/en9272Requirements';
 import { TRACEABILITY_STATUS_TO_BE_DEFINED } from '../criteria/common/criterionTypes';
-import { evaluateAdhesionDelayCriterion } from '../criteria/criteriaAdhesion';
+import { evaluatePreExposureConditioningCriterion } from '../criteria/criteriaAdhesion';
 import { calculateAdhesion } from '../adhesionEngine';
 import type { AdhesionRawData, MeasurementCountConfiguration } from '../../types/scientific';
 import { readFileSync } from 'node:fs';
