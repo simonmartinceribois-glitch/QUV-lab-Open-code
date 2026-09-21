@@ -21,7 +21,6 @@ import {
   VisualObservationsComputedData
 } from '../types/scientific';
 import { generateUUID } from './trialIds';
-import { evaluateAdhesionDelayCriterion } from '../scientific/criteria/criteriaAdhesion';
 import {
   getActiveE1E2E3Panels,
   isPersozEligiblePanel,
@@ -530,7 +529,7 @@ export function buildScientificReport(
             `  Lot ${i + 1} [${b.reference}] : ${b.coatingSystem || 'Système non renseigné'} | Support: ${displayReportValue(b.woodSpecies)} | Produit: ${b.productReference || 'N/A'} | Fabricant: ${b.manufacturerOrSupplier || 'N/A'} | Couches: ${displayReportValue(b.coatCount)} | Préparation: ${displayReportValue(b.substratePreparation)} | Application: ${displayReportValue(b.applicationMethod)} | Séchage: ${displayReportValue(b.dryingOrConditioningTime)}`
         )
         .join('\n'),
-    panelsDefinition: `Nombre total d'éprouvettes : ${totalPanelsCount} (Actives : ${activePanelsCount}, Exclues : ${excludedPanelsCount})\nDimensions des éprouvettes : ${displayReportValue(trial.commonCharacteristics?.dimensions?.lengthMm)} × ${displayReportValue(trial.commonCharacteristics?.dimensions?.widthMm)} × ${displayReportValue(trial.commonCharacteristics?.dimensions?.thicknessMm)} mm\nOrientation du fil (mesurée) : ${displayReportValue(trial.commonCharacteristics?.woodGrainOrientation)}\nConditionnement préalable (réalisé) : ${displayReportValue(trial.commonCharacteristics?.conditioningNotes)}\nRappel normatif (NF EN 927-6 §5, exigence — à confronter aux valeurs mesurées ci-dessus, jamais une mesure) : éprouvettes stabilisées avant essai selon le référentiel.` +
+    panelsDefinition: `Nombre total d'éprouvettes : ${totalPanelsCount} (Actives : ${activePanelsCount}, Exclues : ${excludedPanelsCount})\nDimensions des éprouvettes : ${displayReportValue(trial.commonCharacteristics?.dimensions?.lengthMm)} × ${displayReportValue(trial.commonCharacteristics?.dimensions?.widthMm)} × ${displayReportValue(trial.commonCharacteristics?.dimensions?.thicknessMm)} mm\nOrientation du fil (mesurée) : ${displayReportValue(trial.commonCharacteristics?.woodGrainOrientation)}\nConditionnement préalable (réalisé) : ${displayReportValue(trial.commonCharacteristics?.conditioningNotes)}\nCommentaire de conditionnement avant T0 (NF EN 927-6:2018 §6.3.3) : environ 7 jours à 20 ± 2 °C et 65 ± 5 % HR ; ces conditions sont paramétrées sur l’enceinte climatique, ne sont pas contrôlées ni bloquantes dans QUV-Lab, et sont restituées uniquement comme information de protocole.\nContrôle QUV-Lab : intervalle temporel entre la date d’application et la date effective du relevé T0, sans utiliser measuredAt/createdAt comme substitut.` +
       (excludedPanelsCount > 0
         ? `\nÉprouvettes exclues : ` +
           allPanels
@@ -543,7 +542,7 @@ export function buildScientificReport(
       trial.stages
         .map(
           (st) =>
-            `  - [${st.stageType}] ${st.name} | Jalon d'exposition : ${st.scheduledExposureHours} h (cycle ${st.cycleIndex} × 168 h) | Relevé le : ${st.measuredAt ? new Date(st.measuredAt).toLocaleString('fr-FR') : 'Non relevé'} | Statut : ${st.status}`
+            `  - [${st.stageType}] ${st.name} | Jalon d'exposition : ${st.scheduledExposureHours} h (cycle ${st.cycleIndex} × 168 h) | Date effective planifiée : ${st.scheduledAt ? new Date(st.scheduledAt).toLocaleString('fr-FR') : 'Non renseignée'} | Mesuré techniquement le : ${st.measuredAt ? new Date(st.measuredAt).toLocaleString('fr-FR') : 'Non relevé'} | Statut : ${st.status}`
         )
         .join('\n'),
     measurementPlan: `Familles de mesure actives : ${trial.config.activeFamilies.join(', ')}\n• Couleur : ${planDetail('COLOR', 'points par éprouvette')}\n• Brillance : ${planDetail('GLOSS', 'lectures')}\n• Persoz : ${planDetail('PERSOZ', 'mesures')}\n• Adhérence au quadrillage : ${planDetail('ADHESION', 'mesures (NF EN ISO 2409:2020)')}\n• Observations visuelles : ${trial.config.familyConfigs.OBSERVATIONS?.enabled ? 'Active (Évaluation ISO 4628)' : 'Désactivée'}`,
@@ -690,18 +689,10 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
               stdStr = compAdh.gridSpacingUsedMm ? `Peigne ${compAdh.gridSpacingUsedMm} mm` : '—';
               // Δ = variation moyenne de classement, indicateur complémentaire non normatif.
               deltaStr = compAdh.deltaAdhesionClass !== null && compAdh.deltaAdhesionClass !== undefined ? `${indiv.length > 1 ? 'Δmoy.(compl.)=' : 'ΔClasse='}${compAdh.deltaAdhesionClass >= 0 ? '+' : ''}${compAdh.deltaAdhesionClass}` : 'RÉF (T0)';
-              // Verdict de délai via la couche CRITÈRE (S3), calculé à la volée depuis
-              // les dates RAW — source de vérité unique, jamais de valeur persistée
-              // de COMPUTED (delayCompliance a été retiré du COMPUTED).
-              const rawAdh = acq.raw as AdhesionRawData | undefined;
-              const delayEval = rawAdh
-                ? evaluateAdhesionDelayCriterion({
-                    applicationDateTime: rawAdh.applicationDateTime,
-                    measurementDateTime: rawAdh.measurementDateTime,
-                    requiredMinimumDelayHours: rawAdh.requiredMinimumDelayHours
-                  })
-                : null;
-              retStr = delayEval ? delayEval.verdict : '—';
+              // Le conditionnement avant T0 est une règle générale de protocole,
+              // non un critère spécifique à l'adhérence ; aucune colonne de délai
+              // n'est calculée ici à partir des RAW d'adhérence.
+              retStr = '—';
             } else if (fam === 'OBSERVATIONS') {
               const compObs = acq.computed as VisualObservationsComputedData;
               valStr = displayReportValue(compObs.summary);
