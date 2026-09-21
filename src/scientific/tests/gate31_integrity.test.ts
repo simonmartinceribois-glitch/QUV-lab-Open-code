@@ -22,7 +22,7 @@ import {
   PhotoReference,
   MediaReference
 } from '../../types/trial';
-import { getDefaultScientificRuleSet } from '../ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../ruleSet';
 import { ColorRawData, GlossRawData } from '../../types/scientific';
 
 export interface Gate31TestResult {
@@ -113,9 +113,9 @@ export function runGate31IntegrityTests(): {
         standardReference: 'NF EN 927-6',
         activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'OBSERVATIONS'],
         familyConfigs: {
-          COLOR: { familyId: 'COLOR', enabled: true },
-          GLOSS: { familyId: 'GLOSS', enabled: true },
-          PERSOZ: { familyId: 'PERSOZ', enabled: true },
+          COLOR: { familyId: 'COLOR', enabled: true, countConfig: createCountConfiguration('COLOR', 4, ruleSet) },
+          GLOSS: { familyId: 'GLOSS', enabled: true, seriesConfig: createSeriesConfiguration('GLOSS', 2, 2, ruleSet) },
+          PERSOZ: { familyId: 'PERSOZ', enabled: true, countConfig: createCountConfiguration('PERSOZ', 3, ruleSet) },
           OBSERVATIONS: { familyId: 'OBSERVATIONS', enabled: true }
         }
       },
