@@ -23,7 +23,7 @@ import {
   exportReportToCsv,
   exportRawDataToCsv
 } from '../../services/reportGenerator';
-import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration, createSeriesConfiguration } from '../ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../ruleSet';
 import {
   evaluateCountProtocolCompliance,
   evaluateSeriesProtocolCompliance
