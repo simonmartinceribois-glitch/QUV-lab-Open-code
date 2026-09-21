@@ -238,7 +238,7 @@ export function calculateAdhesion(
   // Le nombre attendu vient du protocole. Un RAW scalaire historique reste une
   // mesure unique pour la normalisation des données persistées, sans créer de config implicite.
   const isLegacyScalar = !Array.isArray(raw.measurements) || raw.measurements.length === 0;
-  const expectedCount = isLegacyScalar ? 1 : (countConfig?.configuredCount ?? 0);
+  const expectedCount = countConfig?.configuredCount ?? 0;
   const measurements = normalizeAdhesionMeasurements(raw);
 
   // Référence T0 (Gate 5.6 : témoin) normalisée une seule fois, en lecture seule.
@@ -344,9 +344,9 @@ export function calculateAdhesion(
   const completenessPercent =
     expectedCount > 0 ? Math.round((validCount / expectedCount) * 100) : 0;
 
-  // Gate 57 : mesure(s) manquante(s) sur protocole multi-mesures → alerte WARNING
-  // explicite MEASUREMENT_MISSING. Jamais sur RAW legacy (toujours 1/1).
-  if (!isLegacyScalar && missingCount > 0) {
+  // Une mesure scalaire historique ne doit pas contourner la configuration active :
+  // si le protocole attend plusieurs mesures, elle reste incomplète.
+  if (missingCount > 0) {
     alerts.push({
       id: `alert-adh-missing-${options?.stageId || ''}-${options?.panelId || ''}`,
       severity: 'WARNING',
