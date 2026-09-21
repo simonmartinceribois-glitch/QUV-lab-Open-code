@@ -218,6 +218,24 @@ export function resolveAdhesionCountConfig(
  */
 export function calculateAdhesion(
   raw: AdhesionRawData,
+  countConfig: MeasurementCountConfiguration,
+  ruleSet: ScientificRuleSet,
+  options?: AdhesionCalculationOptions
+): {
+  computed: AdhesionComputedData;
+  alerts: MeasurementAlert[];
+};
+export function calculateAdhesion(
+  raw: AdhesionRawData,
+  countConfig: undefined,
+  ruleSet: ScientificRuleSet,
+  options?: AdhesionCalculationOptions
+): {
+  computed: AdhesionComputedData | null;
+  alerts: MeasurementAlert[];
+};
+export function calculateAdhesion(
+  raw: AdhesionRawData,
   countConfig: MeasurementCountConfiguration | undefined,
   ruleSet: ScientificRuleSet,
   options?: AdhesionCalculationOptions
