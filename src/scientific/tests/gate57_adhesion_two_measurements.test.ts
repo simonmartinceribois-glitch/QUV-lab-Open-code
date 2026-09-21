@@ -626,6 +626,23 @@ export function runGate57AdhesionTwoMeasurementsTests(): {
   {
     // T0 scalaire legacy + C12 2 mesures : m1 appariée, m2 sans référence (null, pas de faux delta).
     const t0 = baseRaw({ adhesionClass: 1 });
+    const c12 = twoMeasuresRaw([3, 5]);
+    const res = calculateAdhesion(c12, std2, ruleSet, { referenceRaw: t0 });
+    const indiv = res.computed?.individualResults || [];
+    record(
+      'G57-CMP-26',
+      'Référence legacy 1 mesure : m1 appariée, m2 sans faux delta, moyenne correcte',
+      indiv[0]?.deltaAdhesionClass === 2 &&
+        indiv[1]?.deltaAdhesionClass === null &&
+        res.computed?.panelMean === 4 &&
+        res.computed?.initialPanelMean === 1 &&
+        res.computed?.deltaAdhesionClass === 3,
+      'Δm1=+2, Δm2=null, moy=4, init=1, Δmoy=+3',
+      `Δm1=${String(indiv[0]?.deltaAdhesionClass)}, Δm2=${String(indiv[1]?.deltaAdhesionClass)}, moy=${String(res.computed?.panelMean)}, Δmoy=${String(res.computed?.deltaAdhesionClass)}`
+    );
+  }
+
+  // --- AGRÉGATION ---
   {
     const mk = (panelMean: number | null): AdhesionComputedData =>
       ({
