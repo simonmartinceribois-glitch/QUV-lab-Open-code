@@ -227,7 +227,7 @@ export function calculateAdhesion(
 };
 export function calculateAdhesion(
   raw: AdhesionRawData,
-  countConfig: undefined,
+  countConfig: MeasurementCountConfiguration | undefined,
   ruleSet: ScientificRuleSet,
   options?: AdhesionCalculationOptions
 ): {
