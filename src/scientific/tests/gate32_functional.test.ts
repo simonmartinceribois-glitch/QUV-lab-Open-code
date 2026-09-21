@@ -94,6 +94,7 @@ export function runGate32FunctionalTests(): {
       productReference: 'Acrylique Hydro Phase A',
       woodSpecies: 'Pin Sylvestre Standardisé',
       coatCount: 2,
+      applicationDate: '2026-08-01',
       panels: panelsBatch1
     },
     {
@@ -104,6 +105,7 @@ export function runGate32FunctionalTests(): {
       productReference: 'Polyuréthane Bi-composant',
       woodSpecies: 'Pin Sylvestre Standardisé',
       coatCount: 3,
+      applicationDate: '2026-08-01',
       panels: panelsBatch2
     }
   ];
