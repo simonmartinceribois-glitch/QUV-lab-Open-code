@@ -84,7 +84,7 @@ export function evaluatePreExposureConditioningCriterion(input: {
     formattedElapsedTime: result.formattedElapsedTime,
     message: result.message,
     origin: 'PROTOCOL_CONDITION',
-    normativeReference: 'NF EN ISO 2409:2020',
+    normativeReference: 'NF EN 927-6:2018',
     requiredMinimumDelayHours
   };
 }
