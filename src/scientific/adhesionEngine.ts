@@ -222,7 +222,7 @@ export function calculateAdhesion(
   ruleSet: ScientificRuleSet,
   options?: AdhesionCalculationOptions
 ): {
-  computed: AdhesionComputedData;
+  computed: AdhesionComputedData | null;
   alerts: MeasurementAlert[];
 } {
   const alerts: MeasurementAlert[] = [];
@@ -232,6 +232,10 @@ export function calculateAdhesion(
   if (countConfig && (!Number.isInteger(countConfig.configuredCount) || countConfig.configuredCount < 1 || countConfig.configuredCount > 3)) {
     alerts.push({ id: 'alert-adh-count-invalid', severity: 'BLOCKING', code: 'MEASUREMENT_INVALID', message: 'Le nombre de mesures ADHESION doit être un entier compris entre 1 et 3.', familyId: 'ADHESION', stageId: options?.stageId, panelId: options?.panelId });
   }
+  if (!countConfig) {
+    return { computed: null, alerts };
+  }
+
   const version = options?.calculationVersion || ADHESION_CALCULATION_VERSION;
 
   // 1. Mesures individuelles : le nombre attendu vient de la configuration du protocole ; la référence standard est portée par le RuleSet.
