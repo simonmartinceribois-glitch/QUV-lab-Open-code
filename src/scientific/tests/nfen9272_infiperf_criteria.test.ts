@@ -1441,7 +1441,7 @@ export function runNfEn9272InfiperfTests(): {
     // de l'évaluation d'adhérence NF EN 927-2 (cotation du moteur ADHESION) : le
     // critère NF n'importe pas cette couche ; sans données, il répond
     // INSUFFICIENT_DATA (jamais de force MPa inventée).
-    const delay = evaluateAdhesionDelayCriterion({
+    const delay = evaluatePreExposureConditioningCriterion({
       applicationDateTime: '2026-09-01T08:00:00Z',
       measurementDateTime: '2026-09-10T08:00:00Z',
       requiredMinimumDelayHours: 48
