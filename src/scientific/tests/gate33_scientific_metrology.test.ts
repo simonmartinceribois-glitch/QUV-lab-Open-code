@@ -1018,7 +1018,7 @@ export function runGate33ScientificMetrologyTests(): {
       adhNewPassed &&
         adhHistorical.alerts.some((a) => a.severity === 'BLOCKING') &&
         adhHistorical.computed === null,
-      'Nouveau 1/2 WARNING 50 % + MEASUREMENT_MISSING ; sans configuration = BLOQUANT'
+      'Nouveau 1/2 WARNING 50 % + MEASUREMENT_MISSING ; sans configuration = BLOQUANT',
       `PanelMean=${adhNewResult.computed.panelMean}, Delta=${adhNewResult.computed.deltaAdhesionClass}, Status=${adhNewResult.computed.qualityAssessment.status}, HistStatus=${adhHistorical.alerts.some((a) => a.severity === 'BLOCKING') ? 'BLOCKING' : 'UNEXPECTED'}`
     );
   }
