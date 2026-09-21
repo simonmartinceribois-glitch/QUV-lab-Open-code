@@ -122,7 +122,16 @@ export function auditTrialBeforeReport(trial: Trial, ruleSet: ScientificRuleSet)
   }
 
   const stageT0 = trial.stages.find((s) => s.stageType === 'INITIAL_PRE_EXPOSURE' || s.cycleIndex === 0);
-  const t0Available = !!stageT0 && (stageT0.status === 'VALIDATED' || stageT0.status === 'IN_PROGRESS');
+  // Une étape T0 est considérée mesurée dès lors qu'au moins une acquisition
+  // scientifique complète lui est rattachée. Le statut d'étape reste un état
+  // de workflow et ne doit pas être utilisé comme substitut à la preuve
+  // d'acquisition.
+  const t0HasAcquisition = !!stageT0 && Object.values(trial.acquisitions || {}).some(
+    (a) => a.stageId === stageT0.id && a.status === 'COMPLETE'
+  );
+  const t0Available =
+    !!stageT0 &&
+    (stageT0.status === 'VALIDATED' || stageT0.status === 'IN_PROGRESS' || t0HasAcquisition);
   if (!t0Available) {
     missingCriticalElements.push("Étape initiale T0 manquante ou non mesurée (référence obligatoire).");
   }
