@@ -45,29 +45,24 @@ export function Tab05Stages({
   onNavigateToFamilyBench,
   onTrialUpdated
 }: Props) {
-  // Gate 54 (D-1) : seuls les jalons actifs font partie du plan de mesurage.
-  // Un jalon INACTIVE ne doit jamais pouvoir être sélectionné pour le banc de mesure.
-  const activeStages = trial.stages.filter((s) => s.status !== 'INACTIVE');
-  const currentStage = activeStages.find((s) => s.id === selectedStageId) || activeStages[0] || trial.stages[0];
+  const formatDateTimeLocal = (iso?: string) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  };
 
-  // Si selectedStageId est inactif ou introuvable parmi les actifs, synchroniser avec le parent
-  React.useEffect(() => {
-    const isSelectedActive = activeStages.some((s) => s.id === selectedStageId);
-    if (!isSelectedActive && currentStage && currentStage.status !== 'INACTIVE') {
-      onSelectStageId(currentStage.id);
+  const handleT0EffectiveDateChange = (value: string) => {
+    if (!value || currentStage.cycleIndex !== 0 || isPlanLocked) return;
+    try {
+      globalTrialStore.updateT0EffectiveDate(trial.id, value, operatorId);
+      onTrialUpdated();
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err?.message || 'Date T0 invalide.' });
+      setTimeout(() => setStatusMessage(null), 4000);
     }
-  }, [selectedStageId, activeStages, currentStage, onSelectStageId]);
-
-  const [operatorId, setOperatorId] = useState<string>('Simon Martin (Technicien)');
-  const [validationNotes, setValidationNotes] = useState<string>('');
-  const [showValidationModal, setShowValidationModal] = useState(false);
-  const [showDeactivationModal, setShowDeactivationModal] = useState(false);
-  const [deactivationReason, setDeactivationReason] = useState<string>('');
-  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  const isMandatory = isMandatoryStage(currentStage);
-  const isInactive = currentStage.status === 'INACTIVE';
-  const isValidated = currentStage.status === 'VALIDATED';
+  };
 
   const formatDateTimeLocal = (iso?: string) => {\n    if (!iso) return '';\n    const d = new Date(iso);\n    if (Number.isNaN(d.getTime())) return '';\n    const pad = (n: number) => String(n).padStart(2, '0');\n    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;\n  };\n\n  const handleT0EffectiveDateChange = (value: string) => {\n    if (!value || currentStage.cycleIndex !== 0 || isPlanLocked) return;\n    try {\n      globalTrialStore.updateT0EffectiveDate(trial.id, value, operatorId);\n      onTrialUpdated();\n    } catch (err: any) {\n      setStatusMessage({ type: 'error', text: err?.message || 'Date T0 invalide.' });\n      setTimeout(() => setStatusMessage(null), 4000);\n    }\n  };
 
