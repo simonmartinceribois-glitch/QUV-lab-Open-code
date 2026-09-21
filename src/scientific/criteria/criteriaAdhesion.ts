@@ -34,7 +34,7 @@ export function evaluatePreExposureConditioningCriterion(input: {
   applicationDateTime?: string;
   measurementDateTime?: string;
   requiredMinimumDelayHours?: number;
-}): AdhesionDelayCriterionEvaluation {
+}): PreExposureConditioningCriterionEvaluation {
   // Fix contre-audit c1edb84 (point 1) : une valeur NÉGATIVE n'est pas un délai
   // valide au sens du contrat métier (un délai minimal ne peut pas être
   // négatif) — traitée comme non configurée, au même titre qu'une valeur
@@ -59,7 +59,7 @@ export function evaluatePreExposureConditioningCriterion(input: {
       message:
         "Délai d'application non évalué : aucun délai minimal requis n'est configuré (paramètre protocolaire optionnel).",
       origin: 'PROTOCOL_CONDITION',
-      normativeReference: 'NF EN ISO 2409:2020',
+      normativeReference: 'NF EN 927-6:2018',
       requiredMinimumDelayHours: null
     };
   }
