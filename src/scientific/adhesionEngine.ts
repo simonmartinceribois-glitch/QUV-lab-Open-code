@@ -18,8 +18,8 @@ import {
 
 export const ADHESION_CALCULATION_VERSION = '1.2.0';
 export const ADHESION_NORM_REFERENCE = 'NF EN ISO 2409:2020';
-/** Délai minimal d'application avant essai (protocole) : 168 h = 7 jours.
- *  Source unique — lu par calculateDelayCompliance (COMPUTED) et la couche CRITÈRE (S3). */
+/** Le conditionnement avant les examens initiaux est contrôlé au niveau du protocole général.
+ *  ADHESION ne porte aucun délai scientifique spécifique : le RuleSet NF EN 927-6:2018 est la source. */
 
 /**
  * Définition officielle des 6 classes d'adhérence selon la NF EN ISO 2409:2020
@@ -187,13 +187,9 @@ function isValidAdhesionClass(value: number | null | undefined): value is number
 }
 
 /**
- * Résout la configuration de comptage ADHESION effective SANS modifier le stocké.
- *
- * Compatibilité historique D4 (Gate 57) : les essais créés avant le Gate 57 ne
- * possèdent AUCUN `countConfig` ADHESION enregistré (seul `enabled` était persisté).
- * Ces configurations sont interprétées comme le protocole historique
- * (1 mesure attendue, standard 1) et NON comme 1/2 au regard du nouveau standard.
- * Le référentiel live ne rétrograde jamais un essai historique en WARNING.
+ * Résout la configuration de comptage ADHESION effective sans modifier le stockage.
+ * Une configuration absente est bloquante : aucune configuration scientifique implicite
+ * ne doit être synthétisée par le moteur.
  */
 export function resolveAdhesionCountConfig(
   stored: MeasurementCountConfiguration | undefined
@@ -239,10 +235,8 @@ export function calculateAdhesion(
   const version = options?.calculationVersion || ADHESION_CALCULATION_VERSION;
 
   // 1. Mesures individuelles : le nombre attendu vient de la configuration du protocole ; la référence standard est portée par le RuleSet.
-  // Le nombre attendu vient du protocole ; défaut 2 quand aucune configuration.
-  // Compatibilité historique D4 : un RAW scalaire legacy (sans `measurements`) est
-  // TOUJOURS interprété comme 1 mesure attendue (1/1), quelle que soit la
-  // configuration live — jamais de 1/2 WARNING rétroactif sur l'historique.
+  // Le nombre attendu vient du protocole. Un RAW scalaire historique reste une
+  // mesure unique pour la normalisation des données persistées, sans créer de config implicite.
   const isLegacyScalar = !Array.isArray(raw.measurements) || raw.measurements.length === 0;
   const expectedCount = isLegacyScalar ? 1 : (countConfig?.configuredCount ?? 0);
   const measurements = normalizeAdhesionMeasurements(raw);
