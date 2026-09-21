@@ -153,7 +153,17 @@ export function runColorAdhesionStatisticsTests(): {
       createdAt: '2026-09-05T00:00:00Z', updatedAt: '2026-09-05T00:00:00Z',
       metadata: { reference: 'QUV-CSTAT05', createdBy: 'TEST_OP' },
       status: 'IN_PROGRESS', configurationStatus: 'EDITABLE',
-      config: { standardReference: 'NF EN 927-6', activeFamilies: ['COLOR'], familyConfigs: {} },
+      config: {
+        standardReference: 'NF EN 927-6',
+        activeFamilies: ['COLOR'],
+        familyConfigs: {
+          COLOR: {
+            familyId: 'COLOR',
+            enabled: true,
+            countConfig: createCountConfiguration('COLOR', ruleSet.measurementConfigurations.COLOR.standardRecommendedCount, ruleSet)
+          }
+        }
+      },
       scheduleConfig: {
         cycleDurationHours: 168, maxCycles: 12,
         initialStage: { exposureHours: 0, mandatory: true, label: 'T0' },
@@ -269,7 +279,17 @@ export function runColorAdhesionStatisticsTests(): {
       createdAt: '2026-09-05T00:00:00Z', updatedAt: '2026-09-05T00:00:00Z',
       metadata: { reference: 'QUV-ASTAT06', createdBy: 'TEST_OP' },
       status: 'IN_PROGRESS', configurationStatus: 'EDITABLE',
-      config: { standardReference: 'NF EN 927-6', activeFamilies: ['ADHESION'], familyConfigs: {} },
+      config: {
+        standardReference: 'NF EN 927-6',
+        activeFamilies: ['ADHESION'],
+        familyConfigs: {
+          ADHESION: {
+            familyId: 'ADHESION',
+            enabled: true,
+            countConfig: createCountConfiguration('ADHESION', ruleSet.measurementConfigurations.ADHESION.standardRecommendedCount, ruleSet)
+          }
+        }
+      },
       scheduleConfig: {
         cycleDurationHours: 168, maxCycles: 12,
         initialStage: { exposureHours: 0, mandatory: true, label: 'T0' },

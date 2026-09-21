@@ -9,7 +9,7 @@
 
 import { generateStandardExposureStages } from '../../services/trialStore';
 import { buildScientificReport } from '../../services/reportGenerator';
-import { getDefaultScientificRuleSet } from '../ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration } from '../ruleSet';
 import { getEffectiveExposureHours } from '../analysis/TrendAnalyzer';
 import type { Trial } from '../../types/trial';
 
@@ -28,6 +28,7 @@ function buildMinimalTrial(): Trial {
   const trialId = 'trial-step05';
   const stages = generateStandardExposureStages(trialId);
   const batchId = `${trialId}-batch-1`;
+  const ruleSet = getDefaultScientificRuleSet();
   return {
     id: trialId,
     schemaVersion: '1.2.0',
@@ -36,7 +37,17 @@ function buildMinimalTrial(): Trial {
     metadata: { reference: 'QUV-STEP05', createdBy: 'TEST_OP' },
     status: 'IN_PROGRESS',
     configurationStatus: 'EDITABLE',
-    config: { standardReference: 'NF EN 927-6', activeFamilies: ['COLOR'], familyConfigs: {} },
+    config: {
+      standardReference: 'NF EN 927-6',
+      activeFamilies: ['COLOR'],
+      familyConfigs: {
+        COLOR: {
+          familyId: 'COLOR',
+          enabled: true,
+          countConfig: createCountConfiguration('COLOR', ruleSet.measurementConfigurations.COLOR.standardRecommendedCount, ruleSet)
+        }
+      }
+    },
     scheduleConfig: {
       cycleDurationHours: 168, maxCycles: 12,
       initialStage: { exposureHours: 0, mandatory: true, label: 'T0' },
@@ -146,6 +157,15 @@ export function runStep05MilestoneTests(): {
     const trial = buildMinimalTrial();
     const c2 = trial.stages.find((s) => s.cycleIndex === 2)!;
     c2.actualExposureHours = 335.8;
+    const t0 = trial.stages.find((s) => s.cycleIndex === 0)!;
+    t0.status = 'IN_PROGRESS';
+    // Garde T0 du rapport (fail-closed) : une acquisition réelle est requise.
+    trial.acquisitions[`${t0.id}__${trial.id}-p-E1__COLOR`] = {
+      id: 'step05-t0', trialId: trial.id, stageId: t0.id, batchId: trial.batches[0].id,
+      panelId: `${trial.id}-p-E1`, familyId: 'COLOR',
+      raw: { readings: [{ pointIndex: 1, L: 60.1, a: 5.2, b: 20.3 }] },
+      computed: null, status: 'COMPLETE', alerts: [], trace: {}, mediaIds: []
+    } as unknown as Trial['acquisitions'][string];
     const report = buildScientificReport(trial, getDefaultScientificRuleSet(), { operatorId: 'TEST_OP' });
     const text = report.sections.exposureSchedule;
     const ok = text.includes("Jalon d'exposition : 336 h") && !text.includes('335.8');

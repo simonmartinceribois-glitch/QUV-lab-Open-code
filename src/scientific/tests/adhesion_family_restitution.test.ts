@@ -10,7 +10,7 @@
 import { generateStandardExposureStages, globalTrialStore, IntegrityViolationError } from '../../services/trialStore';
 import { isAdhesionEligiblePanel, getActiveE1E2E3Panels } from '../panelUtils';
 import { recalculateAcquisition } from '../recalculator';
-import { getDefaultScientificRuleSet } from '../ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../ruleSet';
 import type { Trial, PanelAcquisitionRecord } from '../../types/trial';
 import type { AdhesionRawData, AdhesionComputedData } from '../../types/scientific';
 
@@ -29,6 +29,7 @@ function buildTrial(): Trial {
   const trialId = `trial-fam-${trialSeq}`;
   const stages = generateStandardExposureStages(trialId);
   const batchId = `${trialId}-batch-1`;
+  const ruleSet = getDefaultScientificRuleSet();
   const trial: Trial = {
     id: trialId,
     schemaVersion: '1.2.0',
@@ -37,7 +38,37 @@ function buildTrial(): Trial {
     metadata: { reference: `QUV-FAM-${trialSeq}`, createdBy: 'TEST_OP' },
     status: 'IN_PROGRESS',
     configurationStatus: 'EDITABLE',
-    config: { standardReference: 'NF EN 927-6', activeFamilies: ['ADHESION', 'PERSOZ', 'COLOR', 'GLOSS'], familyConfigs: {} },
+    config: {
+      standardReference: 'NF EN 927-6',
+      activeFamilies: ['ADHESION', 'PERSOZ', 'COLOR', 'GLOSS'],
+      familyConfigs: {
+        ADHESION: {
+          familyId: 'ADHESION',
+          enabled: true,
+          countConfig: createCountConfiguration('ADHESION', ruleSet.measurementConfigurations.ADHESION.standardRecommendedCount, ruleSet)
+        },
+        PERSOZ: {
+          familyId: 'PERSOZ',
+          enabled: true,
+          countConfig: createCountConfiguration('PERSOZ', ruleSet.measurementConfigurations.PERSOZ.standardRecommendedCount, ruleSet)
+        },
+        COLOR: {
+          familyId: 'COLOR',
+          enabled: true,
+          countConfig: createCountConfiguration('COLOR', ruleSet.measurementConfigurations.COLOR.standardRecommendedCount, ruleSet)
+        },
+        GLOSS: {
+          familyId: 'GLOSS',
+          enabled: true,
+          seriesConfig: createSeriesConfiguration(
+            'GLOSS',
+            ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration.seriesCount ?? 0,
+            ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration.readingsPerSeries ?? 0,
+            ruleSet
+          )
+        }
+      }
+    },
     scheduleConfig: {
       cycleDurationHours: 168, maxCycles: 12,
       initialStage: { exposureHours: 0, mandatory: true, label: 'T0' },

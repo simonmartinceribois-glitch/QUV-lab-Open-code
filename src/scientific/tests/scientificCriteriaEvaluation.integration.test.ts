@@ -15,7 +15,7 @@
  * Aucun accès en écriture : évaluations en lecture seule.
  */
 
-import { getDefaultScientificRuleSet } from '../ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../ruleSet';
 import { Trial } from '../../types/trial';
 import {
   evaluateScientificCriteria,
@@ -101,9 +101,32 @@ export function runScientificCriteriaEvaluationTests(): {
       standardReference: 'NF EN 927-6',
       activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'OBSERVATIONS', 'ADHESION'],
       familyConfigs: {
+        COLOR: {
+          familyId: 'COLOR',
+          enabled: true,
+          countConfig: createCountConfiguration('COLOR', ruleSet.measurementConfigurations.COLOR.standardRecommendedCount, ruleSet)
+        },
+        GLOSS: {
+          familyId: 'GLOSS',
+          enabled: true,
+          seriesConfig: createSeriesConfiguration(
+            'GLOSS',
+            ruleSet.seriesConfigurations!.GLOSS.standardConfiguration.seriesCount,
+            ruleSet.seriesConfigurations!.GLOSS.standardConfiguration.readingsPerSeries,
+            ruleSet
+          )
+        },
+        PERSOZ: {
+          familyId: 'PERSOZ',
+          enabled: true,
+          countConfig: createCountConfiguration('PERSOZ', ruleSet.measurementConfigurations.PERSOZ.standardRecommendedCount, ruleSet)
+        },
         OBSERVATIONS: { familyId: 'OBSERVATIONS', enabled: true },
-        GLOSS: { familyId: 'GLOSS', enabled: true },
-        ADHESION: { familyId: 'ADHESION', enabled: true }
+        ADHESION: {
+          familyId: 'ADHESION',
+          enabled: true,
+          countConfig: createCountConfiguration('ADHESION', ruleSet.measurementConfigurations.ADHESION.standardRecommendedCount, ruleSet)
+        }
       }
     },
     scheduleConfig: {
@@ -114,10 +137,34 @@ export function runScientificCriteriaEvaluationTests(): {
       finalCycle: { cycleIndex: 12, mandatory: true }
     },
     stages: overrides?.stages ?? [
+      { id: 'st-t0', trialId: 'trial-integration', cycleIndex: 0, stageType: 'INITIAL_PRE_EXPOSURE', name: 'T0', scheduledExposureHours: 0, status: 'IN_PROGRESS' },
       { id: C12_STAGE_ID, trialId: 'trial-integration', cycleIndex: 12, stageType: 'FINAL_POST_EXPOSURE', name: '2016 h', scheduledExposureHours: 2016, status: 'VALIDATED' }
     ],
     batches: overrides?.batches ?? [baseBatch1([P_T, P_E1, P_E2, P_E3])],
-    acquisitions: overrides?.acquisitions ?? {},
+    acquisitions: overrides?.acquisitions ?? {
+      // Garde T0 du rapport (fail-closed) : mesure réelle au jalon initial
+      // requise pour générer. computed null : aucune valeur ajoutée, témoin T
+      // exclu des agrégations exposées.
+      [`${'st-t0'}__${P_T.id}__COLOR`]: {
+        id: 'acq-t0',
+        trialId: 'trial-integration',
+        stageId: 'st-t0',
+        batchId: P_T.batchId,
+        panelId: P_T.id,
+        familyId: 'COLOR',
+        raw: {
+          readings: [
+            { pointIndex: 1, L: 60.1, a: 5.2, b: 20.3 },
+            { pointIndex: 2, L: 60.2, a: 5.1, b: 20.4 }
+          ]
+        },
+        computed: null,
+        status: 'COMPLETE',
+        alerts: [],
+        trace: { createdBy: 'TestRunner', createdAt: new Date().toISOString(), source: 'MANUAL_KEYPAD' },
+        mediaIds: []
+      }
+    },
     auditTrail: [],
     mediaReferences: []
   });

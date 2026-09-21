@@ -98,7 +98,7 @@ export function runAdhesionGridWarningTests(): {
 
   // Test 4 — régression : getApplicableGridSpacing n'est pas modifié (bornes normatives complètes).
   {
-    const cases: Array<{ t?: number; wood?: boolean; mm: number; cat: string }> = [
+    const cases: Array<{ t?: number; wood?: boolean; mm: number | null; cat: string }> = [
       { t: 45, wood: true, mm: 2, cat: '≤ 60 µm (Support Bois / Tendre)' },
       { t: 45, wood: false, mm: 1, cat: '≤ 60 µm (Support Rigide)' },
       { t: 60, mm: 2, cat: '≤ 60 µm' },
@@ -108,7 +108,7 @@ export function runAdhesionGridWarningTests(): {
       { t: 250, mm: 3, cat: '121 µm à 250 µm' },
       { t: 251, mm: 3, cat: '> 250 µm' },
       { t: 300, mm: 3, cat: '> 250 µm' },
-      { t: undefined, mm: 2, cat: '≤ 60 µm' }
+      { t: undefined, mm: null, cat: 'non renseignée' }
     ];
     const passed = cases.every((c) => {
       const r = getApplicableGridSpacing(c.t as number | undefined, c.wood ?? true);

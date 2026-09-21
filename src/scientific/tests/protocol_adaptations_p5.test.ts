@@ -38,6 +38,7 @@ export interface ProtocolAdaptationsTestResult {
 function buildProtocolTrial(seq: number, familyConfigs: Partial<TrialProtocolConfig['familyConfigs']>): Trial {
   const trialId = `trial-p5-${seq}`;
   const stages = generateStandardExposureStages(trialId);
+  stages[0].status = 'IN_PROGRESS';
   const batchId = `${trialId}-batch-1`;
   return {
     id: trialId,
@@ -60,8 +61,30 @@ function buildProtocolTrial(seq: number, familyConfigs: Partial<TrialProtocolCon
       finalCycle: { cycleIndex: 12, mandatory: true }
     },
     stages,
-    batches: [{ id: batchId, trialId, reference: `LOT P5-${seq}`, orderIndex: 1, panels: [] }],
-    acquisitions: {},
+    batches: [{
+      id: batchId, trialId, reference: `LOT P5-${seq}`, orderIndex: 1,
+      applicationDate: '2026-08-01T00:00:00Z',
+      panels: [
+        { id: `${trialId}-p-T`, batchId, index: 1, label: 'T', role: 'WITNESS' as const, roleCode: 'T' as const, status: 'ACTIVE' as const },
+        { id: `${trialId}-p-E1`, batchId, index: 2, label: '1', role: 'EXPOSED_1' as const, roleCode: 'E1' as const, status: 'ACTIVE' as const }
+      ]
+    }],
+    acquisitions: {
+      // Garde T0 du rapport (fail-closed) : une acquisition réelle au jalon
+      // initial est requise pour générer. computed reste null : aucune valeur
+      // n'est fabriquée, le témoin T est exclu des agrégations exposées.
+      [`${stages[0].id}__${trialId}-p-T__COLOR`]: {
+        id: `p5-t0-${trialId}`, trialId, stageId: stages[0].id, batchId,
+        panelId: `${trialId}-p-T`, familyId: 'COLOR',
+        raw: {
+          readings: [
+            { pointIndex: 1, L: 60.1, a: 5.2, b: 20.3 },
+            { pointIndex: 2, L: 60.2, a: 5.1, b: 20.4 }
+          ]
+        },
+        computed: null, status: 'COMPLETE', alerts: [], trace: {}, mediaIds: []
+      } as unknown as Trial['acquisitions'][string]
+    },
     auditTrail: [],
     mediaReferences: []
   } as Trial;
@@ -283,21 +306,30 @@ export function runProtocolAdaptationsTests(): {
       PERSOZ: { familyId: 'PERSOZ', enabled: true, countConfig: createCountConfiguration('PERSOZ', 3, ruleSet) },
       ADHESION: { familyId: 'ADHESION', enabled: true, countConfig: createCountConfiguration('ADHESION', 1, ruleSet) }
     };
-    const rUnjust = buildScientificReport(buildProtocolTrial(3, unjustFamilies), ruleSet, { operatorId: 'TEST_OP' });
+    const tUnjust = buildProtocolTrial(3, unjustFamilies);
+    let unjustThrown = false;
+    try {
+      buildScientificReport(tUnjust, ruleSet, { operatorId: 'TEST_OP' });
+    } catch {
+      unjustThrown = true;
+    }
+    const aUnjust = auditTrialBeforeReport(tUnjust, ruleSet);
 
     {
-      const ok = rUnjust.sections.colorResults.includes('Statut : PROTOCOLE ADAPTÉ') &&
-        rUnjust.sections.colorResults.includes('Justification : NON RENSEIGNÉE');
-      record('P0-R-10', 'Rapport COLOR adapté sans motif → NON RENSEIGNÉE explicite', ok, 'NON RENSEIGNÉE', ok ? 'OK' : 'BLOQUÉ');
+      const ok = unjustThrown && !aUnjust.canGenerate &&
+        aUnjust.missingCriticalElements.some((m) => m.includes('ADAPTED_UNJUSTIFIED'));
+      record('P0-R-10', 'Rapport ADAPTÉ sans motif → bloqué (justification requise, jamais NON RENSEIGNÉE)',
+        ok, 'bloqué + ADAPTED_UNJUSTIFIED', String({ thrown: unjustThrown, canGenerate: aUnjust.canGenerate }));
     }
     {
-      const ok = (rUnjust.sections.adhesionResults ?? '').includes('Statut : PROTOCOLE ADAPTÉ') &&
-        (rUnjust.sections.adhesionResults ?? '').includes('Justification : NON RENSEIGNÉE');
-      record('P0-R-11', 'Rapport ADHESION adapté sans motif → NON RENSEIGNÉE explicite', ok, 'NON RENSEIGNÉE', ok ? 'OK' : 'BLOQUÉ');
+      const ok = unjustThrown && aUnjust.missingCriticalElements.some((m) => m.includes('ADAPTED_UNJUSTIFIED'));
+      record('P0-R-11', 'Rapport ADHESION adapté sans motif → bloqué pareillement',
+        ok, 'bloqué + ADAPTED_UNJUSTIFIED', String(ok));
     }
     {
-      const ok = rUnjust.protocolStatus === 'ADAPTED_UNJUSTIFIED';
-      record('P0-R-12', 'Statut global rapport adapté sans motif = ADAPTED_UNJUSTIFIED', ok, `ADAPTED_UNJUSTIFIED (reçu ${rUnjust.protocolStatus})`, String(ok));
+      record('P0-R-12', 'Statut global rapport sans motif = ADAPTED_UNJUSTIFIED (bloquant)',
+        aUnjust.missingCriticalElements.some((m) => m.includes('ADAPTED_UNJUSTIFIED')),
+        'ADAPTED_UNJUSTIFIED', String(aUnjust.missingCriticalElements));
     }
   }
 
@@ -364,13 +396,21 @@ export function runProtocolAdaptationsTests(): {
         PERSOZ: { familyId: 'PERSOZ', enabled: true, countConfig: createCountConfiguration('PERSOZ', 3, ruleSet) },
         ADHESION: { familyId: 'ADHESION', enabled: true, countConfig: createCountConfiguration('ADHESION', 2, ruleSet) }
       };
-      const rShort = buildScientificReport(buildProtocolTrial(21, shortJust), ruleSet, { operatorId: 'TEST_OP' });
-      const okShort = rShort.sections.colorResults.includes('Statut : PROTOCOLE ADAPTÉ') &&
-        rShort.sections.colorResults.includes('Justification : NON RENSEIGNÉE');
-      record('P0-J-30', 'Rapport adapté JUSTIFICATION < 8 chars → NON RENSEIGNÉE (jamais inventée)',
-        okShort, 'NON RENSEIGNÉE', okShort ? 'OK' : 'BLOQUÉ');
-      record('P0-J-31', 'Statut global rapport = ADAPTED_UNJUSTIFIED', rShort.protocolStatus === 'ADAPTED_UNJUSTIFIED',
-        'ADAPTED_UNJUSTIFIED', `reçu ${rShort.protocolStatus}`);
+      const tShort = buildProtocolTrial(21, shortJust);
+      let shortThrown = false;
+      try {
+        buildScientificReport(tShort, ruleSet, { operatorId: 'TEST_OP' });
+      } catch {
+        shortThrown = true;
+      }
+      const aShort = auditTrialBeforeReport(tShort, ruleSet);
+      const okShort = shortThrown && !aShort.canGenerate &&
+        aShort.missingCriticalElements.some((m) => m.includes('ADAPTED_UNJUSTIFIED'));
+      record('P0-J-30', 'Rapport justif < 8 chars → bloqué (jamais inventée, jamais NON RENSEIGNÉE)',
+        okShort, 'bloqué + ADAPTED_UNJUSTIFIED', String({ thrown: shortThrown, canGenerate: aShort.canGenerate }));
+      record('P0-J-31', 'Statut global rapport < 8 chars = ADAPTED_UNJUSTIFIED (bloquant)',
+        shortThrown && aShort.missingCriticalElements.some((m) => m.includes('ADAPTED_UNJUSTIFIED')),
+        'ADAPTED_UNJUSTIFIED', String(aShort.missingCriticalElements));
     }
     {
       const trimJust: Partial<TrialProtocolConfig['familyConfigs']> = {

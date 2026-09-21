@@ -10,7 +10,7 @@
 import { generateStandardExposureStages } from '../../services/trialStore';
 import type { Trial, PanelAcquisitionRecord } from '../../types/trial';
 import type { AdhesionComputedData, AdhesionRawData } from '../../types/scientific';
-import { getDefaultScientificRuleSet } from '../ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration } from '../ruleSet';
 import { recalculateAcquisition } from '../recalculator';
 
 export interface Gate56TestResult {
@@ -22,6 +22,7 @@ export interface Gate56TestResult {
 }
 
 function buildWitnessTrial(): Trial {
+  const ruleSet = getDefaultScientificRuleSet();
   const trialId = 'trial-g56-witness';
   const stages = generateStandardExposureStages(trialId);
   const stageT0 = stages.find((s) => s.cycleIndex === 0)!;
@@ -49,7 +50,13 @@ function buildWitnessTrial(): Trial {
     config: {
       standardReference: 'NF EN 927-6',
       activeFamilies: ['ADHESION'],
-      familyConfigs: {}
+      familyConfigs: {
+        ADHESION: {
+          familyId: 'ADHESION',
+          enabled: true,
+          countConfig: createCountConfiguration('ADHESION', ruleSet.measurementConfigurations.ADHESION.standardRecommendedCount, ruleSet)
+        }
+      }
     },
     scheduleConfig: {
       cycleDurationHours: 168,

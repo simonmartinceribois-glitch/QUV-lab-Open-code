@@ -31,7 +31,9 @@ function buildSparseTrial(): Trial {
   trialSeq += 1;
   const trialId = `trial-rf-${trialSeq}`;
   const stages = generateStandardExposureStages(trialId);
+  stages[0].status = 'IN_PROGRESS';
   const batchId = `${trialId}-batch-1`;
+  const ruleSet = getDefaultScientificRuleSet();
   return {
     id: trialId,
     schemaVersion: '1.2.0',
@@ -40,7 +42,17 @@ function buildSparseTrial(): Trial {
     metadata: { reference: `QUV-RF-${trialSeq}`, createdBy: 'TEST_OP' },
     status: 'IN_PROGRESS',
     configurationStatus: 'EDITABLE',
-    config: { standardReference: 'NF EN 927-6', activeFamilies: ['COLOR'], familyConfigs: {} },
+    config: {
+      standardReference: 'NF EN 927-6',
+      activeFamilies: ['COLOR'],
+      familyConfigs: {
+        COLOR: {
+          familyId: 'COLOR',
+          enabled: true,
+          countConfig: createCountConfiguration('COLOR', ruleSet.measurementConfigurations.COLOR.standardRecommendedCount, ruleSet)
+        }
+      }
+    },
     scheduleConfig: {
       cycleDurationHours: 168, maxCycles: 12,
       initialStage: { exposureHours: 0, mandatory: true, label: 'T0' },
@@ -60,6 +72,28 @@ function buildSparseTrial(): Trial {
 
 function buildReport(trial: Trial) {
   return buildScientificReport(trial, getDefaultScientificRuleSet(), { operatorId: 'TEST_OP' });
+}
+
+// La génération d'un rapport exige désormais une acquisition RÉELLE à T0
+// (fail-closed : un statut d'étape seul ne prouve pas la mesure du jalon de
+// référence). Cette mesure témoin si lunette vide : raw réel présent, computed
+// null — elle satisfait le garde sans fabriquer de résultat (les sections
+// colorResults/glossResults restent 'Non renseigné', l'annexe C 'Non déterminé').
+function measureT0(trial: Trial): Trial {
+  const stage = trial.stages.find((s) => s.cycleIndex === 0)!;
+  const witness = trial.batches[0].panels.find((p) => p.roleCode === 'T')!;
+  trial.acquisitions[`${stage.id}__${witness.id}__COLOR`] = {
+    id: `rf-t0-${trial.id}`, trialId: trial.id, stageId: stage.id, batchId: trial.batches[0].id,
+    panelId: witness.id, familyId: 'COLOR',
+    raw: {
+      readings: [
+        { pointIndex: 1, L: 60.1, a: 5.2, b: 20.3 },
+        { pointIndex: 2, L: 60.2, a: 5.1, b: 20.4 }
+      ]
+    },
+    computed: null, status: 'COMPLETE', alerts: [], trace: {}, mediaIds: []
+  } as unknown as Trial['acquisitions'][string];
+  return trial;
 }
 
 function addComputedAcq(trial: Trial, family: 'COLOR' | 'GLOSS' | 'OBSERVATIONS', computed: unknown): void {
@@ -93,7 +127,7 @@ export function runReportFidelityTests(): {
   };
 
   const sparseText = (): string => {
-    const report = buildReport(buildSparseTrial());
+    const report = buildReport(measureT0(buildSparseTrial()));
     return `${report.sections.materialsAndBatches}\n${report.sections.panelsDefinition}`;
   };
 
@@ -136,7 +170,7 @@ export function runReportFidelityTests(): {
 
   // --- RF-10 : normatif ≠ expérimental ---
   {
-    const report = buildReport(buildSparseTrial());
+    const report = buildReport(measureT0(buildSparseTrial()));
     const ok = report.sections.normativeReferences.includes('NF EN 927-6') &&
       report.sections.materialsAndBatches.includes('Non renseigné');
     record('RF-10', 'Exigence normative affichée sans fabriquer de donnée',
@@ -301,7 +335,7 @@ export function runReportFidelityTests(): {
   // --- RF-21..24 : pipeline réel COLOR/GLOSS (missing vs zéro/100 légitimes) ---
   {
     const tMissing = buildSparseTrial();
-    const rMissing = buildReport(tMissing);
+    const rMissing = buildReport(measureT0(tMissing));
     const okColorMissing = rMissing.sections.colorResults.includes('enregistrée : Non renseigné');
     record('RF-21', 'COLOR-MISSING : pipeline rapport affiche Non renseigné',
       okColorMissing, 'enregistrée : Non renseigné', String(okColorMissing));
@@ -329,7 +363,7 @@ export function runReportFidelityTests(): {
     const tPart = buildSparseTrial();
     const c12 = tPart.stages.find((s) => s.cycleIndex === 12)!;
     c12.status = 'NOT_STARTED';
-    const rPart = buildReport(tPart);
+    const rPart = buildReport(measureT0(tPart));
     const okPart = rPart.completenessStatus === 'PARTIEL / INTERMÉDIAIRE' &&
       rPart.executiveSummary.includes('PARTIEL') &&
       rPart.sections.factualConclusion.includes('aucune conclusion globale');
@@ -342,7 +376,7 @@ export function runReportFidelityTests(): {
     t0.status = 'VALIDATED';
     const c12 = tFull.stages.find((s) => s.cycleIndex === 12)!;
     c12.status = 'VALIDATED';
-    const rFull = buildReport(tFull);
+    const rFull = buildReport(measureT0(tFull));
     const okFull = rFull.isComplete === true &&
       rFull.completenessStatus === 'COMPLET' &&
       !rFull.executiveSummary.includes('PARTIEL');
@@ -354,7 +388,7 @@ export function runReportFidelityTests(): {
     const c12 = tProg.stages.find((s) => s.cycleIndex === 12)!;
     c12.status = 'IN_PROGRESS';
     const audit = auditTrialBeforeReport(tProg, getDefaultScientificRuleSet());
-    const rProg = buildReport(tProg);
+    const rProg = buildReport(measureT0(tProg));
     const okProg = audit.checklist.final2016hAvailableOrFlagged === true &&
       audit.warnings.some((w) => w.includes('2016')) &&
       rProg.isComplete === false &&
@@ -367,25 +401,25 @@ export function runReportFidelityTests(): {
   {
     const tVal = buildSparseTrial();
     tVal.stages.find((s) => s.cycleIndex === 0)!.status = 'VALIDATED';
-    const okVal = buildReport(tVal).sections.scientificSynthesis.includes('ont été validées');
+    const okVal = buildReport(measureT0(tVal)).sections.scientificSynthesis.includes('ont été validées');
     const tProg = buildSparseTrial();
     tProg.stages.find((s) => s.cycleIndex === 0)!.status = 'IN_PROGRESS';
-    const rProg = buildReport(tProg);
+    const rProg = buildReport(measureT0(tProg));
     const okProg = rProg.sections.scientificSynthesis.includes('en cours de réalisation') &&
       !rProg.sections.scientificSynthesis.includes('ont été validées');
     const tNot = buildSparseTrial();
     tNot.stages.find((s) => s.cycleIndex === 0)!.status = 'NOT_STARTED';
-    const rNot = buildReport(tNot);
-    const okNot = rNot.sections.scientificSynthesis.includes('non effectué') &&
-      !rNot.sections.scientificSynthesis.includes('ont été validées');
+    const aNot = auditTrialBeforeReport(tNot, getDefaultScientificRuleSet());
+    const okNot = !aNot.canGenerate &&
+      aNot.missingCriticalElements.some((m) => m.includes('Étape initiale'));
     const tMiss = buildSparseTrial();
     tMiss.stages = tMiss.stages.filter((s) => s.cycleIndex !== 0);
-    const rMiss = buildReport(tMiss);
-    const okMiss = rMiss.sections.scientificSynthesis.includes('non traçable') &&
-      !rMiss.sections.scientificSynthesis.includes('ont été validées');
+    const aMiss = auditTrialBeforeReport(tMiss, getDefaultScientificRuleSet());
+    const okMiss = !aMiss.canGenerate &&
+      aMiss.missingCriticalElements.some((m) => m.includes('Étape initiale'));
     const ok = okVal && okProg && okNot && okMiss;
-    record('RF-28', 'T0 : VALIDATED affirmatif / IN_PROGRESS en cours / NOT_STARTED non effectué / absent non traçable',
-      ok, '4 wordings exacts', String(ok));
+    record('RF-28', 'T0 : VALIDATED affirmatif / IN_PROGRESS en cours / NOT_STARTED ou absent → rapport bloqué',
+      ok, '4 comportements exacts', String({ okVal, okProg, okNot, okMiss }));
   }
 
   // --- RF-29 : cinétique, étape finale 2016 h conditionnée à C12 validé ---
@@ -393,13 +427,13 @@ export function runReportFidelityTests(): {
     const tInc = buildSparseTrial();
     const c12i = tInc.stages.find((s) => s.cycleIndex === 12)!;
     c12i.status = 'NOT_STARTED';
-    const rInc = buildReport(tInc);
+    const rInc = buildReport(measureT0(tInc));
     const okInc = rInc.sections.kineticsAnalysis.includes('2016 h restant à réaliser') &&
       !rInc.sections.kineticsAnalysis.includes('finale à 2016 h.');
     const tDone = buildSparseTrial();
     const c12d = tDone.stages.find((s) => s.cycleIndex === 12)!;
     c12d.status = 'VALIDATED';
-    const rDone = buildReport(tDone);
+    const rDone = buildReport(measureT0(tDone));
     const okDone = rDone.sections.kineticsAnalysis.includes('finale à 2016 h.');
     const ok = okInc && okDone;
     record('RF-29', 'C12 non validé → finale restante ; C12 validé → finale observée',
@@ -409,7 +443,7 @@ export function runReportFidelityTests(): {
   // --- RF-30/31 : P1-1 observations visuelles (données réelles ou Non renseigné) ---
   {
     const tNone = buildSparseTrial();
-    const rNone = buildReport(tNone);
+    const rNone = buildReport(measureT0(tNone));
     const okNone = rNone.sections.visualObservations.includes('Non renseigné') &&
       !rNone.sections.visualObservations.includes('Aucun défaut majeur');
     record('RF-30', 'VIS-ABSENT : sans cotation, pas de conclusion aucun-defaut',
@@ -426,7 +460,7 @@ export function runReportFidelityTests(): {
   // --- RF-32/33 : P1-2 Annexe A (intégrité seulement si auditée) ---
   {
     const tNone = buildSparseTrial();
-    const rNone = buildReport(tNone);
+    const rNone = buildReport(measureT0(tNone));
     const okNone = rNone.annexes.annexA_RawDataSummary.includes('Non déterminée') &&
       !rNone.annexes.annexA_RawDataSummary.includes('100%');
     record('RF-32', 'ANNEXA : sans preuve, intégrité Non déterminée (jamais 100%)',
@@ -443,7 +477,7 @@ export function runReportFidelityTests(): {
   // --- RF-34/35 : P1-3 Annexe C (distribution qualité réelle ou Non déterminé) ---
   {
     const tNone = buildSparseTrial();
-    const rNone = buildReport(tNone);
+    const rNone = buildReport(measureT0(tNone));
     const okNone = rNone.annexes.annexC_QualityAssessmentSummary.includes('Non déterminé') &&
       !rNone.annexes.annexC_QualityAssessmentSummary.includes('sans masquage');
     record('RF-34', 'ANNEXC : sans mesure qualifiée, sans revendication totale',
@@ -465,34 +499,48 @@ export function runReportFidelityTests(): {
       familyId: 'COLOR', enabled: true,
       countConfig: createCountConfiguration('COLOR', 4, ruleSet)
     };
-    const okStd = buildReport(tStd).protocolStatus === 'STANDARD';
+    const okStd = buildReport(measureT0(tStd)).protocolStatus === 'STANDARD';
     record('RF-36', 'PROTO-STANDARD : config standard réelle → STANDARD',
-      okStd, 'STANDARD', String(buildReport(tStd).protocolStatus));
+      okStd, 'STANDARD', String(buildReport(measureT0(tStd)).protocolStatus));
     const tJust = buildSparseTrial();
     (tJust.config.familyConfigs as Record<string, unknown>)['COLOR'] = {
       familyId: 'COLOR', enabled: true,
       countConfig: createCountConfiguration('COLOR', 2, ruleSet, { justification: 'Motif reel.' })
     };
-    const okJust = buildReport(tJust).protocolStatus === 'ADAPTED_JUSTIFIED';
+    const okJust = buildReport(measureT0(tJust)).protocolStatus === 'ADAPTED_JUSTIFIED';
     record('RF-37', 'PROTO-JUSTIFIED : adaptation motivée → ADAPTED_JUSTIFIED',
-      okJust, 'ADAPTED_JUSTIFIED', String(buildReport(tJust).protocolStatus));
+      okJust, 'ADAPTED_JUSTIFIED', String(buildReport(measureT0(tJust)).protocolStatus));
     const tUnjust = buildSparseTrial();
     (tUnjust.config.familyConfigs as Record<string, unknown>)['COLOR'] = {
       familyId: 'COLOR', enabled: true,
       countConfig: createCountConfiguration('COLOR', 2, ruleSet)
     };
-    const rUnjust = buildReport(tUnjust);
-    const okUnjust = rUnjust.protocolStatus === 'ADAPTED_UNJUSTIFIED' &&
-      rUnjust.sections.deviationsAndAdaptations.includes('ADAPTED_UNJUSTIFIED');
-    record('RF-38', 'PROTO-UNJUSTIFIED : sans motif → ADAPTED_UNJUSTIFIED explicite',
-      okUnjust, 'ADAPTED_UNJUSTIFIED', String(rUnjust.protocolStatus));
+    let thrownUnjust = false;
+    try {
+      buildReport(measureT0(tUnjust));
+    } catch {
+      thrownUnjust = true;
+    }
+    const aUnjust = auditTrialBeforeReport(tUnjust, ruleSet);
+    const okUnjust = thrownUnjust && !aUnjust.canGenerate &&
+      aUnjust.missingCriticalElements.some((m) => m.includes('ADAPTED_UNJUSTIFIED'));
+    record('RF-38', 'PROTO-UNJUSTIFIED : sans motif → rapport bloqué (fail-closed)',
+      okUnjust, 'bloqué + ADAPTED_UNJUSTIFIED', String({ thrown: thrownUnjust, canGenerate: aUnjust.canGenerate }));
     const tInc = buildSparseTrial();
     (tInc.config.familyConfigs as Record<string, unknown>)['COLOR'] = {
       familyId: 'COLOR', enabled: true
     };
-    const okInc = buildReport(tInc).protocolStatus === 'INCOMPLETE';
-    record('RF-39', 'PROTO-INCOMPLETE : config vide → INCOMPLETE (jamais STANDARD)',
-      okInc, 'INCOMPLETE', String(buildReport(tInc).protocolStatus));
+    let thrownInc = false;
+    try {
+      buildReport(measureT0(tInc));
+    } catch {
+      thrownInc = true;
+    }
+    const aInc = auditTrialBeforeReport(tInc, ruleSet);
+    const okInc = thrownInc && !aInc.canGenerate &&
+      aInc.missingCriticalElements.some((m) => m.includes('INCOMPLETE'));
+    record('RF-39', 'PROTO-INCOMPLETE : config vide → rapport bloqué (jamais STANDARD)',
+      okInc, 'bloqué + INCOMPLETE', String({ thrown: thrownInc, canGenerate: aInc.canGenerate }));;
   }
 
   // --- RF-40 : P1-5 provenance RAW (réelle préservée, absente vide) ---
@@ -523,12 +571,12 @@ export function runReportFidelityTests(): {
   // --- RF-41 : P2-1 support depuis metadata (jamais bois massif inféré) ---
   {
     const tNone = buildSparseTrial();
-    const rNone = buildReport(tNone);
+    const rNone = buildReport(measureT0(tNone));
     const okNone = rNone.sections.scientificSynthesis.includes('Non renseigné') &&
       !rNone.sections.scientificSynthesis.includes('bois massif');
     const tWood = buildSparseTrial();
     (tWood.metadata as { substrateDescription?: string }).substrateDescription = 'Chêne massif';
-    const rWood = buildReport(tWood);
+    const rWood = buildReport(measureT0(tWood));
     const okWood = rWood.sections.scientificSynthesis.includes('Chêne massif');
     const ok = okNone && okWood;
     record('RF-41', 'SUBSTRAT : absent→Non renseigné, présent→verbatim metadata',
@@ -537,7 +585,7 @@ export function runReportFidelityTests(): {
 
   // --- RF-42 : P1-1 conditions exécutées explicites, normatif étiqueté ---
   {
-    const r = buildReport(buildSparseTrial());
+    const r = buildReport(measureT0(buildSparseTrial()));
     const ok = r.sections.experimentalConditions.includes('Conditions réellement exécutées : Non renseigné') &&
       r.sections.experimentalConditions.includes('normatif');
     record('RF-42', 'COND-EXEC : normatif étiqueté, exécuté Non renseigné',
@@ -552,7 +600,7 @@ export function runReportFidelityTests(): {
       familyId: 'COLOR', enabled: true,
       countConfig: createCountConfiguration('COLOR', 4, ruleSet)
     };
-    const rStd = buildReport(tStd);
+    const rStd = buildReport(measureT0(tStd));
     const okStd = rStd.sections.measurementPlan.includes('4 points par éprouvette') &&
       !rStd.sections.measurementPlan.includes('4 points normatifs');
     record('RF-43', 'PLAN-STD : comptage configuré réel, sans hardcodage',
@@ -562,7 +610,7 @@ export function runReportFidelityTests(): {
       familyId: 'COLOR', enabled: true,
       countConfig: createCountConfiguration('COLOR', 2, ruleSet, { justification: 'Motif reel.' })
     };
-    const rAdp = buildReport(tAdp);
+    const rAdp = buildReport(measureT0(tAdp));
     const okAdp = rAdp.sections.measurementPlan.includes('2 points par éprouvette') &&
       rAdp.sections.measurementPlan.includes('adaptation justifiée');
     record('RF-44', 'PLAN-ADAPT : 2 points + adaptation justifiée affichés',
@@ -571,25 +619,37 @@ export function runReportFidelityTests(): {
     (tMiss.config.familyConfigs as Record<string, unknown>)['COLOR'] = {
       familyId: 'COLOR', enabled: true
     };
-    const rMiss = buildReport(tMiss);
-    const okMiss = rMiss.sections.measurementPlan.includes('Non renseigné');
-    record('RF-45', 'PLAN-MISSING : config absente → Non renseigné (jamais 4)',
-      okMiss, 'Non renseigné', String(okMiss));
+    let thrownMiss = false;
+    try {
+      buildReport(measureT0(tMiss));
+    } catch {
+      thrownMiss = true;
+    }
+    const aMiss = auditTrialBeforeReport(tMiss, ruleSet);
+    const okMiss = thrownMiss && !aMiss.canGenerate &&
+      aMiss.missingCriticalElements.some((m) => m.includes('INCOMPLETE'));
+    record('RF-45', 'PLAN-MISSING : config absente → rapport bloqué (jamais 4 implicite)',
+      okMiss, 'bloqué + INCOMPLETE', String({ thrown: thrownMiss, canGenerate: aMiss.canGenerate }));
   }
 
   // --- RF-46 : P1-3 famille active sans entrée familyConfigs → INCOMPLETE ---
   {
     const t = buildSparseTrial();
-    const ok = buildReport(t).protocolStatus === 'INCOMPLETE';
-    record('RF-46', 'PROTO-MISSING-ENTRY : active sans config → INCOMPLETE (fail-closed)',
-      ok, 'INCOMPLETE', String(buildReport(t).protocolStatus));
+    (t.config.familyConfigs as Record<string, unknown>)['COLOR'] = {
+      familyId: 'COLOR', enabled: true
+    };
+    const a = auditTrialBeforeReport(t, getDefaultScientificRuleSet());
+    const ok = !a.canGenerate &&
+      a.missingCriticalElements.some((m) => m.includes('INCOMPLETE'));
+    record('RF-46', 'PROTO-MISSING-ENTRY : active sans config → rapport bloqué (fail-closed)',
+      ok, 'bloqué + INCOMPLETE', String({ canGenerate: a.canGenerate }));
   }
 
   // --- RF-47 : P1-4 T0 IN_PROGRESS obligatoire (jamais décrit validé) ---
   {
     const t = buildSparseTrial();
     t.stages.find((s) => s.cycleIndex === 0)!.status = 'IN_PROGRESS';
-    const r = buildReport(t);
+    const r = buildReport(measureT0(t));
     const ok = r.sections.scientificSynthesis.includes('en cours de réalisation') &&
       !r.sections.scientificSynthesis.includes('ont été validées');
     record('RF-47', 'T0 IN_PROGRESS : en cours, jamais validé',
@@ -599,8 +659,10 @@ export function runReportFidelityTests(): {
   // --- RF-48 : P2-1 endpoint cinétique absent → Non renseigné, jamais 0 h ---
   {
     const t = buildSparseTrial();
-    for (const st of t.stages) st.status = 'NOT_STARTED';
-    const r = buildReport(t);
+    for (const st of t.stages) {
+      if (st.cycleIndex !== 0) st.status = 'NOT_STARTED';
+    }
+    const r = buildReport(measureT0(t));
     const ok = r.sections.kineticsAnalysis.includes('à Non renseigné h') &&
       !r.sections.kineticsAnalysis.includes('168 h à 0 h');
     record('RF-48', 'KINETIC-ENDPOINT : absent → Non renseigné (jamais 0 h fabriqué)',
@@ -609,7 +671,7 @@ export function runReportFidelityTests(): {
 
   // --- RF-49 : P2-2 absence d'adaptation → constat factuel, pas d'exécution standard ---
   {
-    const r = buildReport(buildSparseTrial());
+    const r = buildReport(measureT0(buildSparseTrial()));
     const ok = r.sections.deviationsAndAdaptations.includes("n'est enregistrée dans la configuration") &&
       !r.sections.deviationsAndAdaptations.includes('ont suivi les paramètres standards');
     record('RF-49', 'NO-ADAPT : constat factuel uniquement, sans claim exécution standard',
@@ -618,7 +680,7 @@ export function runReportFidelityTests(): {
 
   // --- RF-50 : P2-3 sans audit d'intégrité → intégrité complète non revendiquée ---
   {
-    const r = buildReport(buildSparseTrial());
+    const r = buildReport(measureT0(buildSparseTrial()));
     const ok = r.sections.qualityControl.includes("n'est pas déterminée") &&
       !r.sections.qualityControl.includes('préservées dans leur intégralité');
     record('RF-50', 'RAW-INTEGRITY : non déterminée sans audit, jamais intégralité revendiquée',

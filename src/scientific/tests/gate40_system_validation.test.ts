@@ -27,7 +27,7 @@ import {
   exportReportToCsv,
   exportRawDataToCsv
 } from '../../services/reportGenerator';
-import { getDefaultScientificRuleSet, createCountConfiguration } from '../ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../ruleSet';
 import { evaluateCountProtocolCompliance } from '../protocolEngine';
 import { assessTrialQuality } from '../qualityEngine';
 import { extractTemporalKinetics } from '../analysis/TrendAnalyzer';
@@ -158,9 +158,26 @@ export function runGate40SystemValidationTests(): {
       standardReference: 'NF EN 927-6',
       activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'OBSERVATIONS'],
       familyConfigs: {
-        COLOR: { familyId: 'COLOR', enabled: true },
-        GLOSS: { familyId: 'GLOSS', enabled: true },
-        PERSOZ: { familyId: 'PERSOZ', enabled: true },
+        COLOR: {
+          familyId: 'COLOR',
+          enabled: true,
+          countConfig: createCountConfiguration('COLOR', ruleSet.measurementConfigurations.COLOR.standardRecommendedCount, ruleSet)
+        },
+        GLOSS: {
+          familyId: 'GLOSS',
+          enabled: true,
+          seriesConfig: createSeriesConfiguration(
+            'GLOSS',
+            ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration.seriesCount ?? 0,
+            ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration.readingsPerSeries ?? 0,
+            ruleSet
+          )
+        },
+        PERSOZ: {
+          familyId: 'PERSOZ',
+          enabled: true,
+          countConfig: createCountConfiguration('PERSOZ', ruleSet.measurementConfigurations.PERSOZ.standardRecommendedCount, ruleSet)
+        },
         OBSERVATIONS: { familyId: 'OBSERVATIONS', enabled: true }
       }
     },

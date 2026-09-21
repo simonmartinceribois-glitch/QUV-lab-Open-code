@@ -339,8 +339,8 @@ export function runCriteriaSeparationTests(): {
 
     // Cross-check : la projection S3 doit reproduire exactement le mapping
     // historique (calculatePreExposureDelayCompliance → CONFORME / NON_CONFORME / NON_EVALUE).
-    const refConforme = calculatePreExposureDelayCompliance(app84Days, measurementDate);
-    const refNonConforme = calculatePreExposureDelayCompliance(app4Days, measurementDate);
+    const refConforme = calculatePreExposureDelayCompliance(app84Days, measurementDate, 168);
+    const refNonConforme = calculatePreExposureDelayCompliance(app4Days, measurementDate, 168);
     const mappingIdentique =
       conforme.verdict === (refConforme.status === 'CONFORME' ? 'CONFORME' : 'NON_EVALUE') &&
       nonConforme.verdict === (refNonConforme.status === 'INSUFFICIENT_DELAY' ? 'NON_CONFORME' : 'NON_EVALUE');
@@ -503,26 +503,30 @@ export function runCriteriaSeparationTests(): {
     // Couche RAW : -1 doit retomber sur le défaut 168 h (jamais utilisé tel
     // quel), prouvé par la présence de l'alerte de délai insuffisant citant
     // "168 h requis" pour un délai réellement écoulé de 0 h.
+    // Couche RAW : le délai avant T0 est contrôlé au niveau protocole général
+    // (NF EN 927-6) et NON dans le moteur ADHESION. Aucune valeur de
+    // requiredMinimumDelayHours (fût-elle -1) n'est donc utilisée comme seuil
+    // ni ne peut silencieusement "toujours CONFORME" : calculateAdhesion ne
+    // dérive aucun verdict de délai du RAW.
     const negativeDelayRaw = mkAdhRaw({
       applicationDateTime: appDate,
       measurementDateTime: measDate,
       requiredMinimumDelayHours: -1
     });
     const negativeDelayRes = calculateAdhesion(negativeDelayRaw, createCountConfiguration('ADHESION', 2, ruleSet), ruleSet);
-    const negativeDelayAlert = negativeDelayRes.alerts.find((a) =>
-      a.message.includes(`${168} h requis`)
+    const rawNeverUsesNegativeAsThreshold = negativeDelayRes.alerts.every(
+      (a) => !a.message.includes('requis') && !a.message.includes('délai')
     );
-    const rawFallsBackToDefaultOnNegative = negativeDelayAlert !== undefined;
 
-    const passed = criterionRejectsNegative && rawFallsBackToDefaultOnNegative;
+    const passed = criterionRejectsNegative && rawNeverUsesNegativeAsThreshold;
 
     record(
       9,
-      'T9 Adhésion — requiredMinimumDelayHours = -1 : rejeté sur les deux couches (jamais accepté comme délai valide)',
+      'T9 Adhésion — requiredMinimumDelayHours = -1 : rejeté (CRITÈRE) et jamais utilisé comme seuil (RAW)',
       'CRITERE_ADHESION',
       passed,
-      'CRITÈRE: NON_EVALUE/DELAY_CHECK_SKIPPED (requiredMinimumDelayHours=null) ; RAW: repli sur 168h (alerte délai insuffisant), -1 jamais utilisé tel quel',
-      `critère=${negativeDelayCriterion.verdict}(${negativeDelayCriterion.status}, requis=${negativeDelayCriterion.requiredMinimumDelayHours}) ; RAW alertePrésente=${rawFallsBackToDefaultOnNegative}`
+      'CRITÈRE: NON_EVALUE/DELAY_CHECK_SKIPPED (requis=null) ; RAW: aucun verdict de délai dérivé de -1',
+      `critère=${negativeDelayCriterion.verdict}(${negativeDelayCriterion.status}, requis=${negativeDelayCriterion.requiredMinimumDelayHours}) ; RAW seuilNégatifInutilisé=${rawNeverUsesNegativeAsThreshold}`
     );
   }
 

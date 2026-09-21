@@ -14,6 +14,7 @@ import {
   TrialStoreService
 } from '../../services/trialStore';
 import type { Trial, PanelAcquisitionRecord } from '../../types/trial';
+import { createCountConfiguration, getDefaultScientificRuleSet } from '../ruleSet';
 
 export interface ImportRobustnessTestResult {
   id: string;
@@ -30,6 +31,7 @@ function buildTrial(): Trial {
   const trialId = `trial-ir-${trialSeq}`;
   const stages = generateStandardExposureStages(trialId);
   const batchId = `${trialId}-batch-1`;
+  const ruleSet = getDefaultScientificRuleSet();
   return {
     id: trialId,
     schemaVersion: '1.2.0',
@@ -38,7 +40,27 @@ function buildTrial(): Trial {
     metadata: { reference: `QUV-IR-${trialSeq}`, createdBy: 'TEST_OP' },
     status: 'IN_PROGRESS',
     configurationStatus: 'EDITABLE',
-    config: { standardReference: 'NF EN 927-6', activeFamilies: ['PERSOZ', 'COLOR', 'ADHESION'], familyConfigs: {} },
+    config: {
+      standardReference: 'NF EN 927-6',
+      activeFamilies: ['PERSOZ', 'COLOR', 'ADHESION'],
+      familyConfigs: {
+        PERSOZ: {
+          familyId: 'PERSOZ',
+          enabled: true,
+          countConfig: createCountConfiguration('PERSOZ', ruleSet.measurementConfigurations.PERSOZ.standardRecommendedCount, ruleSet)
+        },
+        COLOR: {
+          familyId: 'COLOR',
+          enabled: true,
+          countConfig: createCountConfiguration('COLOR', ruleSet.measurementConfigurations.COLOR.standardRecommendedCount, ruleSet)
+        },
+        ADHESION: {
+          familyId: 'ADHESION',
+          enabled: true,
+          countConfig: createCountConfiguration('ADHESION', ruleSet.measurementConfigurations.ADHESION.standardRecommendedCount, ruleSet)
+        }
+      }
+    },
     scheduleConfig: {
       cycleDurationHours: 168, maxCycles: 12,
       initialStage: { exposureHours: 0, mandatory: true, label: 'T0' },

@@ -24,7 +24,7 @@ import {
 } from '../../services/trialStore';
 import type { Trial, PanelAcquisitionRecord } from '../../types/trial';
 import type { PersozRawData } from '../../types/scientific';
-import { getDefaultScientificRuleSet } from '../ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration } from '../ruleSet';
 import { isPersozEligiblePanel } from '../panelUtils';
 import { recalculateAcquisition } from '../recalculator';
 import { isComputedExportAdmissible } from '../../services/reportGenerator';
@@ -44,6 +44,7 @@ function buildLockTrial(): Trial {
   const trialId = `trial-pzt-${trialSeq}`;
   const stages = generateStandardExposureStages(trialId);
   const batchId = `${trialId}-batch-1`;
+  const ruleSet = getDefaultScientificRuleSet();
   const trial: Trial = {
     id: trialId,
     schemaVersion: '1.2.0',
@@ -55,7 +56,13 @@ function buildLockTrial(): Trial {
     config: {
       standardReference: 'NF EN 927-6',
       activeFamilies: ['PERSOZ'],
-      familyConfigs: {}
+      familyConfigs: {
+        PERSOZ: {
+          familyId: 'PERSOZ',
+          enabled: true,
+          countConfig: createCountConfiguration('PERSOZ', ruleSet.measurementConfigurations.PERSOZ.standardRecommendedCount, ruleSet)
+        }
+      }
     },
     scheduleConfig: {
       cycleDurationHours: 168,
@@ -71,6 +78,7 @@ function buildLockTrial(): Trial {
         trialId,
         reference: `LOT PZT-${trialSeq}`,
         orderIndex: 1,
+        applicationDate: '2026-08-01T00:00:00Z',
         panels: [
           { id: `${trialId}-p-T`, batchId, index: 1, label: 'T', role: 'WITNESS' as const, roleCode: 'T' as const, status: 'ACTIVE' as const },
           { id: `${trialId}-p-E1`, batchId, index: 2, label: '1', role: 'EXPOSED_1' as const, roleCode: 'E1' as const, status: 'ACTIVE' as const },
