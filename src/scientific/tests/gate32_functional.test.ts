@@ -136,8 +136,8 @@ export function runGate32FunctionalTests(): {
           enabled: true,
           seriesConfig: createSeriesConfiguration(
             'GLOSS',
-            ruleSet.seriesConfigurations.GLOSS.standardConfiguration.seriesCount,
-            ruleSet.seriesConfigurations.GLOSS.standardConfiguration.readingsPerSeries,
+            ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration.seriesCount ?? 0,
+            ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration.readingsPerSeries ?? 0,
             ruleSet
           )
         },
