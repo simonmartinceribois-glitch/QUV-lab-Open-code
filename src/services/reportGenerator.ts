@@ -127,7 +127,7 @@ export function auditTrialBeforeReport(trial: Trial, ruleSet: ScientificRuleSet)
   // de workflow et ne doit pas être utilisé comme substitut à la preuve
   // d'acquisition.
   const t0HasAcquisition = !!stageT0 && Object.values(trial.acquisitions || {}).some(
-    (a) => a.stageId === stageT0.id && a.status === 'COMPLETE'
+    (a) => a.stageId === stageT0.id && a.raw !== null && a.raw !== undefined && a.status !== 'EMPTY'
   );
   const t0Available =
     !!stageT0 &&
