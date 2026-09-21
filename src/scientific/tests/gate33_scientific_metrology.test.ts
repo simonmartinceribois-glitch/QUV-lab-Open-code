@@ -16,12 +16,13 @@
  * 12. Règles Normatives & Unités : Respect NF EN 927-6:2018 (2016h, 4 pts couleur, 2x2 brillance).
  */
 
+import { calculatePreExposureDelayCompliance } from '../protocolEngine';
 import { calculateColor } from '../colorEngine';
 import { calculateGloss } from '../glossEngine';
 import { calculatePersoz } from '../persozEngine';
 import { calculateObservations } from '../observationsEngine';
 import { calculateAdhesion, getApplicableGridSpacing,
-calculateDelayCompliance, ISO2409_CLASSES, resolveAdhesionCountConfig } from '../adhesionEngine';
+} from '../adhesionEngine';
 import {
   calculateMean,
   calculateSampleStdDev,
@@ -41,7 +42,7 @@ import { aggregateBatchColor, aggregateBatchGloss } from '../aggregations';
 import { extractTemporalKinetics } from '../analysis/TrendAnalyzer';
 import { compareSystemsAtStage } from '../analysis/MultiSystemComparator';
 import { runQUVAnalysis } from '../analysis/AnalysisEngine';
-import { getDefaultScientificRuleSet, createCountConfiguration } from '../ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../ruleSet';
 import {
   globalTrialStore,
   generateStandardExposureStages,
@@ -595,8 +596,8 @@ export function runGate33ScientificMetrologyTests(): {
   ];
 
   const batches: BatchDefinition[] = [
-    { id: b1Id, trialId, orderIndex: 0, reference: 'LOT-A-SYST1', productReference: 'Système A', woodSpecies: 'Pin', panels: panelsB1 },
-    { id: b2Id, trialId, orderIndex: 1, reference: 'LOT-B-SYST2', productReference: 'Système B', woodSpecies: 'Pin', panels: panelsB2 }
+    { id: b1Id, trialId, orderIndex: 0, reference: 'LOT-A-SYST1', productReference: 'Système A', woodSpecies: 'Pin', applicationDate: '2026-08-01', panels: panelsB1 },
+    { id: b2Id, trialId, orderIndex: 1, reference: 'LOT-B-SYST2', productReference: 'Système B', woodSpecies: 'Pin', applicationDate: '2026-08-01', panels: panelsB2 }
   ];
 
   const trial: Trial = {
@@ -611,9 +612,9 @@ export function runGate33ScientificMetrologyTests(): {
       standardReference: 'NF EN 927-6',
       activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'OBSERVATIONS'],
       familyConfigs: {
-        COLOR: { familyId: 'COLOR', enabled: true },
-        GLOSS: { familyId: 'GLOSS', enabled: true },
-        PERSOZ: { familyId: 'PERSOZ', enabled: true },
+        COLOR: { familyId: 'COLOR', enabled: true, countConfig: createCountConfiguration('COLOR', 4, ruleSet) },
+        GLOSS: { familyId: 'GLOSS', enabled: true, seriesConfig: createSeriesConfiguration('GLOSS', 2, 2, ruleSet) },
+        PERSOZ: { familyId: 'PERSOZ', enabled: true, countConfig: createCountConfiguration('PERSOZ', 3, ruleSet) },
         OBSERVATIONS: { familyId: 'OBSERVATIONS', enabled: true }
       }
     },
@@ -907,8 +908,8 @@ export function runGate33ScientificMetrologyTests(): {
     );
 
     // B. Contrôle du délai de séchage / conditionnement
-    const delayConform = calculateDelayCompliance('2026-08-01T00:00:00Z', '2026-08-10T00:00:00Z', 168);
-    const delayNonConform = calculateDelayCompliance('2026-08-01T00:00:00Z', '2026-08-03T00:00:00Z', 168);
+    const delayConform = calculatePreExposureDelayCompliance('2026-08-01T00:00:00Z', '2026-08-10T00:00:00Z', 168);
+    const delayNonConform = calculatePreExposureDelayCompliance('2026-08-01T00:00:00Z', '2026-08-03T00:00:00Z', 168);
 
     const delayPassed =
       delayConform.status === 'CONFORME' &&
@@ -931,7 +932,6 @@ export function runGate33ScientificMetrologyTests(): {
       gridSpacingMm: 2,
       coatingThicknessMicrons: 65,
       measurementDateTime: '2026-08-01T00:00:00Z',
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020',
       observation: 'Incisions nettes, 0% décollement'
     };
@@ -942,18 +942,16 @@ export function runGate33ScientificMetrologyTests(): {
       coatingThicknessMicrons: 65,
       measurementDateTime: '2026-10-24T00:00:00Z',
       applicationDateTime: '2026-08-01T00:00:00Z',
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020',
       observation: 'Léger détachement aux intersections'
     };
 
-    const adhCountConfig = ruleSet.measurementConfigurations['ADHESION'];
+    const adhCountConfig = createCountConfiguration('ADHESION', 1, ruleSet, { justification: 'Fixture historique : une mesure d’adhérence par panneau', operatorId: 'Test' });
     const adhResult = calculateAdhesion(rawC12, adhCountConfig, ruleSet, {
       referenceRaw: rawT0
     });
 
-    // Gate 57 / D4 : le RAW scalaire legacy reste 1/1 GOOD — le référentiel live
-    // ne rétrograde jamais l'historique (legacy 1/1 vs nouveau protocole 1/2, voir G33-ADH-04).
+    // Fixture explicite 1/1 : adaptation autorisée avec justification ; aucune conversion en MPa.
     const adhPassed =
       adhResult.computed.adhesionClass === 1 &&
       adhResult.computed.initialAdhesionClass === 0 &&
@@ -970,7 +968,7 @@ export function runGate33ScientificMetrologyTests(): {
       'STATISTICAL_RIGOR',
       adhPassed,
       'Classe 1, delta vs T0 = +1, aucune unité MPa, legacy 1/1 GOOD',
-      `Classe=${adhResult.computed.adhesionClass}, Delta=${adhResult.computed.deltaAdhesionClass}, Spacing=${adhResult.computed.gridSpacingUsedMm}mm, ForceMpa=${(adhResult.computed as any).adhesionForceMpa}`
+      `Classe=${adhResult.computed?.adhesionClass}, Delta=${adhResult.computed?.deltaAdhesionClass}, Spacing=${adhResult.computed?.gridSpacingUsedMm}mm, ForceMpa=${(adhResult.computed as any)?.adhesionForceMpa}`
     );
 
     // D. Distinction legacy 1/1 vs nouveau protocole 1/2 (Gate 57 / D4).
@@ -982,7 +980,6 @@ export function runGate33ScientificMetrologyTests(): {
       coatingThicknessMicrons: 65,
       measurementDateTime: '2026-10-24T00:00:00Z',
       applicationDateTime: '2026-08-01T00:00:00Z',
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020'
     };
     const rawT0New: AdhesionRawData = {
@@ -993,7 +990,6 @@ export function runGate33ScientificMetrologyTests(): {
       gridSpacingMm: 2,
       coatingThicknessMicrons: 65,
       measurementDateTime: '2026-08-01T00:00:00Z',
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020'
     };
     const adhStandard2 = createCountConfiguration('ADHESION', 2, ruleSet);
@@ -1012,19 +1008,18 @@ export function runGate33ScientificMetrologyTests(): {
       adhNewResult.computed.individualResults.length === 1 &&
       adhNewResult.computed.individualResults[0].deltaAdhesionClass === 1;
 
-    // D4 explicite : sans countConfig enregistré, l'historique reste 1/1 STANDARD.
-    const adhHistorical = resolveAdhesionCountConfig(undefined);
+    // Configuration absente : aucun fallback historique ; calcul bloqué.
+    const adhHistorical = calculateAdhesion(rawC12New, undefined, ruleSet, { referenceRaw: rawT0New });
 
     record(
       'G33-ADH-04',
-      'Adhérence Gate 57 : distinction legacy 1/1 vs nouveau protocole — 1/2 = WARNING + MEASUREMENT_MISSING, historique sans countConfig = 1/1 STANDARD',
+      'Adhérence Gate 57 : 1/2 = WARNING + MEASUREMENT_MISSING ; absence de countConfig = blocage explicite',
       'STATISTICAL_RIGOR',
       adhNewPassed &&
-        adhHistorical.configuredCount === 1 &&
-        adhHistorical.standardRecommendedCount === 1 &&
-        adhHistorical.deviationFromStandard === false,
-      'Nouveau 1/2 WARNING 50 % + MEASUREMENT_MISSING ; historique 1/1 STANDARD',
-      `PanelMean=${adhNewResult.computed.panelMean}, Delta=${adhNewResult.computed.deltaAdhesionClass}, Status=${adhNewResult.computed.qualityAssessment.status}, Hist=${adhHistorical.configuredCount}/${adhHistorical.standardRecommendedCount}`
+        adhHistorical.alerts.some((a) => a.severity === 'BLOCKING') &&
+        adhHistorical.computed === null,
+      'Nouveau 1/2 WARNING 50 % + MEASUREMENT_MISSING ; sans configuration = BLOQUANT',
+      `PanelMean=${adhNewResult.computed.panelMean}, Delta=${adhNewResult.computed.deltaAdhesionClass}, Status=${adhNewResult.computed.qualityAssessment.status}, HistStatus=${adhHistorical.alerts.some((a) => a.severity === 'BLOCKING') ? 'BLOCKING' : 'UNEXPECTED'}`
     );
   }
 

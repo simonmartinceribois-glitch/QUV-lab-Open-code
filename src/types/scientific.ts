@@ -220,6 +220,12 @@ export interface ScientificRuleSet {
      *  Source de vérité unique : la couche CRITÈRE (S3) le lit ici, jamais en dur. */
     retentionThresholdPercent: number;
   };
+  preExposureConditioning: {
+    requiredHours: number;
+    standardReference: string;
+    clause: string;
+    rationale: string;
+  };
   sourceReference: string;
   status: 'VERIFIED' | 'TO_BE_CONFIRMED';
   validatedBy?: string;
@@ -397,13 +403,17 @@ export interface AdhesionRawData {
   measurementDateTime: ISODateString;
   applicationDateTime?: string; // Récupéré de batch.applicationDate
   coatingThicknessMicrons?: number | null;
-  gridSpacingMm: number; // 1, 2, 3 mm selon NF EN ISO 2409
+  gridSpacingMm: number | null; // 1, 2, 3 mm selon NF EN ISO 2409 ; null si non déterminable
   bladeType?: string; // 'SINGLE_BLADE_6_CUTS' | 'MULTI_BLADE' | string
   tapeType?: string; // 'IEC 60454-2' | string
   conditioning?: string; // ex: "23°C / 50% HR"
-  requiredMinimumDelayHours: number; // ex: 168 h (7 jours)
-  elapsedTimeHours?: number | null;
-  delayStatus?: 'CONFORME' | 'INSUFFICIENT_DELAY' | 'INVALID_DATE' | 'MISSING_APPLICATION_DATE';
+  /** Compatibilité historique : le délai T0 est désormais porté par le protocole général, pas par ADHESION. */
+  /** Deprecated persisted field; ignored by ADHESION calculation. */
+  requiredMinimumDelayHours?: number;
+  /** Deprecated persisted field; ignored by ADHESION calculation. */
+  elapsedTimeHours?: number;
+  /** Deprecated persisted field; ignored by ADHESION calculation. */
+  delayStatus?: string;
   mediaId?: UUID | null;
   operatorId?: string;
   normReference: string; // "NF EN ISO 2409:2020"
@@ -424,8 +434,9 @@ export interface AdhesionComputedData {
   // Moyenne T0 du panneau témoin (Gate 5.6) : référence des deltas.
   initialPanelMean?: number | null;
   deltaAdhesionClass?: number | null; // Variation d'adhérence vs T0
-  elapsedTimeHours: number | null;
-  gridSpacingUsedMm: number;
+  /** Deprecated compatibility field retained for persisted historical computed records. */
+  elapsedTimeHours?: number | null;
+  gridSpacingUsedMm: number | null;
   qualityAssessment: QualityAssessment;
   protocolStatus: ProtocolComplianceStatus;
   referenceTrace?: ReferenceTrace;

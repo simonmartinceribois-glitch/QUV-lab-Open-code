@@ -9,6 +9,7 @@
  */
 
 import { generateStandardExposureStages, globalTrialStore, IntegrityViolationError } from '../../services/trialStore';
+import { createCountConfiguration, getDefaultScientificRuleSet } from '../ruleSet';
 import type { Trial } from '../../types/trial';
 import type { AdhesionRawData } from '../../types/scientific';
 
@@ -27,6 +28,7 @@ function buildAdhTrial(): Trial {
   const trialId = `trial-adh-${trialSeq}`;
   const stages = generateStandardExposureStages(trialId);
   const batchId = `${trialId}-batch-1`;
+  const ruleSet = getDefaultScientificRuleSet();
   const trial: Trial = {
     id: trialId,
     schemaVersion: '1.2.0',
@@ -38,7 +40,13 @@ function buildAdhTrial(): Trial {
     config: {
       standardReference: 'NF EN 927-6',
       activeFamilies: ['ADHESION'],
-      familyConfigs: {}
+      familyConfigs: {
+        ADHESION: {
+          familyId: 'ADHESION',
+          enabled: true,
+          countConfig: createCountConfiguration('ADHESION', ruleSet.measurementConfigurations.ADHESION.standardRecommendedCount, ruleSet)
+        }
+      }
     },
     scheduleConfig: {
       cycleDurationHours: 168,
@@ -79,7 +87,6 @@ function adhRaw(): AdhesionRawData {
     coatingThicknessMicrons: 90,
     measurementDateTime: '2026-10-24T00:00:00Z',
     applicationDateTime: '2026-08-01T00:00:00Z',
-    requiredMinimumDelayHours: 168,
     normReference: 'NF EN ISO 2409:2020'
   };
 }

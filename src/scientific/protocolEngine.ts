@@ -85,8 +85,23 @@ export function evaluateCountProtocolCompliance(
   // standard courant via createCountConfiguration(), donc le comportement est identique
   // pour tout ce qui est construit après le changement de standard.
   const standardRef = ruleSet.measurementConfigurations[config.familyId];
-  const standardRecommended =
-    config.standardRecommendedCount ?? standardRef?.standardRecommendedCount ?? 4;
+  const standardRecommended = standardRef?.standardRecommendedCount;
+  if (standardRecommended === undefined) {
+    return {
+      status: 'INCOMPLETE',
+      isAdapted: false,
+      isCompliantWithStandard: false,
+      alerts: [{
+        id: `alert-proto-reference-missing-${config.familyId}`,
+        severity: 'BLOCKING',
+        code: 'CALCULATION_UNAVAILABLE',
+        message: `Configuration scientifique standard manquante pour la famille ${config.familyId}.`,
+        familyId: config.familyId
+      }]
+    };
+  }
+  if (!Number.isInteger(config.configuredCount) || config.configuredCount < 1) return { status: 'INVALID', isAdapted: false, isCompliantWithStandard: false, alerts: [{ id: `alert-proto-invalid-count-${config.familyId}`, severity: 'BLOCKING', code: 'MEASUREMENT_INVALID', message: 'Nombre de mesures invalide : entier >= 1 requis.', familyId: config.familyId }] };
+  if (config.familyId === 'ADHESION' && config.configuredCount > 3) return { status: 'INVALID', isAdapted: false, isCompliantWithStandard: false, alerts: [{ id: 'alert-proto-adhesion-count-range', severity: 'BLOCKING', code: 'MEASUREMENT_INVALID', message: 'Le nombre de mesures d’adhérence doit être compris entre 1 et 3.', familyId: 'ADHESION' }] };
   const isAdapted = config.configuredCount !== standardRecommended || config.mode === 'CUSTOM_JUSTIFIED';
 
   const alerts: MeasurementAlert[] = [];
@@ -168,8 +183,11 @@ export function evaluateSeriesProtocolCompliance(
   }
 
   const standardRef = ruleSet.seriesConfigurations?.[config.familyId];
-  const stdSeries = standardRef?.standardConfiguration.seriesCount ?? 2;
-  const stdReadings = standardRef?.standardConfiguration.readingsPerSeries ?? 2;
+  if (!standardRef) {
+    return { status: 'INCOMPLETE', isAdapted: false, isCompliantWithStandard: false, alerts: [{ id: `alert-proto-series-reference-missing-${config.familyId}`, severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE', message: `Configuration scientifique standard manquante pour la famille de séries ${config.familyId}.`, familyId: config.familyId }] };
+  }
+  const stdSeries = standardRef.standardConfiguration.seriesCount;
+  const stdReadings = standardRef.standardConfiguration.readingsPerSeries;
 
   const isAdapted =
     config.configuredConfiguration.seriesCount !== stdSeries ||
@@ -225,4 +243,72 @@ export function evaluateSeriesProtocolCompliance(
     deviationMessage: `Structure adaptée sans justification (${config.configuredConfiguration.seriesCount}×${config.configuredConfiguration.readingsPerSeries}) — Bloquant`,
     protocolDefinition: buildProtocolDefinition(config, ruleSet)
   };
+}
+
+
+/** Generic date/delay computation for protocol pre-exposure conditioning. */
+export function calculatePreExposureDelayCompliance(
+  applicationDateStr?: string,
+  measurementDateStr?: string,
+  requiredMinimumHours?: number
+): {
+  elapsedTimeHours: number | null;
+  formattedElapsedTime: string;
+  status: 'CONFORME' | 'INSUFFICIENT_DELAY' | 'INVALID_DATE' | 'MISSING_APPLICATION_DATE' | 'MISSING_REQUIRED_DELAY';
+  message: string;
+} {
+  if (requiredMinimumHours === undefined || !Number.isFinite(requiredMinimumHours) || requiredMinimumHours < 0) return { elapsedTimeHours: null, formattedElapsedTime: 'Délai requis non renseigné', status: 'MISSING_REQUIRED_DELAY', message: 'Délai minimal requis absent ou invalide dans la configuration du protocole.' };
+  if (!applicationDateStr?.trim()) return { elapsedTimeHours: null, formattedElapsedTime: 'Non déterminée', status: 'MISSING_APPLICATION_DATE', message: 'Date d’application absente.' };
+  const app = Date.parse(applicationDateStr), measure = Date.parse(measurementDateStr || '');
+  if (!Number.isFinite(app) || !Number.isFinite(measure) || measure < app) return { elapsedTimeHours: null, formattedElapsedTime: 'Date invalide', status: 'INVALID_DATE', message: 'Dates invalides pour le contrôle du conditionnement.' };
+  const elapsed = (measure - app) / 3600000;
+  const formatted = elapsed >= 24 ? `${Math.floor(elapsed / 24)} j ${Math.floor(elapsed % 24)} h` : `${Math.floor(elapsed)} h`;
+  return elapsed < requiredMinimumHours
+    ? { elapsedTimeHours: Math.round(elapsed * 10) / 10, formattedElapsedTime: formatted, status: 'INSUFFICIENT_DELAY', message: `Conditionnement insuffisant : ${formatted} écoulées pour ${requiredMinimumHours} h requises.` }
+    : { elapsedTimeHours: Math.round(elapsed * 10) / 10, formattedElapsedTime: formatted, status: 'CONFORME', message: `Conditionnement respecté : ${formatted} écoulées pour ${requiredMinimumHours} h requises.` };
+}
+
+export interface PreExposureConditioningResult {
+  status: 'CONFORME' | 'INSUFFICIENT_DELAY' | 'INVALID_DATE' | 'MISSING_APPLICATION_DATE' | 'MISSING_RULE';
+  elapsedHours: number | null;
+  requiredHours: number | null;
+  alert?: MeasurementAlert;
+}
+
+/** Contrôle général du conditionnement avant les examens initiaux T0.
+ * Cette règle est commune aux familles mesurées avant exposition ; elle n'appartient
+ * pas au moteur ADHESION. Le RAW conserve les dates réelles ; le RuleSet porte le délai requis.
+ */
+export function evaluatePreExposureConditioning(
+  applicationDate?: string,
+  measurementDate?: string,
+  ruleSet?: ScientificRuleSet,
+  familyId?: MeasurementFamilyId,
+  stageId?: string,
+  panelId?: string
+): PreExposureConditioningResult {
+  const requiredHours = ruleSet?.preExposureConditioning?.requiredHours;
+  const normalizedRequiredHours = Number.isFinite(requiredHours) && (requiredHours as number) >= 0 ? (requiredHours as number) : null;
+  if (normalizedRequiredHours === null) {
+    return { status: 'MISSING_RULE', elapsedHours: null, requiredHours: normalizedRequiredHours ?? 0, alert: {
+      id: `alert-conditioning-rule-missing-${familyId || 'UNKNOWN'}`, severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE',
+      message: 'Règle de conditionnement avant T0 absente du RuleSet.', familyId: familyId || 'UNKNOWN', stageId, panelId
+    }};
+  }
+  if (!applicationDate) return { status: 'MISSING_APPLICATION_DATE', elapsedHours: null, requiredHours: normalizedRequiredHours, alert: {
+    id: `alert-conditioning-application-date-${familyId || 'UNKNOWN'}`, severity: 'BLOCKING', code: 'MEASUREMENT_INVALID',
+    message: 'Date d’application de la finition absente : le délai avant T0 ne peut pas être contrôlé.', familyId: familyId || 'UNKNOWN', stageId, panelId
+  }};
+  const app = Date.parse(applicationDate);
+  const measured = measurementDate ? Date.parse(measurementDate) : NaN;
+  if (!Number.isFinite(app) || !Number.isFinite(measured) || measured < app) return { status: 'INVALID_DATE', elapsedHours: null, requiredHours: normalizedRequiredHours, alert: {
+    id: `alert-conditioning-date-${familyId || 'UNKNOWN'}`, severity: 'BLOCKING', code: 'MEASUREMENT_INVALID',
+    message: 'Dates invalides pour le contrôle du conditionnement avant T0.', familyId: familyId || 'UNKNOWN', stageId, panelId
+  }};
+  const elapsedHours = (measured - app) / 3600000;
+  if (elapsedHours < normalizedRequiredHours) return { status: 'INSUFFICIENT_DELAY', elapsedHours, requiredHours: normalizedRequiredHours, alert: {
+    id: `alert-conditioning-delay-${familyId || 'UNKNOWN'}`, severity: 'BLOCKING', code: 'PROTOCOL_ADAPTED',
+    message: `Conditionnement avant T0 insuffisant : ${elapsedHours.toFixed(1)} h écoulées pour ${requiredHours} h requises selon ${ruleSet?.preExposureConditioning?.standardReference} ${ruleSet?.preExposureConditioning?.clause}.`, familyId: familyId || 'UNKNOWN', stageId, panelId
+  }};
+  return { status: 'CONFORME', elapsedHours, requiredHours: normalizedRequiredHours };
 }

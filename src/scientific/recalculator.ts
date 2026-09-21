@@ -20,7 +20,7 @@ import {
 import { calculateColor } from './colorEngine';
 import { calculateGloss } from './glossEngine';
 import { calculatePersoz } from './persozEngine';
-import { calculateAdhesion, resolveAdhesionCountConfig } from './adhesionEngine';
+import { calculateAdhesion } from './adhesionEngine';
 import { calculateObservations } from './observationsEngine';
 import { getWitnessPanel, isAdhesionEligiblePanel, isPersozEligiblePanel } from './panelUtils';
 import { VisualObservationsRawData, AdhesionRawData } from '../types/scientific';
@@ -96,7 +96,11 @@ export function recalculateAcquisition(
   const famConfig = trial.config.familyConfigs[record.familyId];
 
   if (record.familyId === 'COLOR') {
-    const countConfig = famConfig?.countConfig || ruleSet.measurementConfigurations.COLOR;
+    const countConfig = famConfig?.countConfig;
+    if (!countConfig) {
+      computed = null;
+      alerts.push({ id: `alert-recalc-missing-config-${record.familyId}`, severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE', message: `Configuration ${record.familyId} absente. Calcul impossible.`, familyId: record.familyId, stageId: record.stageId, panelId: record.panelId });
+    } else {
     const res = calculateColor(
       record.raw as ColorRawData,
       countConfig,
@@ -111,9 +115,13 @@ export function recalculateAcquisition(
     );
     computed = res.computed;
     alerts = res.alerts;
+    }
   } else if (record.familyId === 'GLOSS') {
-    const seriesConfig = famConfig?.seriesConfig || ruleSet.seriesConfigurations?.GLOSS;
-    if (seriesConfig) {
+    const seriesConfig = famConfig?.seriesConfig;
+    if (!seriesConfig) {
+      computed = null;
+      alerts = [{ id: `alert-${record.id}-missing-series-config`, severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE', message: 'Configuration de série GLOSS absente.', familyId: 'GLOSS', panelId: record.panelId, stageId: record.stageId }];
+    } else {
       const res = calculateGloss(
         record.raw as GlossRawData,
         seriesConfig,
@@ -137,7 +145,11 @@ export function recalculateAcquisition(
       computed = null;
       alerts = [];
     } else {
-      const countConfig = famConfig?.countConfig || ruleSet.measurementConfigurations.PERSOZ;
+      const countConfig = famConfig?.countConfig;
+      if (!countConfig) {
+        computed = null;
+        alerts = [{ id: `alert-${record.id}-missing-count-config`, severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE', message: 'Configuration de comptage PERSOZ absente.', familyId: 'PERSOZ', panelId: record.panelId, stageId: record.stageId }];
+      } else {
       const res = calculatePersoz(
         record.raw as PersozRawData,
         countConfig,
@@ -152,6 +164,7 @@ export function recalculateAcquisition(
       );
       computed = res.computed;
       alerts = res.alerts;
+      }
     }
   } else if (record.familyId === 'ADHESION') {
     // Verrou population P1 : même règle (matrice T0/T, C12/E1-E3).
@@ -160,11 +173,9 @@ export function recalculateAcquisition(
       computed = null;
       alerts = [];
     } else {
-      // Gate 57 / D4 : une configuration ADHESION sans `countConfig` enregistré
-      // (essais pré-Gate 57) est interprétée comme le protocole historique 1/1,
-      // SANS modifier la configuration stockée. Le référentiel live ne rétrograde
-      // jamais un essai historique en 1/2 WARNING.
-      const countConfig = resolveAdhesionCountConfig(famConfig?.countConfig);
+      // La configuration ADHESION provient exclusivement du protocole verrouillé.
+      // Absente = calcul bloqué par le moteur ; aucune configuration implicite n'est reconstruite.
+      const countConfig = famConfig?.countConfig;
       const res = calculateAdhesion(
         record.raw as AdhesionRawData,
         countConfig,

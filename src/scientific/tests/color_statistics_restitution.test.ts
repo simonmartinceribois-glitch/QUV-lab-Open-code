@@ -10,7 +10,7 @@ import { generateStandardExposureStages, globalTrialStore } from '../../services
 import { aggregateBatchColor } from '../aggregations';
 import { getActiveE1E2E3Panels, isPersozEligiblePanel, isAdhesionEligiblePanel } from '../panelUtils';
 import { exportReportToCsv } from '../../services/reportGenerator';
-import { getDefaultScientificRuleSet } from '../ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration } from '../ruleSet';
 import type { Trial } from '../../types/trial';
 import type { ColorComputedData, ScientificReport } from '../../types/scientific';
 
@@ -76,12 +76,23 @@ function buildColorTrial(): Trial {
   const trialId = `trial-crest-${trialSeq}`;
   const stages = generateStandardExposureStages(trialId);
   const batchId = `${trialId}-batch-1`;
+  const ruleSet = getDefaultScientificRuleSet();
   const trial: Trial = {
     id: trialId, schemaVersion: '1.2.0',
     createdAt: '2026-09-05T00:00:00Z', updatedAt: '2026-09-05T00:00:00Z',
     metadata: { reference: `QUV-CREST-${trialSeq}`, createdBy: 'TEST_OP' },
     status: 'IN_PROGRESS', configurationStatus: 'EDITABLE',
-    config: { standardReference: 'NF EN 927-6', activeFamilies: ['COLOR'], familyConfigs: {} },
+    config: {
+      standardReference: 'NF EN 927-6',
+      activeFamilies: ['COLOR'],
+      familyConfigs: {
+        COLOR: {
+          familyId: 'COLOR',
+          enabled: true,
+          countConfig: createCountConfiguration('COLOR', ruleSet.measurementConfigurations.COLOR.standardRecommendedCount, ruleSet)
+        }
+      }
+    },
     scheduleConfig: {
       cycleDurationHours: 168, maxCycles: 12,
       initialStage: { exposureHours: 0, mandatory: true, label: 'T0' },
@@ -90,6 +101,7 @@ function buildColorTrial(): Trial {
     stages,
     batches: [{
       id: batchId, trialId, reference: `LOT CREST-${trialSeq}`, orderIndex: 1,
+      applicationDate: '2026-08-01T00:00:00Z',
       panels: [
         { id: `${trialId}-p-T`, batchId, index: 1, label: 'T', role: 'WITNESS' as const, roleCode: 'T' as const, status: 'ACTIVE' as const },
         { id: `${trialId}-p-E1`, batchId, index: 2, label: '1', role: 'EXPOSED_1' as const, roleCode: 'E1' as const, status: 'ACTIVE' as const },

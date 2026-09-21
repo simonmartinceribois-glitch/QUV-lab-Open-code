@@ -34,7 +34,6 @@ import {
   ScientificReportStatus,
   ScientificReportReviewComment
 } from '../types/scientific';
-import { ADHESION_DEFAULT_REQUIRED_DELAY_HOURS } from '../scientific/adhesionEngine';
 import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../scientific/ruleSet';
 import { recalculateAcquisition } from '../scientific/recalculator';
 import { createConfigChangeEvent } from '../scientific/auditEngine';
@@ -190,7 +189,8 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
       },
       ADHESION: {
         familyId: 'ADHESION',
-        enabled: true
+        enabled: true,
+        countConfig: createCountConfiguration('ADHESION', 2, ruleSet)
       },
       OBSERVATIONS: {
         familyId: 'OBSERVATIONS',
@@ -227,7 +227,7 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
       action: 'CONFIGURE_PROTOCOL',
       entityType: 'PROTOCOL',
       entityId: 'ALL',
-      details: { activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'OBSERVATIONS'], colorPoints: 4, glossSeries: '2x2' }
+      details: { activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'ADHESION', 'OBSERVATIONS'], colorPoints: 4, glossSeries: '2x2', persozPoints: 3, adhesionPoints: 2 }
     },
     {
       id: 'audit-3',
@@ -432,7 +432,6 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
           coatingThicknessMicrons: batch.dryFilmThicknessMicrons,
           measurementDateTime: '2026-01-15T14:00:00Z',
           applicationDateTime: batch.applicationDate,
-          requiredMinimumDelayHours: ADHESION_DEFAULT_REQUIRED_DELAY_HOURS,
           normReference: 'NF EN ISO 2409:2020',
           observation: 'Quadrillage net 6×6, bords des incisions parfaitement lisses, aucun détachement (Classe 0).'
         };
@@ -714,9 +713,9 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
     standardReference: 'NF EN 927-6',
     activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'OBSERVATIONS'],
     familyConfigs: {
-      COLOR: { familyId: 'COLOR', enabled: true },
-      GLOSS: { familyId: 'GLOSS', enabled: true },
-      PERSOZ: { familyId: 'PERSOZ', enabled: true },
+      COLOR: { familyId: 'COLOR', enabled: true, countConfig: createCountConfiguration('COLOR', 4, ruleSet) },
+      GLOSS: { familyId: 'GLOSS', enabled: true, seriesConfig: createSeriesConfiguration('GLOSS', 2, 2, ruleSet) },
+      PERSOZ: { familyId: 'PERSOZ', enabled: true, countConfig: createCountConfiguration('PERSOZ', 3, ruleSet) },
       OBSERVATIONS: { familyId: 'OBSERVATIONS', enabled: true }
     }
   };
@@ -1019,7 +1018,6 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
         coatingThicknessMicrons: batch.dryFilmThicknessMicrons,
         measurementDateTime: '2026-11-25T15:30:00Z',
         applicationDateTime: batch.applicationDate,
-        requiredMinimumDelayHours: ADHESION_DEFAULT_REQUIRED_DELAY_HOURS,
         normReference: 'NF EN ISO 2409:2020',
         observation: adhClass === 0
           ? 'Bords des incisions lisses après 2016 h d\'exposition, aucun détachement.'

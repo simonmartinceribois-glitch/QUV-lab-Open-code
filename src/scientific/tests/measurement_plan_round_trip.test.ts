@@ -120,7 +120,7 @@ export function runMeasurementPlanRoundTripTests(): {
     try {
       created = sessionA.createTrial({
         metadata: { reference: 'P3B-ROUNDTRIP-TEST', createdBy: 'audit-p3b' },
-        batches: [{ reference: 'LOT-P3B-1' }],
+        batches: [{ reference: 'LOT-P3B-1', applicationDate: '2025-12-15T00:00:00Z' }],
         activeFamilies: ['COLOR', 'ADHESION'],
         selectedMeasurementCycles: SELECTED_CYCLES,
         startDate: '2026-01-15'

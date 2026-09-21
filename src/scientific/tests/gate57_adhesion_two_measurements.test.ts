@@ -43,7 +43,6 @@ function baseRaw(overrides: Partial<AdhesionRawData> = {}): AdhesionRawData {
     coatingThicknessMicrons: 90,
     measurementDateTime: '2026-10-24T00:00:00Z',
     applicationDateTime: '2026-08-01T00:00:00Z',
-    requiredMinimumDelayHours: 168,
     normReference: 'NF EN ISO 2409:2020',
     ...overrides
   };
@@ -496,33 +495,29 @@ export function runGate57AdhesionTwoMeasurementsTests(): {
     );
   }
   {
-    // Essai historique : aucun countConfig enregistré → 1/1, scalaire GOOD.
+    // Essai historique sans countConfig : le moteur ne reconstruit aucune configuration implicite.
     const trial = buildAdhesionTrial({ t0TClasses: null, t0E1Class: null, c12EClasses: [2, 2], withCountConfig: false });
     const stageT0 = trial.stages.find((s) => s.cycleIndex === 0)!;
     const legacyT0: AdhesionRawData = baseRaw({ adhesionClass: 1 });
+    const stageC12 = trial.stages.find((s) => s.cycleIndex === 12)!;
     const legacyC12: AdhesionRawData = baseRaw({ adhesionClass: 2 });
     trial.acquisitions[`${stageT0.id}__${TRIAL_ID}-p-T__ADHESION`] = {
       id: 'acq-legacy-t0', trialId: TRIAL_ID, stageId: stageT0.id, batchId: `${TRIAL_ID}-batch-1`,
       panelId: `${TRIAL_ID}-p-T`, familyId: 'ADHESION', raw: legacyT0, computed: null, status: 'COMPLETE',
       alerts: [], trace: { createdBy: 'TEST_OP', createdAt: '2026-09-05T00:00:00Z', source: 'MANUAL_KEYPAD' }, mediaIds: []
     };
-    const stageC12 = trial.stages.find((s) => s.cycleIndex === 12)!;
     trial.acquisitions[`${stageC12.id}__${TRIAL_ID}-p-E1__ADHESION`] = {
       id: 'acq-legacy-c12', trialId: TRIAL_ID, stageId: stageC12.id, batchId: `${TRIAL_ID}-batch-1`,
       panelId: `${TRIAL_ID}-p-E1`, familyId: 'ADHESION', raw: legacyC12, computed: null, status: 'COMPLETE',
       alerts: [], trace: { createdBy: 'TEST_OP', createdAt: '2026-09-05T00:00:00Z', source: 'MANUAL_KEYPAD' }, mediaIds: []
     };
-    const { computed, rawUnchanged } = recalcAdh(trial, 12, 'E1');
+    const { computed, rawUnchanged, alerts } = recalcAdh(trial, 12, 'E1');
     record(
       'G57-CFG-21',
-      'Essai sans countConfig : scalaire historique = 1/1 GOOD (jamais 1/2 WARNING)',
-      rawUnchanged === true &&
-        computed?.adhesionClass === 2 &&
-        computed?.qualityAssessment.status === 'GOOD' &&
-        computed?.qualityAssessment.expectedCount === 1 &&
-        computed?.deltaAdhesionClass === 1,
-      '1/1 GOOD, classe 2, Δ+1',
-      `classe=${String(computed?.adhesionClass)}, ${computed?.qualityAssessment.status} ${computed?.qualityAssessment.actualCount}/${computed?.qualityAssessment.expectedCount}, Δ=${String(computed?.deltaAdhesionClass)}`
+      'Essai sans countConfig : blocage fail-closed, aucune configuration implicite',
+      rawUnchanged === true && computed === null && alerts.some((a) => a.code === 'CALCULATION_UNAVAILABLE' && a.severity === 'BLOCKING'),
+      'computed=null + CALCULATION_UNAVAILABLE/BLOCKING',
+      `computed=${computed === null ? "null" : "présent"}, alerts=${alerts.map((a) => `${a.code}/${a.severity}`).join(", ")}`
     );
   }
 
@@ -534,7 +529,6 @@ export function runGate57AdhesionTwoMeasurementsTests(): {
         individualResults: [],
         panelMean,
         classDescription: 'Classe test',
-        elapsedTimeHours: 216,
         gridSpacingUsedMm: 2,
         qualityAssessment: {
           expectedCount: 2, actualCount: 2, validCount: 2, suspectCount: 0,
@@ -564,7 +558,6 @@ export function runGate57AdhesionTwoMeasurementsTests(): {
         individualResults: [],
         panelMean,
         classDescription: 'Classe test',
-        elapsedTimeHours: 216,
         gridSpacingUsedMm: 2,
         qualityAssessment: {
           expectedCount: 2, actualCount: 2, validCount: 2, suspectCount: 0,
@@ -589,7 +582,6 @@ export function runGate57AdhesionTwoMeasurementsTests(): {
         individualResults: [],
         panelMean,
         classDescription: 'Classe test',
-        elapsedTimeHours: 216,
         gridSpacingUsedMm: 2,
         qualityAssessment: {
           expectedCount: 2, actualCount: 2, validCount: 2, suspectCount: 0,
@@ -609,21 +601,6 @@ export function runGate57AdhesionTwoMeasurementsTests(): {
   }
 
   // --- COMPATIBILITÉ ---
-  {
-    const raw = baseRaw({ adhesionClass: 2, observation: 'Legacy' });
-    const t0 = baseRaw({ adhesionClass: 1 });
-    const res = calculateAdhesion(raw, resolveAdhesionCountConfig(undefined), ruleSet, { referenceRaw: t0 });
-    record(
-      'G57-CMP-25',
-      'RAW scalaire historique → calcul inchangé (classe, GOOD, Δ)',
-      res.computed.adhesionClass === 2 &&
-        res.computed.initialAdhesionClass === 1 &&
-        res.computed.deltaAdhesionClass === 1 &&
-        res.computed.qualityAssessment.status === 'GOOD',
-      'classe 2, init 1, Δ+1, GOOD',
-      `classe=${String(res.computed.adhesionClass)}, init=${String(res.computed.initialAdhesionClass)}, Δ=${String(res.computed.deltaAdhesionClass)}, ${res.computed.qualityAssessment.status}`
-    );
-  }
   {
     // T0 scalaire legacy + C12 2 mesures : m1 appariée, m2 sans référence (null, pas de faux delta).
     const t0 = baseRaw({ adhesionClass: 1 });

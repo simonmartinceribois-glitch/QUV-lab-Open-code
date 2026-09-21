@@ -25,9 +25,7 @@ import {
 import { globalTrialStore, generateUUID } from '../../services/trialStore';
 import {
   getApplicableGridSpacing,
-  normalizeAdhesionMeasurements,
-  resolveAdhesionCountConfig,
-  ADHESION_DEFAULT_REQUIRED_DELAY_HOURS
+  normalizeAdhesionMeasurements
 } from '../../scientific/adhesionEngine';
 import { isFamilyScheduledForStage, getActiveFamiliesForStage, isPersozEligiblePanel, isAdhesionEligiblePanel
 } from '../../scientific/panelUtils';
@@ -131,17 +129,17 @@ export function Tab06MeasurementsBench({
 
   // Configuration de la famille active
   const famConfig = trial.config.familyConfigs[selectedFamilyId];
-  const colorCount = famConfig?.countConfig?.configuredCount || 4;
-  const persozCount = famConfig?.countConfig?.configuredCount || 3;
-  const glossSeries = famConfig?.seriesConfig?.configuredConfiguration.seriesCount || 2;
-  const glossReadingsPerSeries = famConfig?.seriesConfig?.configuredConfiguration.readingsPerSeries || 2;
+  const colorCount = famConfig?.countConfig?.configuredCount ?? 0;
+  const persozCount = famConfig?.countConfig?.configuredCount ?? 0;
+  const glossSeries = famConfig?.seriesConfig?.configuredConfiguration.seriesCount ?? 0;
+  const glossReadingsPerSeries = famConfig?.seriesConfig?.configuredConfiguration.readingsPerSeries ?? 0;
 
   // Références standard issues du référentiel (P5) : jamais codées en dur,
   // source de vérité unique pour le statut PROTOCOLE STANDARD / ADAPTÉ.
-  const colorStandard = ruleSet.measurementConfigurations.COLOR?.standardRecommendedCount ?? 4;
+  const colorStandard = ruleSet.measurementConfigurations.COLOR?.standardRecommendedCount;
   const glossStandard = ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration;
-  const persozStandard = ruleSet.measurementConfigurations.PERSOZ?.standardRecommendedCount ?? 3;
-  const adhesionStandard = ruleSet.measurementConfigurations.ADHESION?.standardRecommendedCount ?? 2;
+  const persozStandard = ruleSet.measurementConfigurations.PERSOZ?.standardRecommendedCount;
+  const adhesionStandard = ruleSet.measurementConfigurations.ADHESION?.standardRecommendedCount;
   const protocolJustification =
     famConfig?.countConfig?.justification ?? famConfig?.seriesConfig?.justification ?? undefined;
 
@@ -182,8 +180,8 @@ export function Tab06MeasurementsBench({
   // via resolveAdhesionCountConfig quand aucun countConfig n'est enregistré).
   const adhExpectedCount =
     selectedFamilyId === 'ADHESION'
-      ? resolveAdhesionCountConfig(famConfig?.countConfig).configuredCount
-      : 2;
+      ? famConfig?.countConfig?.configuredCount ?? 0
+      : 0;
   const [adhEntries, setAdhEntries] = useState<AdhesionBenchEntry[]>([]);
 
   // Synchronisation lors du changement de panneau ou famille
@@ -329,12 +327,11 @@ export function Tab06MeasurementsBench({
       rawPayload = isPrevLegacyScalar
         ? {
             adhesionClass: firstEntry.cls,
-            gridSpacingMm: spacingInfo.gridSpacingMm || 2,
+            gridSpacingMm: spacingInfo.gridSpacingMm,
             coatingThicknessMicrons: currentBatch.dryFilmThicknessMicrons,
             measurementDateTime: new Date().toISOString(),
             applicationDateTime: currentBatch.applicationDate,
-            requiredMinimumDelayHours: ADHESION_DEFAULT_REQUIRED_DELAY_HOURS,
-            normReference: 'NF EN ISO 2409:2020',
+                        normReference: 'NF EN ISO 2409:2020',
             ...(firstEntry.obs.trim() ? { observation: firstEntry.obs.trim() } : {})
           } as AdhesionRawData
         : {
@@ -343,11 +340,10 @@ export function Tab06MeasurementsBench({
               adhesionClass: e.cls,
               ...(e.obs.trim() ? { observation: e.obs.trim() } : {})
             })),
-            gridSpacingMm: spacingInfo.gridSpacingMm || 2,
+            gridSpacingMm: spacingInfo.gridSpacingMm,
             coatingThicknessMicrons: currentBatch.dryFilmThicknessMicrons,
             measurementDateTime: new Date().toISOString(),
             applicationDateTime: currentBatch.applicationDate,
-            requiredMinimumDelayHours: ADHESION_DEFAULT_REQUIRED_DELAY_HOURS,
             normReference: 'NF EN ISO 2409:2020'
           } as AdhesionRawData;
     } else if (selectedFamilyId === 'OBSERVATIONS') {
@@ -514,8 +510,8 @@ export function Tab06MeasurementsBench({
               <BenchGlossForm
                 glossSeriesCount={glossSeries}
                 glossReadingsPerSeries={glossReadingsPerSeries}
-                standardSeriesCount={glossStandard?.seriesCount ?? 2}
-                standardReadingsPerSeries={glossStandard?.readingsPerSeries ?? 2}
+                standardSeriesCount={glossStandard?.seriesCount ?? 0}
+                standardReadingsPerSeries={glossStandard?.readingsPerSeries ?? 0}
                 protocolJustification={protocolJustification}
                 glossSeriesData={glossSeriesData}
                 onGlossSeriesChange={setGlossSeriesData}

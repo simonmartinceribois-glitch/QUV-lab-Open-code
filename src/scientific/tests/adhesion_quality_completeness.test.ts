@@ -11,7 +11,7 @@
 import { generateStandardExposureStages, globalTrialStore, IntegrityViolationError } from '../../services/trialStore';
 import { assessStageQuality } from '../qualityEngine';
 import { recalculateAcquisition } from '../recalculator';
-import { getDefaultScientificRuleSet } from '../ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration } from '../ruleSet';
 import type { Trial, PanelAcquisitionRecord } from '../../types/trial';
 import type { AdhesionRawData, MeasurementAlert } from '../../types/scientific';
 
@@ -31,6 +31,7 @@ function buildQualityTrial(): Trial {
   const trialId = `${TRIAL_BASE}-${trialSeq}`;
   const stages = generateStandardExposureStages(trialId);
   const batchId = `${trialId}-batch-1`;
+  const ruleSet = getDefaultScientificRuleSet();
   const trial: Trial = {
     id: trialId,
     schemaVersion: '1.2.0',
@@ -42,7 +43,13 @@ function buildQualityTrial(): Trial {
     config: {
       standardReference: 'NF EN 927-6',
       activeFamilies: ['ADHESION'],
-      familyConfigs: {}
+      familyConfigs: {
+        ADHESION: {
+          familyId: 'ADHESION',
+          enabled: true,
+          countConfig: createCountConfiguration('ADHESION', ruleSet.measurementConfigurations.ADHESION.standardRecommendedCount, ruleSet)
+        }
+      }
     },
     scheduleConfig: {
       cycleDurationHours: 168,
@@ -89,7 +96,6 @@ function adhAcq(
     coatingThicknessMicrons: 90,
     measurementDateTime: '2026-10-24T00:00:00Z',
     applicationDateTime: '2026-08-01T00:00:00Z',
-    requiredMinimumDelayHours: 168,
     normReference: 'NF EN ISO 2409:2020'
   };
   const record: PanelAcquisitionRecord = {
@@ -336,6 +342,12 @@ export function runAdhesionQualityCompletenessTests(): {
   {
     const trial = buildQualityTrial();
     trial.config.activeFamilies = ['ADHESION', 'PERSOZ'];
+    const pzRuleSet = getDefaultScientificRuleSet();
+    trial.config.familyConfigs.PERSOZ = {
+      familyId: 'PERSOZ',
+      enabled: true,
+      countConfig: createCountConfiguration('PERSOZ', pzRuleSet.measurementConfigurations.PERSOZ.standardRecommendedCount, pzRuleSet)
+    };
     globalTrialStore.saveTrial(trial);
     const stageT0 = trial.stages.find((s) => s.cycleIndex === 0)!;
     const batchId = trial.batches[0].id;

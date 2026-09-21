@@ -51,7 +51,9 @@ export function generateStandardExposureStages(
   // 12 Cycles de 168h (168h à 2016h)
   for (let i = 1; i <= 12; i++) {
     const cycleHours = i * 168;
-    const scheduledDate = new Date(baseDate.getTime() + i * 7 * 24 * 3600 * 1000);
+    // Jalon calé sur T0 par incrément physique exact de 168 h (et non par jours calendaires),
+    // afin d'éviter toute dérive liée aux changements d'heure saisonniers.
+    const scheduledDate = new Date(baseDate.getTime() + cycleHours * 3600 * 1000);
     const isFinal = i === 12;
 
     // Détermination de l'inclusion dans le plan de mesurage

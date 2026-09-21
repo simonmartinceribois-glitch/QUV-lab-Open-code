@@ -49,6 +49,7 @@ import { generateStandardExposureStages } from './trialStages';
 // la valeur normative NF EN 927-6:2018 (12 × 168 h = 2016 h).
 const C12_SCHEDULED_HOURS = 2016;
 import { createDemoTrial, createValidationTrial } from './trialSeed';
+import { evaluateCountProtocolCompliance, evaluateSeriesProtocolCompliance, evaluatePreExposureConditioning } from '../scientific/protocolEngine';
 
 const STORAGE_KEY = 'quv_lab_trials_v2_2';
 
@@ -324,6 +325,36 @@ export class TrialStoreService {
     return this.getTrials();
   }
 
+  /**
+   * Modifie la date effective du relevé T0 avant verrouillage du plan.
+   * T0 devient la référence temporelle unique : C1..C12 sont recalculés
+   * par incréments exacts de 168 h à partir de cette nouvelle date.
+   */
+  public updateT0EffectiveDate(trialId: UUID, effectiveDate: string, operatorId: string): Trial {
+    const trial = this.getTrial(trialId);
+    if (!trial) throw new Error('Essai introuvable');
+    if (trial.configurationStatus === 'LOCKED' || Object.keys(trial.acquisitions || {}).length > 0) {
+      throw new IntegrityViolationError('La date effective du relevé T0 ne peut plus être modifiée après le démarrage de la campagne.', { trialId });
+    }
+    const parsed = new Date(effectiveDate);
+    if (Number.isNaN(parsed.getTime())) throw new IntegrityViolationError('La date effective du relevé T0 est invalide.', { trialId });
+    const t0 = trial.stages.find((stage) => stage.stageType === 'INITIAL_PRE_EXPOSURE' || stage.cycleIndex === 0);
+    if (!t0) throw new IntegrityViolationError('Le jalon T0 est introuvable.', { trialId });
+    const t0Iso = parsed.toISOString();
+    t0.scheduledAt = t0Iso;
+    t0.scheduledExposureHours = 0;
+    for (const stage of trial.stages) {
+      if (stage.cycleIndex < 1 || stage.cycleIndex > 12) continue;
+      stage.scheduledExposureHours = stage.cycleIndex * 168;
+      stage.scheduledAt = new Date(parsed.getTime() + stage.scheduledExposureHours * 3600 * 1000).toISOString();
+    }
+    trial.startDate = t0Iso;
+    trial.updatedAt = new Date().toISOString();
+    trial.auditTrail.push({ id: generateUUID(), trialId, timestamp: trial.updatedAt, operatorId: operatorId || 'OPERATOR', action: 'UPDATE_T0_EFFECTIVE_DATE', entityType: 'STAGE', entityId: t0.id, details: { effectiveDate: t0Iso, scheduleRule: 'Ck = T0 + k × 168 h' } });
+    this.saveTrial(trial);
+    return trial;
+  }
+
   public saveTrial(trial: Trial): void {
     trial.updatedAt = new Date().toISOString();
     if (!trial.auditTrail) trial.auditTrail = [];
@@ -462,22 +493,22 @@ export class TrialStoreService {
         COLOR: params.familyConfigs?.COLOR || {
           familyId: 'COLOR',
           enabled: params.activeFamilies.includes('COLOR'),
-          countConfig: createCountConfiguration('COLOR', 4, this.ruleSet)
+          countConfig: createCountConfiguration('COLOR', this.ruleSet.measurementConfigurations.COLOR.standardRecommendedCount, this.ruleSet)
         },
         GLOSS: params.familyConfigs?.GLOSS || {
           familyId: 'GLOSS',
           enabled: params.activeFamilies.includes('GLOSS'),
-          seriesConfig: createSeriesConfiguration('GLOSS', 2, 2, this.ruleSet)
+          seriesConfig: createSeriesConfiguration('GLOSS', this.ruleSet.seriesConfigurations!.GLOSS.standardConfiguration.seriesCount, this.ruleSet.seriesConfigurations!.GLOSS.standardConfiguration.readingsPerSeries, this.ruleSet)
         },
         PERSOZ: params.familyConfigs?.PERSOZ || {
           familyId: 'PERSOZ',
           enabled: params.activeFamilies.includes('PERSOZ'),
-          countConfig: createCountConfiguration('PERSOZ', 3, this.ruleSet)
+          countConfig: createCountConfiguration('PERSOZ', this.ruleSet.measurementConfigurations.PERSOZ.standardRecommendedCount, this.ruleSet)
         },
         ADHESION: params.familyConfigs?.ADHESION || {
           familyId: 'ADHESION',
           enabled: params.activeFamilies.includes('ADHESION'),
-          countConfig: createCountConfiguration('ADHESION', 2, this.ruleSet)
+          countConfig: createCountConfiguration('ADHESION', this.ruleSet.measurementConfigurations.ADHESION.standardRecommendedCount, this.ruleSet)
         },
         OBSERVATIONS: params.familyConfigs?.OBSERVATIONS || {
           familyId: 'OBSERVATIONS',
@@ -610,7 +641,7 @@ export class TrialStoreService {
     const prevConfig = famConfig?.countConfig || famConfig?.seriesConfig;
 
     if (typeof newCountOrSeries === 'number') {
-      const isStandard = newCountOrSeries === (this.ruleSet.measurementConfigurations[familyId]?.standardRecommendedCount ?? 4);
+      const isStandard = newCountOrSeries === (this.ruleSet.measurementConfigurations[familyId]?.standardRecommendedCount ?? undefined);
       if (!isStandard && !isAdaptationJustificationValid(justification)) {
         throw new Error('Une justification obligatoire (8 caractères minimum) est requise pour toute adaptation du nombre de mesures.');
       }
@@ -769,6 +800,50 @@ export class TrialStoreService {
       },
       mediaIds: params.mediaIds || prevRecord?.mediaIds || []
     };
+
+    // Contrôle général du conditionnement avant les examens initiaux T0.
+    // Le délai est défini par le RuleSet NF EN 927-6 et s'applique aux familles
+    // mesurées à T0 ; il ne constitue pas une règle spécifique à l'adhérence.
+    if (targetStage.stageType === 'INITIAL_PRE_EXPOSURE') {
+      const targetBatch = trial.batches?.find((b) => b.id === params.batchId);
+      const conditioning = evaluatePreExposureConditioning(
+        targetBatch?.applicationDate,
+        targetStage.scheduledAt,
+        this.ruleSet,
+        params.familyId,
+        params.stageId,
+        params.panelId
+      );
+      if (conditioning.alert) {
+        throw new IntegrityViolationError(conditioning.alert.message, {
+          trialId: trial.id,
+          stageId: params.stageId,
+          batchId: params.batchId,
+          panelId: params.panelId,
+          familyId: params.familyId
+        });
+      }
+    }
+
+    // Avant le premier verrouillage, toutes les familles actives quantitatives
+    // doivent disposer d’une configuration complète et valide issue du RuleSet.
+    // Aucun verrou partiel n’est autorisé si une autre famille active est incomplète.
+    if (trial.configurationStatus !== 'LOCKED') {
+      for (const familyId of trial.config.activeFamilies) {
+        const familyConfig = trial.config.familyConfigs[familyId];
+        if (!familyConfig || !familyConfig.enabled) {
+          throw new IntegrityViolationError(`Configuration protocolaire absente pour la famille active ${familyId}.`, { trialId: trial.id, familyId });
+        }
+        const protocol = familyId === 'GLOSS'
+          ? evaluateSeriesProtocolCompliance(familyConfig.seriesConfig, this.ruleSet)
+          : familyId === 'OBSERVATIONS'
+            ? null
+            : evaluateCountProtocolCompliance(familyConfig.countConfig, this.ruleSet);
+        if (protocol && (protocol.status === 'INCOMPLETE' || protocol.status === 'INVALID')) {
+          throw new IntegrityViolationError(`Configuration protocolaire ${familyId} incomplète ou invalide : la première acquisition ne peut pas verrouiller l’essai.`, { trialId: trial.id, familyId });
+        }
+      }
+    }
 
     // Calcul immédiat via PROMPT 5 sans toucher à raw
     const { updatedRecord, rawUnchanged } = recalculateAcquisition(newRecord, trial, this.ruleSet);

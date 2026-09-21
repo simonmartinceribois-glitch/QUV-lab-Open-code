@@ -27,7 +27,7 @@ import {
   exportReportToCsv,
   exportRawDataToCsv
 } from '../../services/reportGenerator';
-import { getDefaultScientificRuleSet, createCountConfiguration } from '../ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../ruleSet';
 import { evaluateCountProtocolCompliance } from '../protocolEngine';
 import { assessTrialQuality } from '../qualityEngine';
 import { extractTemporalKinetics } from '../analysis/TrendAnalyzer';
@@ -122,6 +122,7 @@ export function runGate40SystemValidationTests(): {
       trialId,
       orderIndex: 0,
       reference: 'LOT-A-ACRYLIQUE',
+      applicationDate: '2026-08-01T00:00:00Z',
       coatingSystem: 'Système Acrylique Hydrodiluable 3 Couches',
       productReference: 'Peinture ACRY-PERF 3000',
       woodSpecies: 'Épicéa (Picea abies)',
@@ -132,6 +133,7 @@ export function runGate40SystemValidationTests(): {
       trialId,
       orderIndex: 1,
       reference: 'LOT-B-ALKYDE',
+      applicationDate: '2026-08-01T00:00:00Z',
       coatingSystem: 'Système Alkyde Solvanté Haute Extrait Sec',
       productReference: 'Lasure ALKY-DUR 100',
       woodSpecies: 'Pin Sylvestre (Pinus sylvestris)',
@@ -156,9 +158,26 @@ export function runGate40SystemValidationTests(): {
       standardReference: 'NF EN 927-6',
       activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'OBSERVATIONS'],
       familyConfigs: {
-        COLOR: { familyId: 'COLOR', enabled: true },
-        GLOSS: { familyId: 'GLOSS', enabled: true },
-        PERSOZ: { familyId: 'PERSOZ', enabled: true },
+        COLOR: {
+          familyId: 'COLOR',
+          enabled: true,
+          countConfig: createCountConfiguration('COLOR', ruleSet.measurementConfigurations.COLOR.standardRecommendedCount, ruleSet)
+        },
+        GLOSS: {
+          familyId: 'GLOSS',
+          enabled: true,
+          seriesConfig: createSeriesConfiguration(
+            'GLOSS',
+            ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration.seriesCount ?? 0,
+            ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration.readingsPerSeries ?? 0,
+            ruleSet
+          )
+        },
+        PERSOZ: {
+          familyId: 'PERSOZ',
+          enabled: true,
+          countConfig: createCountConfiguration('PERSOZ', ruleSet.measurementConfigurations.PERSOZ.standardRecommendedCount, ruleSet)
+        },
         OBSERVATIONS: { familyId: 'OBSERVATIONS', enabled: true }
       }
     },

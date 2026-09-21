@@ -95,34 +95,46 @@ export function detectTrialAnomalies(
     const famConfig = trial.config.familyConfigs[familyId];
     if (!famConfig || !famConfig.enabled) continue;
 
-    if (familyId === 'COLOR' && famConfig.countConfig) {
-      const stdPoints = ruleSet.measurementConfigurations.COLOR?.standardRecommendedCount ?? 4;
-      const configuredPoints = famConfig.countConfig.configuredCount;
-      if (configuredPoints !== stdPoints) {
-        if (famConfig.countConfig.deviationFromStandard && !famConfig.countConfig.justification) {
-          addAnomaly(
-            'CRITICAL',
-            'PROTOCOL',
-            'COLOR_ADAPTATION_UNJUSTIFIED',
-            'Adaptation du plan colorimétrique non justifiée',
-            `Le plan de mesure de la couleur est configuré à ${configuredPoints} points au lieu des ${stdPoints} points standard sans justification technique enregistrée.`,
-            true,
-            { sourceReference: 'NF EN 927-6 §6.3.2' }
-          );
-        } else {
-          addAnomaly(
-            'INFO',
-            'PROTOCOL',
-            'COLOR_ADAPTATION_JUSTIFIED',
-            'Plan de mesure colorimétrique adapté et justifié',
-            `Le plan de mesure de la couleur a été adapté à ${configuredPoints} points au lieu de ${stdPoints} points standard. Motif enregistré : "${famConfig.countConfig.justification}".`,
-            false,
-            { sourceReference: 'NF EN 927-6 §6.3.2' }
-          );
+    if (famConfig.countConfig && familyId !== 'GLOSS') {
+      const standardCount = ruleSet.measurementConfigurations[familyId]?.standardRecommendedCount;
+      if (standardCount === undefined) {
+        addAnomaly(
+          'CRITICAL',
+          'PROTOCOL',
+          'MEASUREMENT_REFERENCE_MISSING',
+          `Référentiel de mesure manquant pour ${familyId}`,
+          `Aucune configuration standard n'est disponible pour la famille ${familyId} ; l'évaluation de l'adaptation ne peut pas être référencée.`,
+          true
+        );
+      } else {
+        const configuredCount = famConfig.countConfig.configuredCount;
+        if (configuredCount !== standardCount) {
+          const label = familyId === 'COLOR' ? 'colorimétrique' : familyId === 'PERSOZ' ? 'Persoz' : familyId === 'ADHESION' ? "d'adhérence" : familyId;
+          const sourceReference = ruleSet.measurementConfigurations[familyId]?.standardReference || ruleSet.standardReference;
+          if (famConfig.countConfig.deviationFromStandard && !famConfig.countConfig.justification) {
+            addAnomaly(
+              'CRITICAL',
+              'PROTOCOL',
+              `${familyId}_ADAPTATION_UNJUSTIFIED`,
+              `Adaptation du plan ${label} non justifiée`,
+              `Le plan de mesure de ${label} est configuré à ${configuredCount} relevé(s) au lieu de ${standardCount} de référence sans justification technique enregistrée.`,
+              true,
+              { sourceReference }
+            );
+          } else {
+            addAnomaly(
+              'INFO',
+              'PROTOCOL',
+              `${familyId}_ADAPTATION_JUSTIFIED`,
+              `Plan de mesure ${label} adapté et justifié`,
+              `Le plan de mesure de ${label} a été adapté à ${configuredCount} relevé(s) au lieu de ${standardCount} de référence. Motif enregistré : "${famConfig.countConfig.justification}".`,
+              false,
+              { sourceReference }
+            );
+          }
         }
       }
     }
-
     if (familyId === 'GLOSS' && famConfig.seriesConfig) {
       const std = ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration;
       const cfg = famConfig.seriesConfig.configuredConfiguration;

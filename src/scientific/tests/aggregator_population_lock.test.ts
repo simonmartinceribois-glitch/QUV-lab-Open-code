@@ -21,7 +21,7 @@ import {
 } from '../aggregations';
 import { isFamilyScheduledForStage } from '../panelUtils';
 import { recalculateAcquisition } from '../recalculator';
-import { getDefaultScientificRuleSet } from '../ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../ruleSet';
 import type { Trial, PanelAcquisitionRecord } from '../../types/trial';
 import type {
   ColorComputedData,
@@ -332,12 +332,45 @@ export function runAggregatorPopulationLockTests(): {
   const trialId = 'trial-agg-lock';
   const stages = generateStandardExposureStages(trialId);
   const batchId = `${trialId}-batch-1`;
-  const mkTrial = (): Trial => ({
-    id: trialId, schemaVersion: '1.2.0',
-    createdAt: '2026-09-05T00:00:00Z', updatedAt: '2026-09-05T00:00:00Z',
-    metadata: { reference: 'QUV-AGG', createdBy: 'TEST_OP' },
-    status: 'IN_PROGRESS', configurationStatus: 'EDITABLE',
-    config: { standardReference: 'NF EN 927-6', activeFamilies: ['PERSOZ', 'ADHESION', 'COLOR', 'GLOSS', 'OBSERVATIONS'], familyConfigs: {} },
+  const mkTrial = (): Trial => {
+    const rs = getDefaultScientificRuleSet();
+    return {
+      id: trialId, schemaVersion: '1.2.0',
+      createdAt: '2026-09-05T00:00:00Z', updatedAt: '2026-09-05T00:00:00Z',
+      metadata: { reference: 'QUV-AGG', createdBy: 'TEST_OP' },
+      status: 'IN_PROGRESS', configurationStatus: 'EDITABLE',
+      config: {
+        standardReference: 'NF EN 927-6',
+        activeFamilies: ['PERSOZ', 'ADHESION', 'COLOR', 'GLOSS', 'OBSERVATIONS'],
+        familyConfigs: {
+          PERSOZ: {
+            familyId: 'PERSOZ',
+            enabled: true,
+            countConfig: createCountConfiguration('PERSOZ', rs.measurementConfigurations.PERSOZ.standardRecommendedCount, rs)
+          },
+          ADHESION: {
+            familyId: 'ADHESION',
+            enabled: true,
+            countConfig: createCountConfiguration('ADHESION', rs.measurementConfigurations.ADHESION.standardRecommendedCount, rs)
+          },
+          COLOR: {
+            familyId: 'COLOR',
+            enabled: true,
+            countConfig: createCountConfiguration('COLOR', rs.measurementConfigurations.COLOR.standardRecommendedCount, rs)
+          },
+          GLOSS: {
+            familyId: 'GLOSS',
+            enabled: true,
+            seriesConfig: createSeriesConfiguration(
+              'GLOSS',
+              rs.seriesConfigurations!.GLOSS.standardConfiguration.seriesCount,
+              rs.seriesConfigurations!.GLOSS.standardConfiguration.readingsPerSeries,
+              rs
+            )
+          },
+          OBSERVATIONS: { familyId: 'OBSERVATIONS', enabled: true }
+        }
+      },
     scheduleConfig: {
       cycleDurationHours: 168, maxCycles: 12,
       initialStage: { exposureHours: 0, mandatory: true, label: 'T0' },
@@ -355,7 +388,8 @@ export function runAggregatorPopulationLockTests(): {
       ]
     }],
     acquisitions: {}, auditTrail: [], mediaReferences: []
-  } as Trial);
+    } as Trial;
+  };
 
   const recalcFor = (trial: Trial, cycleIndex: number, panelSuffix: string, familyId: string, raw: unknown): PanelAcquisitionRecord => {
     const stage = trial.stages.find((s) => s.cycleIndex === cycleIndex)!;

@@ -95,7 +95,7 @@ export function runGlossOrientationTests(): {
       { id: `${batchId}-e1`, label: 'E1', roleCode: 'E1', role: 'EXPOSED_1', batchId, status: 'ACTIVE', index: 1 }
     ];
     const batches: BatchDefinition[] = [
-      { id: batchId, trialId, orderIndex: 1, reference: `LOT-GO-${seq}`, panels }
+      { id: batchId, trialId, orderIndex: 1, reference: `LOT-GO-${seq}`, applicationDate: '2026-08-01T00:00:00Z', panels }
     ];
     return {
       id: trialId,
@@ -109,7 +109,7 @@ export function runGlossOrientationTests(): {
         standardReference: 'NF EN 927-6',
         activeFamilies: ['GLOSS'],
         familyConfigs: {
-          GLOSS: { familyId: 'GLOSS', enabled: true }
+          GLOSS: { familyId: 'GLOSS', enabled: true, seriesConfig: glossConfig }
         }
       },
       scheduleConfig: {

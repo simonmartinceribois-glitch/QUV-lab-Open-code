@@ -4,7 +4,7 @@
  */
 
 import { globalTrialStore, IntegrityViolationError } from '../../services/trialStore';
-import { getDefaultScientificRuleSet } from '../ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../ruleSet';
 import {
   Trial,
   TrialMetadata,
@@ -82,13 +82,14 @@ export function runGate50OperationalQualificationTests(): Gate50Summary {
 
   const stages: ExposureStage[] = [
     {
-      id: `st-g50-0`,
+id: `st-g50-0`,
       trialId,
       cycleIndex: 0,
       stageType: 'INITIAL_PRE_EXPOSURE',
-      name: 'T0 — MESURES INITIALES AVANT EXPOSITION',
+      name: 'T0 MESURES INITIALES AVANT EXPOSITION',
       scheduledExposureHours: 0,
       actualExposureHours: 0,
+      scheduledAt: now,
       status: 'VALIDATED',
       validatedBy: 'SM',
       validatedAt: now
@@ -128,6 +129,7 @@ export function runGate50OperationalQualificationTests(): Gate50Summary {
       coatingSystem: 'Lasure Hydro 3C',
       woodSpecies: 'Pin sylvestre',
       coatCount: 3,
+      applicationDate: '2026-08-01T00:00:00Z',
       panels: [
         { id: `p-g50-1-T`, batchId: `batch-g50-1`, index: 1, label: 'T', role: 'WITNESS', roleCode: 'T', grainOrientation: 'Quartier', status: 'ACTIVE' },
         { id: `p-g50-1-E1`, batchId: `batch-g50-1`, index: 2, label: '1', role: 'EXPOSED_1', roleCode: 'E1', grainOrientation: 'Quartier', exposureFace: 'Face externe', status: 'ACTIVE' },
@@ -143,6 +145,7 @@ export function runGate50OperationalQualificationTests(): Gate50Summary {
       coatingSystem: 'Lasure Solvantée 3C',
       woodSpecies: 'Chêne',
       coatCount: 3,
+      applicationDate: '2026-08-01T00:00:00Z',
       panels: [
         { id: `p-g50-2-T`, batchId: `batch-g50-2`, index: 1, label: 'T', role: 'WITNESS', roleCode: 'T', grainOrientation: 'Quartier', status: 'ACTIVE' },
         { id: `p-g50-2-E1`, batchId: `batch-g50-2`, index: 2, label: '1', role: 'EXPOSED_1', roleCode: 'E1', grainOrientation: 'Quartier', exposureFace: 'Face externe', status: 'ACTIVE' },
@@ -165,9 +168,26 @@ export function runGate50OperationalQualificationTests(): Gate50Summary {
       standardReference: 'NF EN 927-6',
       activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'OBSERVATIONS'],
       familyConfigs: {
-        COLOR: { familyId: 'COLOR', enabled: true },
-        GLOSS: { familyId: 'GLOSS', enabled: true },
-        PERSOZ: { familyId: 'PERSOZ', enabled: true },
+        COLOR: {
+          familyId: 'COLOR',
+          enabled: true,
+          countConfig: createCountConfiguration('COLOR', ruleSet.measurementConfigurations.COLOR.standardRecommendedCount, ruleSet)
+        },
+        GLOSS: {
+          familyId: 'GLOSS',
+          enabled: true,
+          seriesConfig: createSeriesConfiguration(
+            'GLOSS',
+            ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration.seriesCount ?? 0,
+            ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration.readingsPerSeries ?? 0,
+            ruleSet
+          )
+        },
+        PERSOZ: {
+          familyId: 'PERSOZ',
+          enabled: true,
+          countConfig: createCountConfiguration('PERSOZ', ruleSet.measurementConfigurations.PERSOZ.standardRecommendedCount, ruleSet)
+        },
         OBSERVATIONS: { familyId: 'OBSERVATIONS', enabled: true }
       }
     },

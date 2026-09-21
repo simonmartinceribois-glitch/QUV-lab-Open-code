@@ -46,11 +46,9 @@ export function Tab05Stages({
   onTrialUpdated
 }: Props) {
   // Gate 54 (D-1) : seuls les jalons actifs font partie du plan de mesurage.
-  // Un jalon INACTIVE ne doit jamais pouvoir être sélectionné pour le banc de mesure.
   const activeStages = trial.stages.filter((s) => s.status !== 'INACTIVE');
   const currentStage = activeStages.find((s) => s.id === selectedStageId) || activeStages[0] || trial.stages[0];
 
-  // Si selectedStageId est inactif ou introuvable parmi les actifs, synchroniser avec le parent
   React.useEffect(() => {
     const isSelectedActive = activeStages.some((s) => s.id === selectedStageId);
     if (!isSelectedActive && currentStage && currentStage.status !== 'INACTIVE') {
@@ -72,6 +70,26 @@ export function Tab05Stages({
   // Gate 54 (D-2) : verrouillage strict du plan après la 1ère acquisition
   const hasAcquisitions = Object.keys(trial.acquisitions || {}).length > 0;
   const isPlanLocked = trial.configurationStatus === 'LOCKED' || hasAcquisitions;
+
+  const formatDateTimeLocal = (iso?: string) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  };
+
+  const handleT0EffectiveDateChange = (value: string) => {
+    if (!value || currentStage.cycleIndex !== 0 || isPlanLocked) return;
+    try {
+      globalTrialStore.updateT0EffectiveDate(trial.id, value, operatorId);
+      onTrialUpdated();
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err?.message || 'Date T0 invalide.' });
+      setTimeout(() => setStatusMessage(null), 4000);
+    }
+  };
+
 
   const activePanels = trial.batches.flatMap((b) => b.panels).filter((p) => p.status === 'ACTIVE');
   const totalActivePanelsCount = activePanels.length;
@@ -309,11 +327,18 @@ export function Tab05Stages({
               Date effective du relevé
             </label>
             <input
-              type="text"
-              disabled
-              value={currentStage.measuredAt ? new Date(currentStage.measuredAt).toLocaleString('fr-FR') : 'En cours...'}
-              className="w-full text-xs px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-600"
+              type="datetime-local"
+              disabled={isPlanLocked || currentStage.cycleIndex !== 0}
+              value={currentStage.cycleIndex === 0 ? formatDateTimeLocal(currentStage.scheduledAt) : formatDateTimeLocal(currentStage.measuredAt)}
+              onChange={(e) => handleT0EffectiveDateChange(e.target.value)}
+              title={isPlanLocked ? 'Date T0 verrouillée après la première acquisition.' : 'Date de référence du relevé T0 et du calcul du conditionnement.'}
+              className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 disabled:bg-slate-100 disabled:text-slate-500"
             />
+            {currentStage.cycleIndex === 0 && (
+              <p className="mt-1 text-[10px] text-slate-500">
+                Référence T0 : les jalons C1 à C12 sont calculés automatiquement par pas exacts de 168 h.
+              </p>
+            )}
           </div>
 
           <div>

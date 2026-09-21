@@ -17,11 +17,9 @@ import {
   GlossComputedData,
   PersozComputedData,
   AdhesionComputedData,
-  AdhesionRawData,
   VisualObservationsComputedData
 } from '../types/scientific';
 import { generateUUID } from './trialIds';
-import { evaluateAdhesionDelayCriterion } from '../scientific/criteria/criteriaAdhesion';
 import {
   getActiveE1E2E3Panels,
   isPersozEligiblePanel,
@@ -124,7 +122,13 @@ export function auditTrialBeforeReport(trial: Trial, ruleSet: ScientificRuleSet)
   }
 
   const stageT0 = trial.stages.find((s) => s.stageType === 'INITIAL_PRE_EXPOSURE' || s.cycleIndex === 0);
-  const t0Available = !!stageT0 && (stageT0.status === 'VALIDATED' || stageT0.status === 'IN_PROGRESS');
+  // Une étape T0 est considérée mesurée uniquement lorsqu'une acquisition
+  // scientifique exploitable lui est rattachée. Le statut d'étape est un état
+  // de workflow et ne constitue jamais, à lui seul, une preuve de mesure.
+  const t0HasAcquisition = !!stageT0 && Object.values(trial.acquisitions || {}).some(
+    (a) => a.stageId === stageT0.id && a.raw !== null && a.raw !== undefined && a.status !== 'EMPTY'
+  );
+  const t0Available = !!stageT0 && t0HasAcquisition;
   if (!t0Available) {
     missingCriticalElements.push("Étape initiale T0 manquante ou non mesurée (référence obligatoire).");
   }
@@ -171,6 +175,25 @@ export function auditTrialBeforeReport(trial: Trial, ruleSet: ScientificRuleSet)
   // Alertes recensées : chaque acquisition expose un catalogue d'alertes.
   const alertsCataloged = acquisitionsList.every((a) => Array.isArray((a as { alerts?: unknown }).alerts));
 
+  // Le rapport scientifique est bloqué si le protocole actif est INCOMPLETE ou INVALID.
+  // Le statut est calculé exclusivement par protocolEngine ; le rapport ne redéfinit pas les règles.
+  const protocolRank: Record<ProtocolComplianceStatus, number> = {
+    STANDARD: 0, ADAPTED_JUSTIFIED: 1, ADAPTED_UNJUSTIFIED: 2, INCOMPLETE: 3, INVALID: 4
+  };
+  let reportProtocolStatus: ProtocolComplianceStatus = 'STANDARD';
+  for (const familyId of trial.config.activeFamilies) {
+    const cfg = trial.config.familyConfigs[familyId];
+    const evaluation = familyId === 'GLOSS'
+      ? evaluateSeriesProtocolCompliance(cfg?.seriesConfig, ruleSet)
+      : familyId === 'OBSERVATIONS'
+        ? null
+        : evaluateCountProtocolCompliance(cfg?.countConfig, ruleSet);
+    if (evaluation && protocolRank[evaluation.status] > protocolRank[reportProtocolStatus]) reportProtocolStatus = evaluation.status;
+  }
+  if (reportProtocolStatus === 'INCOMPLETE' || reportProtocolStatus === 'INVALID' || reportProtocolStatus === 'ADAPTED_UNJUSTIFIED') {
+    missingCriticalElements.push(`Statut protocolaire bloquant : ${reportProtocolStatus}.`);
+  }
+
   const isComplete =
     trialIdentified &&
     batchesIdentified &&
@@ -179,7 +202,7 @@ export function auditTrialBeforeReport(trial: Trial, ruleSet: ScientificRuleSet)
     final2016hAvailable &&
     missingCriticalElements.length === 0;
 
-  const canGenerate = missingCriticalElements.length === 0;
+  const canGenerate = missingCriticalElements.length === 0 && reportProtocolStatus !== 'INCOMPLETE' && reportProtocolStatus !== 'INVALID' && reportProtocolStatus !== 'ADAPTED_UNJUSTIFIED';
 
   return {
     isComplete,
@@ -301,6 +324,9 @@ export function buildScientificReport(
   }
 ): ScientificReport {
   const audit = auditTrialBeforeReport(trial, ruleSet);
+  if (!audit.canGenerate) {
+    throw new Error('Rapport scientifique non générable : ' + audit.missingCriticalElements.join(' | '));
+  }
   const now = new Date().toISOString();
   const reportId = generateUUID();
   const existingReportsCount = trial.reports?.length || 0;
@@ -508,7 +534,7 @@ export function buildScientificReport(
             `  Lot ${i + 1} [${b.reference}] : ${b.coatingSystem || 'Système non renseigné'} | Support: ${displayReportValue(b.woodSpecies)} | Produit: ${b.productReference || 'N/A'} | Fabricant: ${b.manufacturerOrSupplier || 'N/A'} | Couches: ${displayReportValue(b.coatCount)} | Préparation: ${displayReportValue(b.substratePreparation)} | Application: ${displayReportValue(b.applicationMethod)} | Séchage: ${displayReportValue(b.dryingOrConditioningTime)}`
         )
         .join('\n'),
-    panelsDefinition: `Nombre total d'éprouvettes : ${totalPanelsCount} (Actives : ${activePanelsCount}, Exclues : ${excludedPanelsCount})\nDimensions des éprouvettes : ${displayReportValue(trial.commonCharacteristics?.dimensions?.lengthMm)} × ${displayReportValue(trial.commonCharacteristics?.dimensions?.widthMm)} × ${displayReportValue(trial.commonCharacteristics?.dimensions?.thicknessMm)} mm\nOrientation du fil (mesurée) : ${displayReportValue(trial.commonCharacteristics?.woodGrainOrientation)}\nConditionnement préalable (réalisé) : ${displayReportValue(trial.commonCharacteristics?.conditioningNotes)}\nRappel normatif (NF EN 927-6 §5, exigence — à confronter aux valeurs mesurées ci-dessus, jamais une mesure) : éprouvettes stabilisées avant essai selon le référentiel.` +
+    panelsDefinition: `Nombre total d'éprouvettes : ${totalPanelsCount} (Actives : ${activePanelsCount}, Exclues : ${excludedPanelsCount})\nDimensions des éprouvettes : ${displayReportValue(trial.commonCharacteristics?.dimensions?.lengthMm)} × ${displayReportValue(trial.commonCharacteristics?.dimensions?.widthMm)} × ${displayReportValue(trial.commonCharacteristics?.dimensions?.thicknessMm)} mm\nOrientation du fil (mesurée) : ${displayReportValue(trial.commonCharacteristics?.woodGrainOrientation)}\nConditionnement préalable (réalisé) : ${displayReportValue(trial.commonCharacteristics?.conditioningNotes)}\nCommentaire de conditionnement avant T0 (NF EN 927-6:2018 §6.3.3) : environ 7 jours à 20 ± 2 °C et 65 ± 5 % HR ; ces conditions sont paramétrées sur l’enceinte climatique, ne sont pas contrôlées ni bloquantes dans QUV-Lab, et sont restituées uniquement comme information de protocole.\nContrôle QUV-Lab : intervalle temporel entre la date d’application et la date effective du relevé T0, sans utiliser measuredAt/createdAt comme substitut.` +
       (excludedPanelsCount > 0
         ? `\nÉprouvettes exclues : ` +
           allPanels
@@ -521,7 +547,7 @@ export function buildScientificReport(
       trial.stages
         .map(
           (st) =>
-            `  - [${st.stageType}] ${st.name} | Jalon d'exposition : ${st.scheduledExposureHours} h (cycle ${st.cycleIndex} × 168 h) | Relevé le : ${st.measuredAt ? new Date(st.measuredAt).toLocaleString('fr-FR') : 'Non relevé'} | Statut : ${st.status}`
+            `  - [${st.stageType}] ${st.name} | Jalon d'exposition : ${st.scheduledExposureHours} h (cycle ${st.cycleIndex} × 168 h) | Date effective planifiée : ${st.scheduledAt ? new Date(st.scheduledAt).toLocaleString('fr-FR') : 'Non renseignée'} | Mesuré techniquement le : ${st.measuredAt ? new Date(st.measuredAt).toLocaleString('fr-FR') : 'Non relevé'} | Statut : ${st.status}`
         )
         .join('\n'),
     measurementPlan: `Familles de mesure actives : ${trial.config.activeFamilies.join(', ')}\n• Couleur : ${planDetail('COLOR', 'points par éprouvette')}\n• Brillance : ${planDetail('GLOSS', 'lectures')}\n• Persoz : ${planDetail('PERSOZ', 'mesures')}\n• Adhérence au quadrillage : ${planDetail('ADHESION', 'mesures (NF EN ISO 2409:2020)')}\n• Observations visuelles : ${trial.config.familyConfigs.OBSERVATIONS?.enabled ? 'Active (Évaluation ISO 4628)' : 'Désactivée'}`,
@@ -530,7 +556,7 @@ export function buildScientificReport(
     persozResults: protocolMeasureBlock('PERSOZ') + `Dureté superficielle par temps d'amortissement du pendule Persoz (secondes).\nNOTE MÉTHODOLOGIQUE : Cette grandeur constitue une recommandation interne du laboratoire (LAB_RECOMMENDATION) et ne constitue pas une exigence normative formelle de la NF EN 927-6.\nÉvolution : Suivi de la cinétique de réticulation / dégradation mécanique superficielle.`,
     adhesionResults: protocolMeasureBlock('ADHESION') + `Évaluation de la résistance à la séparation par quadrillage selon NF EN ISO 2409:2020.\nNOTE MÉTHODOLOGIQUE : L'essai au quadrillage constitue une méthode d'évaluation qualitative de la résistance du revêtement au détachement selon une grille de 6×6 incisions (classes 0 à 5), et ne doit en aucun cas être assimilé à une force d'adhérence quantitative en MPa.\nProtocole : Éprouvette témoin T à T0 (référence initiale), éprouvettes exposées à C12 (2016 h). Espacement de peigne 2 mm (≤ 120 µm) ou 3 mm (121–250 µm) selon l'épaisseur sèche du revêtement.`,
     visualObservations: `Cotations des défauts surfaciques selon les normes ISO 4628 (Cloquage, Écaillage, Craquelage, Farinage) et ISO 2409 (Quadrillage).\n` + (observationAcqs.length > 0 ? `${observationAcqs.length} relevé(s) d'observations calculé(s) — détail en Annexe B.` : `Aucune cotation d'observation enregistrée : état Non renseigné.`),
-    kineticsAnalysis: `Analyse cinétique de la dégradation : Les données compilées permettent d'observer les courbes d'évolution temporelle depuis T0 (0 h) jusqu'aux étapes en cours d'exposition (168 h à ${displayReportValue(evaluatedStages[evaluatedStages.length - 1]?.scheduledExposureHours)} h)${stage2016 && stage2016.status === 'VALIDATED' ? ' et l’étape finale à 2016 h.' : ' ; l’étape finale à 2016 h restant à réaliser.'}\nDistinction rigoureuse : La dispersion intra-panneau (répétabilité de la mesure) est isolée de la dispersion inter-panneaux (homogénéité du lot).`,
+    kineticsAnalysis: `Analyse cinétique de la dégradation : Les données compilées permettent d'observer les courbes d'évolution temporelle depuis T0 (0 h) jusqu'aux étapes en cours d'exposition (168 h à ${displayReportValue(evaluatedStages.filter((s) => s.cycleIndex > 0).slice(-1)[0]?.scheduledExposureHours)} h)${stage2016 && stage2016.status === 'VALIDATED' ? ' et l’étape finale à 2016 h.' : ' ; l’étape finale à 2016 h restant à réaliser.'}\nDistinction rigoureuse : La dispersion intra-panneau (répétabilité de la mesure) est isolée de la dispersion inter-panneaux (homogénéité du lot).`,
     qualityControl: `Contrôle qualité des acquisitions : Chaque mesure est qualifiée selon 4 niveaux (GOOD, ACCEPTABLE, WARNING, INVALID).\nLes données RAW disponibles sont restituées sans modification ni arrondissement destructif dans le cadre de la génération du rapport. L'intégrité complète du corpus RAW n'est pas déterminée en l'absence d'un audit d'intégrité dédié.\nRelevés avec alerte qualité : dûment signalés avec mention explicite dans les tableaux d'annexes.`,
     deviationsAndAdaptations: adaptedFamilies.length > 0
       ? `Adaptations de protocole enregistrées pour cet essai :\n` +
@@ -668,18 +694,10 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
               stdStr = compAdh.gridSpacingUsedMm ? `Peigne ${compAdh.gridSpacingUsedMm} mm` : '—';
               // Δ = variation moyenne de classement, indicateur complémentaire non normatif.
               deltaStr = compAdh.deltaAdhesionClass !== null && compAdh.deltaAdhesionClass !== undefined ? `${indiv.length > 1 ? 'Δmoy.(compl.)=' : 'ΔClasse='}${compAdh.deltaAdhesionClass >= 0 ? '+' : ''}${compAdh.deltaAdhesionClass}` : 'RÉF (T0)';
-              // Verdict de délai via la couche CRITÈRE (S3), calculé à la volée depuis
-              // les dates RAW — source de vérité unique, jamais de valeur persistée
-              // de COMPUTED (delayCompliance a été retiré du COMPUTED).
-              const rawAdh = acq.raw as AdhesionRawData | undefined;
-              const delayEval = rawAdh
-                ? evaluateAdhesionDelayCriterion({
-                    applicationDateTime: rawAdh.applicationDateTime,
-                    measurementDateTime: rawAdh.measurementDateTime,
-                    requiredMinimumDelayHours: rawAdh.requiredMinimumDelayHours
-                  })
-                : null;
-              retStr = delayEval ? delayEval.verdict : '—';
+              // Le conditionnement avant T0 est une règle générale de protocole,
+              // non un critère spécifique à l'adhérence ; aucune colonne de délai
+              // n'est calculée ici à partir des RAW d'adhérence.
+              retStr = '—';
             } else if (fam === 'OBSERVATIONS') {
               const compObs = acq.computed as VisualObservationsComputedData;
               valStr = displayReportValue(compObs.summary);
