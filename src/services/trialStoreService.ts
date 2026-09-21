@@ -325,6 +325,36 @@ export class TrialStoreService {
     return this.getTrials();
   }
 
+  /**
+   * Modifie la date effective du relevé T0 avant verrouillage du plan.
+   * T0 devient la référence temporelle unique : C1..C12 sont recalculés
+   * par incréments exacts de 168 h à partir de cette nouvelle date.
+   */
+  public updateT0EffectiveDate(trialId: UUID, effectiveDate: string, operatorId: string): Trial {
+    const trial = this.getTrial(trialId);
+    if (!trial) throw new Error('Essai introuvable');
+    if (trial.configurationStatus === 'LOCKED' || Object.keys(trial.acquisitions || {}).length > 0) {
+      throw new IntegrityViolationError('La date effective du relevé T0 ne peut plus être modifiée après le démarrage de la campagne.', { trialId });
+    }
+    const parsed = new Date(effectiveDate);
+    if (Number.isNaN(parsed.getTime())) throw new IntegrityViolationError('La date effective du relevé T0 est invalide.', { trialId });
+    const t0 = trial.stages.find((stage) => stage.stageType === 'INITIAL_PRE_EXPOSURE' || stage.cycleIndex === 0);
+    if (!t0) throw new IntegrityViolationError('Le jalon T0 est introuvable.', { trialId });
+    const t0Iso = parsed.toISOString();
+    t0.scheduledAt = t0Iso;
+    t0.scheduledExposureHours = 0;
+    for (const stage of trial.stages) {
+      if (stage.cycleIndex < 1 || stage.cycleIndex > 12) continue;
+      stage.scheduledExposureHours = stage.cycleIndex * 168;
+      stage.scheduledAt = new Date(parsed.getTime() + stage.scheduledExposureHours * 3600 * 1000).toISOString();
+    }
+    trial.startDate = t0Iso;
+    trial.updatedAt = new Date().toISOString();
+    trial.auditTrail.push({ id: generateUUID(), trialId, timestamp: trial.updatedAt, operatorId: operatorId || 'OPERATOR', action: 'UPDATE_T0_EFFECTIVE_DATE', entityType: 'STAGE', entityId: t0.id, details: { effectiveDate: t0Iso, scheduleRule: 'Ck = T0 + k × 168 h' } });
+    this.saveTrial(trial);
+    return trial;
+  }
+
   public saveTrial(trial: Trial): void {
     trial.updatedAt = new Date().toISOString();
     if (!trial.auditTrail) trial.auditTrail = [];
@@ -778,7 +808,7 @@ export class TrialStoreService {
       const targetBatch = trial.batches?.find((b) => b.id === params.batchId);
       const conditioning = evaluatePreExposureConditioning(
         targetBatch?.applicationDate,
-        newRecord.trace.createdAt,
+        targetStage.scheduledAt,
         this.ruleSet,
         params.familyId,
         params.stageId,
