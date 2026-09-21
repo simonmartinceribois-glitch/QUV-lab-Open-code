@@ -608,6 +608,106 @@ export function runGate57AdhesionTwoMeasurementsTests(): {
   {
     const raw = baseRaw({ adhesionClass: 2, observation: 'Legacy' });
     const t0 = baseRaw({ adhesionClass: 1 });
+    let blocked = false;
+    try {
+      resolveAdhesionCountConfig(undefined);
+    } catch {
+      blocked = true;
+    }
+    const res = calculateAdhesion(raw, undefined, ruleSet, { referenceRaw: t0 });
+    record(
+      'G57-CMP-25',
+      'RAW scalaire historique sans countConfig → blocage explicite, aucune configuration implicite',
+      blocked && res.computed === null && res.alerts.some((a) => a.code === 'CALCULATION_UNAVAILABLE' && a.severity === 'BLOCKING'),
+      'résolution absente bloquée + computed=null + CALCULATION_UNAVAILABLE/BLOCKING',
+      `resolverBlocked=${String(blocked)}, computed=${res.computed === null ? 'null' : 'présent'}, alerts=${res.alerts.map((a) => `${a.code}/${a.severity}`).join(', ')}`
+    );
+  }
+  {
+    // T0 scalaire legacy + C12 2 mesures : m1 appariée, m2 sans référence (null, pas de faux delta).
+    const t0 = baseRaw({ adhesionClass: 1 });
+  {
+    const mk = (panelMean: number | null): AdhesionComputedData =>
+      ({
+        adhesionClass: null,
+        individualResults: [],
+        panelMean,
+        classDescription: 'Classe test',
+        gridSpacingUsedMm: 2,
+        qualityAssessment: {
+          expectedCount: 2, actualCount: 2, validCount: 2, suspectCount: 0,
+          invalidCount: 0, missingCount: 0, completenessPercent: 100, status: 'GOOD', warnings: []
+        },
+        protocolStatus: 'STANDARD',
+        computation: { calculationVersion: ADHESION_CALCULATION_VERSION, calculatedAt: '2026-09-05T00:00:00Z' }
+      } as AdhesionComputedData);
+    const agg = aggregateBatchAdhesion('batch-g57', 'stage-c12', [mk(2.5), mk(3.0), mk(3.5)]);
+    record(
+      'G57-AGG-22',
+      'E1/E2/E3 agrégés par moyennes panneau (témoin exclu par l’appelant)',
+      agg.familyId === 'ADHESION' &&
+        agg.panelsCount === 3 &&
+        agg.adhesion?.overallMean === 3 &&
+        JSON.stringify(agg.adhesion?.panelMeans) === JSON.stringify([2.5, 3, 3.5]),
+      'overallMean=3, moyennes=[2.5,3,3.5]',
+      `overallMean=${String(agg.adhesion?.overallMean)}, moyennes=${JSON.stringify(agg.adhesion?.panelMeans)}`
+    );
+  }
+  {
+    // Panneau incomplet : panelMean=1 (1 seule valide). Moyenne des moyennes =
+    // (1+2.5+4.5)/3 = 2.7 ≠ moyenne poolée des 5 valides (3.0). Preuve anti-double-comptage.
+    const mk = (panelMean: number | null): AdhesionComputedData =>
+      ({
+        adhesionClass: null,
+        individualResults: [],
+        panelMean,
+        classDescription: 'Classe test',
+        gridSpacingUsedMm: 2,
+        qualityAssessment: {
+          expectedCount: 2, actualCount: 2, validCount: 2, suspectCount: 0,
+          invalidCount: 0, missingCount: 0, completenessPercent: 100, status: 'GOOD', warnings: []
+        },
+        protocolStatus: 'STANDARD',
+        computation: { calculationVersion: ADHESION_CALCULATION_VERSION, calculatedAt: '2026-09-05T00:00:00Z' }
+      } as AdhesionComputedData);
+    const agg = aggregateBatchAdhesion('batch-g57', 'stage-c12', [mk(1), mk(2.5), mk(4.5)]);
+    record(
+      'G57-AGG-23',
+      'Agrégation sur moyennes panneau, pas sur mesures individuelles poolées',
+      agg.adhesion?.overallMean === 2.7,
+      'overallMean=2.7 (≠ 3.0 poolé)',
+      `overallMean=${String(agg.adhesion?.overallMean)}`
+    );
+  }
+  {
+    const mk = (panelMean: number | null): AdhesionComputedData =>
+      ({
+        adhesionClass: null,
+        individualResults: [],
+        panelMean,
+        classDescription: 'Classe test',
+        gridSpacingUsedMm: 2,
+        qualityAssessment: {
+          expectedCount: 2, actualCount: 2, validCount: 2, suspectCount: 0,
+          invalidCount: 0, missingCount: 0, completenessPercent: 100, status: 'GOOD', warnings: []
+        },
+        protocolStatus: 'STANDARD',
+        computation: { calculationVersion: ADHESION_CALCULATION_VERSION, calculatedAt: '2026-09-05T00:00:00Z' }
+      } as AdhesionComputedData);
+    const agg = aggregateBatchAdhesion('batch-g57', 'stage-c12', [mk(2.5), mk(3), mk(3.5)]);
+    record(
+      'G57-AGG-24',
+      'Écart-type inter-panneaux échantillon (n−1)',
+      agg.adhesion?.standardDeviation === 0.5,
+      's=0.5',
+      `s=${String(agg.adhesion?.standardDeviation)}`
+    );
+  }
+
+  // --- COMPATIBILITÉ ---
+  {
+    const raw = baseRaw({ adhesionClass: 2, observation: 'Legacy' });
+    const t0 = baseRaw({ adhesionClass: 1 });
     const res = calculateAdhesion(raw, resolveAdhesionCountConfig(undefined), ruleSet, { referenceRaw: t0 });
     record(
       'G57-CMP-25',
