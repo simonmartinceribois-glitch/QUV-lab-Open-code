@@ -4,7 +4,7 @@
  *
  * Couche pure, déterministe, NON persistée et sans mutation. Elle délègue la
  * totalité de la logique scientifique à `calculatePreExposureDelayCompliance`
- * (adhesionEngine) : AUCUNE seconde règle. Le verdict CONFORME / NON_CONFORME /
+ * (protocolEngine) : AUCUNE seconde règle. Le verdict CONFORME / NON_CONFORME /
  * NON_EVALUE est la seule projection en jargon CRITÈRE du statut scientifique,
  * consommée par le rapport et l'interface utilisateur (source de vérité unique).
  *
@@ -88,8 +88,3 @@ export function evaluatePreExposureConditioningCriterion(input: {
     requiredMinimumDelayHours
   };
 }
-
-/** Compatibilité API historique : ne pas utiliser pour de nouveaux appels. */
-export type AdhesionDelayVerdict = PreExposureConditioningVerdict;
-export type AdhesionDelayCriterionEvaluation = PreExposureConditioningCriterionEvaluation;
-export const evaluateAdhesionDelayCriterion = evaluatePreExposureConditioningCriterion;
