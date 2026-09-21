@@ -42,7 +42,7 @@ import { aggregateBatchColor, aggregateBatchGloss } from '../aggregations';
 import { extractTemporalKinetics } from '../analysis/TrendAnalyzer';
 import { compareSystemsAtStage } from '../analysis/MultiSystemComparator';
 import { runQUVAnalysis } from '../analysis/AnalysisEngine';
-import { getDefaultScientificRuleSet, createCountConfiguration } from '../ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../ruleSet';
 import {
   globalTrialStore,
   generateStandardExposureStages,
