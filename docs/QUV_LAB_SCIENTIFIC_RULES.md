@@ -145,6 +145,62 @@ T0 = 0 h est une valeur scientifique valide.
 
 Aucune anomalie scientifique artificielle ne doit être créée uniquement à partir d'un écart entre durée scientifique programmée et durée machine réelle.
 
+### 5.1 Conditionnement avant les examens initiaux — T0
+
+Selon **NF EN 927-6:2018, §6.3.3**, après application du système de peinture, les panneaux sont vieillis/conditionnés pendant **environ 7 jours** à **20 ± 2 °C** et **65 ± 5 % HR** avant les examens initiaux.
+
+Cette règle est une condition préalable aux **examens initiaux T0** et ne constitue pas une règle spécifique à l'adhérence.
+
+Dans QUV-Lab, la vérification est effectuée entre :
+
+```text
+date d'application du système
+        ↓
+date effective du relevé T0
+```
+
+La **date d'application** est la date renseignée lors de la création de l'essai / du lot. La **date effective du relevé T0** est la date paramétrable dans l'étape 05 du protocole de l'essai (`Date effective du relevé`).
+
+Le logiciel doit vérifier l'intervalle réel entre ces deux dates avant d'autoriser les examens initiaux T0. La date technique de création de l'acquisition RAW (`measuredAt`, `createdAt`, ou équivalent) ne doit pas remplacer la date effective du relevé T0 pour cette vérification.
+
+Pour l'opérationnalisation informatique, QUV-Lab retient **168 h** comme représentation déterministe de « environ 7 jours » :
+
+```text
+intervalle application → T0 < 168 h  → conditionnement insuffisant / acquisition T0 bloquée
+intervalle application → T0 ≥ 168 h  → conditionnement temporel satisfait
+```
+
+**Important :** `168 h` est une **règle d'opérationnalisation QUV-Lab** de l'expression normative « environ 7 jours » ; la norme ne doit pas être citée comme formulant littéralement une exigence de « minimum 168 h ».
+
+Les conditions atmosphériques de conditionnement restent celles du référentiel : **20 ± 2 °C et 65 ± 5 % HR**. La vérification temporelle ne remplace pas la maîtrise ou l'enregistrement de ces conditions.
+
+Cette règle est distincte du jalon d'exposition :
+
+```text
+Conditionnement avant T0 : application → date effective du relevé T0
+Exposition QUV :           T0 → C1 → ... → C12
+```
+
+Le calcul des jalons d'exposition ne doit jamais être dérivé de la date d'application. Il est dérivé exclusivement de la date effective T0 :
+
+```text
+Ck = T0 + (k × 168 h)
+pour k = 1 à 12
+```
+
+Ainsi :
+
+```text
+C1  = T0 + 168 h
+C2  = T0 + 336 h
+...
+C12 = T0 + 2016 h
+```
+
+Les incréments sont calculés en **heures physiques écoulées** et non en jours calendaires, afin d'éviter toute dérive liée aux changements d'heure saisonniers.
+
+Avant la première acquisition scientifique, la date effective T0 peut être modifiée ; toute modification doit alors recalculer les jalons C1 à C12 selon la formule ci-dessus. Après verrouillage du plan de l'essai / première acquisition scientifique, la date effective T0 et le calendrier dérivé ne doivent plus être modifiables silencieusement.
+
 ## 6. Séparation RAW / COMPUTED / CRITÈRE / ANALYSE / CONCLUSION / RESTITUTION
 
 ### RAW
