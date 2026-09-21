@@ -81,6 +81,7 @@ export function runGate31IntegrityTests(): {
         productReference: 'Peinture A',
         woodSpecies: 'Pin Sylvestre',
         coatCount: 2,
+        applicationDate: '2026-08-20',
         panels: panelsBatch1
       },
       {
@@ -91,6 +92,7 @@ export function runGate31IntegrityTests(): {
         productReference: 'Peinture B',
         woodSpecies: 'Pin Sylvestre',
         coatCount: 3,
+        applicationDate: '2026-08-20',
         panels: panelsBatch2
       }
     ];
