@@ -69,6 +69,8 @@ export function Tab05Stages({
   const isInactive = currentStage.status === 'INACTIVE';
   const isValidated = currentStage.status === 'VALIDATED';
 
+  const formatDateTimeLocal = (iso?: string) => {\n    if (!iso) return '';\n    const d = new Date(iso);\n    if (Number.isNaN(d.getTime())) return '';\n    const pad = (n: number) => String(n).padStart(2, '0');\n    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;\n  };\n\n  const handleT0EffectiveDateChange = (value: string) => {\n    if (!value || currentStage.cycleIndex !== 0 || isPlanLocked) return;\n    try {\n      globalTrialStore.updateT0EffectiveDate(trial.id, value, operatorId);\n      onTrialUpdated();\n    } catch (err: any) {\n      setStatusMessage({ type: 'error', text: err?.message || 'Date T0 invalide.' });\n      setTimeout(() => setStatusMessage(null), 4000);\n    }\n  };
+
   // Gate 54 (D-2) : verrouillage strict du plan après la 1ère acquisition
   const hasAcquisitions = Object.keys(trial.acquisitions || {}).length > 0;
   const isPlanLocked = trial.configurationStatus === 'LOCKED' || hasAcquisitions;
@@ -309,11 +311,18 @@ export function Tab05Stages({
               Date effective du relevé
             </label>
             <input
-              type="text"
-              disabled
-              value={currentStage.measuredAt ? new Date(currentStage.measuredAt).toLocaleString('fr-FR') : 'En cours...'}
-              className="w-full text-xs px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-600"
+              type="datetime-local"
+              disabled={isPlanLocked || currentStage.cycleIndex !== 0}
+              value={currentStage.cycleIndex === 0 ? formatDateTimeLocal(currentStage.scheduledAt) : formatDateTimeLocal(currentStage.measuredAt)}
+              onChange={(e) => handleT0EffectiveDateChange(e.target.value)}
+              title={isPlanLocked ? 'Date T0 verrouillée après la première acquisition.' : 'Date de référence du relevé T0 et du calcul du conditionnement.'}
+              className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 disabled:bg-slate-100 disabled:text-slate-500"
             />
+            {currentStage.cycleIndex === 0 && (
+              <p className="mt-1 text-[10px] text-slate-500">
+                Référence T0 : les jalons C1 à C12 sont calculés automatiquement par pas exacts de 168 h.
+              </p>
+            )}
           </div>
 
           <div>
