@@ -45,6 +45,28 @@ export function Tab05Stages({
   onNavigateToFamilyBench,
   onTrialUpdated
 }: Props) {
+  // Gate 54 (D-1) : seuls les jalons actifs font partie du plan de mesurage.
+  const activeStages = trial.stages.filter((s) => s.status !== 'INACTIVE');
+  const currentStage = activeStages.find((s) => s.id === selectedStageId) || activeStages[0] || trial.stages[0];
+
+  React.useEffect(() => {
+    const isSelectedActive = activeStages.some((s) => s.id === selectedStageId);
+    if (!isSelectedActive && currentStage && currentStage.status !== 'INACTIVE') {
+      onSelectStageId(currentStage.id);
+    }
+  }, [selectedStageId, activeStages, currentStage, onSelectStageId]);
+
+  const [operatorId, setOperatorId] = useState<string>('Simon Martin (Technicien)');
+  const [validationNotes, setValidationNotes] = useState<string>('');
+  const [showValidationModal, setShowValidationModal] = useState(false);
+  const [showDeactivationModal, setShowDeactivationModal] = useState(false);
+  const [deactivationReason, setDeactivationReason] = useState<string>('');
+  const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const isMandatory = isMandatoryStage(currentStage);
+  const isInactive = currentStage.status === 'INACTIVE';
+  const isValidated = currentStage.status === 'VALIDATED';
+
   // Gate 54 (D-2) : verrouillage strict du plan après la 1ère acquisition
   const hasAcquisitions = Object.keys(trial.acquisitions || {}).length > 0;
   const isPlanLocked = trial.configurationStatus === 'LOCKED' || hasAcquisitions;
