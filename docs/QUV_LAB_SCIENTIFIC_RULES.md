@@ -172,7 +172,7 @@ intervalle application → T0 ≥ 168 h  → conditionnement temporel satisfait
 
 **Important :** `168 h` est une **règle d'opérationnalisation QUV-Lab** de l'expression normative « environ 7 jours » ; la norme ne doit pas être citée comme formulant littéralement une exigence de « minimum 168 h ».
 
-Les conditions atmosphériques de conditionnement restent celles du référentiel : **20 ± 2 °C et 65 ± 5 % HR**. La vérification temporelle ne remplace pas la maîtrise ou l'enregistrement de ces conditions.
+Les conditions atmosphériques de conditionnement restent celles du référentiel : **20 ± 2 °C et 65 ± 5 % HR**. Elles sont paramétrées et maîtrisées directement dans l'enceinte climatique ; QUV-Lab ne les contrôle pas et ne doit pas bloquer une acquisition T0 sur ces valeurs. Elles doivent apparaître dans le protocole / la restitution comme un **commentaire informatif de conditionnement**. La vérification temporelle application → T0 reste le seul contrôle automatisé de cette règle dans QUV-Lab.
 
 Cette règle est distincte du jalon d'exposition :
 
