@@ -106,7 +106,7 @@ export function runCriteriaSeparationTests(): {
     ],
     measurementDateTime: '2026-10-24T00:00:00Z',
     gridSpacingMm: 2,
-    normReference: 'NF EN ISO 2409:2020',
+    normReference: 'NF EN 927-6:2018',
     ...overrides
   });
 
@@ -358,7 +358,7 @@ export function runCriteriaSeparationTests(): {
         invalide.verdict === 'NON_EVALUE' &&
         invalide.status === 'INVALID_DATE' &&
         mappingIdentique &&
-        conforme.normativeReference === 'NF EN ISO 2409:2020',
+        conforme.normativeReference === 'NF EN 927-6:2018',
       'CONFORME(2016 h) / NON_CONFORME(96 h) / NON_EVALUE(manquante) / NON_EVALUE(invalide), mapping = logique moteur',
       `conforme=${conforme.verdict}(${conforme.status}), nonConforme=${nonConforme.verdict}(${nonConforme.status}), missing=${missing.verdict}(${missing.status}), invalide=${invalide.verdict}(${invalide.status})`
     );
