@@ -132,20 +132,8 @@ export function recalculateAcquisition(
           panelId: record.panelId,
           stageId: record.stageId,
           calculationVersion: options?.customCalculationVersion
-          }
-        )
-        : calculateAdhesion(
-            record.raw as AdhesionRawData,
-            undefined,
-            ruleSet,
-            {
-              referenceRaw: referenceRaw as AdhesionRawData | null,
-              referenceStageId: initialStage?.id,
-              panelId: record.panelId,
-              stageId: record.stageId,
-              calculationVersion: options?.customCalculationVersion
-            }
-          );
+        }
+      );
       computed = res.computed;
       alerts = res.alerts;
     }
@@ -188,8 +176,7 @@ export function recalculateAcquisition(
       // La configuration ADHESION provient exclusivement du protocole verrouillé.
       // Absente = calcul bloqué par le moteur ; aucune configuration implicite n'est reconstruite.
       const countConfig = famConfig?.countConfig;
-      const res = countConfig
-        ? calculateAdhesion(
+      const res = calculateAdhesion(
         record.raw as AdhesionRawData,
         countConfig,
         ruleSet,
