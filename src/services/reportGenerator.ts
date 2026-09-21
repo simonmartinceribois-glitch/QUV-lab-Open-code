@@ -17,7 +17,6 @@ import {
   GlossComputedData,
   PersozComputedData,
   AdhesionComputedData,
-  AdhesionRawData,
   VisualObservationsComputedData
 } from '../types/scientific';
 import { generateUUID } from './trialIds';
