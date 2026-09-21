@@ -173,10 +173,8 @@ export function recalculateAcquisition(
       computed = null;
       alerts = [];
     } else {
-      // Gate 57 / D4 : une configuration ADHESION sans `countConfig` enregistré
-      // (essais pré-Gate 57) est interprétée comme le protocole historique 1/1,
-      // SANS modifier la configuration stockée. Le référentiel live ne rétrograde
-      // jamais un essai historique en 1/2 WARNING.
+      // La configuration ADHESION provient exclusivement du protocole verrouillé.
+      // Absente = calcul bloqué par le moteur ; aucune configuration implicite n'est reconstruite.
       const countConfig = famConfig?.countConfig;
       const res = calculateAdhesion(
         record.raw as AdhesionRawData,
