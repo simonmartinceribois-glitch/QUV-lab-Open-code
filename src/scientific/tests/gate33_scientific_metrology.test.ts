@@ -946,13 +946,12 @@ export function runGate33ScientificMetrologyTests(): {
       observation: 'Léger détachement aux intersections'
     };
 
-    const adhCountConfig = ruleSet.measurementConfigurations['ADHESION'];
+    const adhCountConfig = createCountConfiguration('ADHESION', 1, ruleSet, { justification: 'Fixture historique : une mesure d’adhérence par panneau', operatorId: 'Test' });
     const adhResult = calculateAdhesion(rawC12, adhCountConfig, ruleSet, {
       referenceRaw: rawT0
     });
 
-    // Gate 57 / D4 : le RAW scalaire legacy reste 1/1 GOOD — le référentiel live
-    // ne rétrograde jamais l'historique (legacy 1/1 vs nouveau protocole 1/2, voir G33-ADH-04).
+    // Fixture explicite 1/1 : adaptation autorisée avec justification ; aucune conversion en MPa.
     const adhPassed =
       adhResult.computed.adhesionClass === 1 &&
       adhResult.computed.initialAdhesionClass === 0 &&
@@ -969,7 +968,7 @@ export function runGate33ScientificMetrologyTests(): {
       'STATISTICAL_RIGOR',
       adhPassed,
       'Classe 1, delta vs T0 = +1, aucune unité MPa, legacy 1/1 GOOD',
-      `Classe=${adhResult.computed.adhesionClass}, Delta=${adhResult.computed.deltaAdhesionClass}, Spacing=${adhResult.computed.gridSpacingUsedMm}mm, ForceMpa=${(adhResult.computed as any).adhesionForceMpa}`
+      `Classe=${adhResult.computed?.adhesionClass}, Delta=${adhResult.computed?.deltaAdhesionClass}, Spacing=${adhResult.computed?.gridSpacingUsedMm}mm, ForceMpa=${(adhResult.computed as any)?.adhesionForceMpa}`
     );
 
     // D. Distinction legacy 1/1 vs nouveau protocole 1/2 (Gate 57 / D4).
@@ -1009,17 +1008,17 @@ export function runGate33ScientificMetrologyTests(): {
       adhNewResult.computed.individualResults.length === 1 &&
       adhNewResult.computed.individualResults[0].deltaAdhesionClass === 1;
 
-    // D4 explicite : sans countConfig enregistré, l'historique reste 1/1 STANDARD.
+    // Configuration absente : aucun fallback historique ; calcul bloqué.
     const adhHistorical = calculateAdhesion(rawC12New, undefined, ruleSet, { referenceRaw: rawT0New });
 
     record(
       'G33-ADH-04',
-      'Adhérence Gate 57 : distinction legacy 1/1 vs nouveau protocole — 1/2 = WARNING + MEASUREMENT_MISSING, historique sans countConfig = 1/1 STANDARD',
+      'Adhérence Gate 57 : 1/2 = WARNING + MEASUREMENT_MISSING ; absence de countConfig = blocage explicite',
       'STATISTICAL_RIGOR',
       adhNewPassed &&
         adhHistorical.alerts.some((a) => a.severity === 'BLOCKING') &&
         adhHistorical.computed === null,
-      'Nouveau 1/2 WARNING 50 % + MEASUREMENT_MISSING ; historique sans configuration = BLOQUANT',
+      'Nouveau 1/2 WARNING 50 % + MEASUREMENT_MISSING ; sans configuration = BLOQUANT'
       `PanelMean=${adhNewResult.computed.panelMean}, Delta=${adhNewResult.computed.deltaAdhesionClass}, Status=${adhNewResult.computed.qualityAssessment.status}, HistStatus=${adhHistorical.alerts.some((a) => a.severity === 'BLOCKING') ? 'BLOCKING' : 'UNEXPECTED'}`
     );
   }
