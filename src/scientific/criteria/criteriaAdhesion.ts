@@ -1,6 +1,6 @@
 /**
- * QUV-Lab — Couche CRITÈRE (S3) : évaluation du délai d'application avant essai
- * d'adhérence (condition de protocole, NF EN 927-6:2018 §6.3.3).
+ * QUV-Lab — Couche CRITÈRE (S3) : évaluation du conditionnement avant examens initiaux
+ * (condition de protocole commune aux familles, NF EN 927-6:2018 §6.3.3).
  *
  * Couche pure, déterministe, NON persistée et sans mutation. Elle délègue la
  * totalité de la logique scientifique à `calculatePreExposureDelayCompliance`
@@ -13,11 +13,11 @@
 
 import { calculatePreExposureDelayCompliance } from '../protocolEngine';
 
-export type AdhesionDelayVerdict = 'CONFORME' | 'NON_CONFORME' | 'NON_EVALUE';
+export type PreExposureConditioningVerdict = 'CONFORME' | 'NON_CONFORME' | 'NON_EVALUE';
 
-export interface AdhesionDelayCriterionEvaluation {
+export interface PreExposureConditioningCriterionEvaluation {
   /** Verdict CRITÈRE : CONFORME / NON_CONFORME lorsque datable, NON_EVALUE sinon. */
-  verdict: AdhesionDelayVerdict;
+  verdict: PreExposureConditioningVerdict;
   elapsedTimeHours: number | null;
   /** Statut scientifique brut de calculatePreExposureDelayCompliance (transparence totale).
    *  DELAY_CHECK_SKIPPED : aucun délai minimal configuré, vérification contournée. */
@@ -25,12 +25,12 @@ export interface AdhesionDelayCriterionEvaluation {
   formattedElapsedTime: string;
   message: string;
   origin: 'PROTOCOL_CONDITION';
-  normativeReference: 'NF EN ISO 2409:2020';
+  normativeReference: 'NF EN 927-6:2018';
   /** Délai minimal requis (heure) ou null si non configuré (vérification contournée). */
   requiredMinimumDelayHours: number | null;
 }
 
-export function evaluateAdhesionDelayCriterion(input: {
+export function evaluatePreExposureConditioningCriterion(input: {
   applicationDateTime?: string;
   measurementDateTime?: string;
   requiredMinimumDelayHours?: number;
@@ -70,7 +70,7 @@ export function evaluateAdhesionDelayCriterion(input: {
     requiredMinimumDelayHours
   );
 
-  const verdict: AdhesionDelayVerdict =
+  const verdict: PreExposureConditioningVerdict =
     result.status === 'CONFORME'
       ? 'CONFORME'
       : result.status === 'INSUFFICIENT_DELAY'
@@ -88,3 +88,8 @@ export function evaluateAdhesionDelayCriterion(input: {
     requiredMinimumDelayHours
   };
 }
+
+/** Compatibilité API historique : ne pas utiliser pour de nouveaux appels. */
+export type AdhesionDelayVerdict = PreExposureConditioningVerdict;
+export type AdhesionDelayCriterionEvaluation = PreExposureConditioningCriterionEvaluation;
+export const evaluateAdhesionDelayCriterion = evaluatePreExposureConditioningCriterion;
