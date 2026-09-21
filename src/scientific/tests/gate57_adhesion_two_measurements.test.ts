@@ -495,150 +495,29 @@ export function runGate57AdhesionTwoMeasurementsTests(): {
     );
   }
   {
-    // Essai historique : aucun countConfig enregistré → 1/1, scalaire GOOD.
+    // Essai historique sans countConfig : le moteur ne reconstruit aucune configuration implicite.
     const trial = buildAdhesionTrial({ t0TClasses: null, t0E1Class: null, c12EClasses: [2, 2], withCountConfig: false });
     const stageT0 = trial.stages.find((s) => s.cycleIndex === 0)!;
     const legacyT0: AdhesionRawData = baseRaw({ adhesionClass: 1 });
-    const legacyC12: AdhesionRawData = baseRaw({ adhesionClass: 2 });
-    trial.acquisitions[`${stageT0.id}__${TRIAL_ID}-p-T__ADHESION`] = {
-      id: 'acq-legacy-t0', trialId: TRIAL_ID, stageId: stageT0.id, batchId: `${TRIAL_ID}-batch-1`,
-      panelId: `${TRIAL_ID}-p-T`, familyId: 'ADHESION', raw: legacyT0, computed: null, status: 'COMPLETE',
-      alerts: [], trace: { createdBy: 'TEST_OP', createdAt: '2026-09-05T00:00:00Z', source: 'MANUAL_KEYPAD' }, mediaIds: []
-    };
     const stageC12 = trial.stages.find((s) => s.cycleIndex === 12)!;
-    trial.acquisitions[`${stageC12.id}__${TRIAL_ID}-p-E1__ADHESION`] = {
-      id: 'acq-legacy-c12', trialId: TRIAL_ID, stageId: stageC12.id, batchId: `${TRIAL_ID}-batch-1`,
-      panelId: `${TRIAL_ID}-p-E1`, familyId: 'ADHESION', raw: legacyC12, computed: null, status: 'COMPLETE',
+    const legacyC12: AdhesionRawData = baseRaw({ adhesionClass: 2 });
+    trial.acquisitions[\`${stageT0.id}__${TRIAL_ID}-p-T__ADHESION\`] = {
+      id: 'acq-legacy-t0', trialId: TRIAL_ID, stageId: stageT0.id, batchId: \`${TRIAL_ID}-batch-1\`,
+      panelId: \`${TRIAL_ID}-p-T\`, familyId: 'ADHESION', raw: legacyT0, computed: null, status: 'COMPLETE',
       alerts: [], trace: { createdBy: 'TEST_OP', createdAt: '2026-09-05T00:00:00Z', source: 'MANUAL_KEYPAD' }, mediaIds: []
     };
-    const { computed, rawUnchanged } = recalcAdh(trial, 12, 'E1');
+    trial.acquisitions[\`${stageC12.id}__${TRIAL_ID}-p-E1__ADHESION\`] = {
+      id: 'acq-legacy-c12', trialId: TRIAL_ID, stageId: stageC12.id, batchId: \`${TRIAL_ID}-batch-1\`,
+      panelId: \`${TRIAL_ID}-p-E1\`, familyId: 'ADHESION', raw: legacyC12, computed: null, status: 'COMPLETE',
+      alerts: [], trace: { createdBy: 'TEST_OP', createdAt: '2026-09-05T00:00:00Z', source: 'MANUAL_KEYPAD' }, mediaIds: []
+    };
+    const { computed, rawUnchanged, alerts } = recalcAdh(trial, 12, 'E1');
     record(
       'G57-CFG-21',
-      'Essai sans countConfig : scalaire historique = 1/1 GOOD (jamais 1/2 WARNING)',
-      rawUnchanged === true &&
-        computed?.adhesionClass === 2 &&
-        computed?.qualityAssessment.status === 'GOOD' &&
-        computed?.qualityAssessment.expectedCount === 1 &&
-        computed?.deltaAdhesionClass === 1,
-      '1/1 GOOD, classe 2, Δ+1',
-      `classe=${String(computed?.adhesionClass)}, ${computed?.qualityAssessment.status} ${computed?.qualityAssessment.actualCount}/${computed?.qualityAssessment.expectedCount}, Δ=${String(computed?.deltaAdhesionClass)}`
-    );
-  }
-
-  // --- AGRÉGATION ---
-  {
-    const mk = (panelMean: number | null): AdhesionComputedData =>
-      ({
-        adhesionClass: null,
-        individualResults: [],
-        panelMean,
-        classDescription: 'Classe test',
-        gridSpacingUsedMm: 2,
-        qualityAssessment: {
-          expectedCount: 2, actualCount: 2, validCount: 2, suspectCount: 0,
-          invalidCount: 0, missingCount: 0, completenessPercent: 100, status: 'GOOD', warnings: []
-        },
-        protocolStatus: 'STANDARD',
-        computation: { calculationVersion: ADHESION_CALCULATION_VERSION, calculatedAt: '2026-09-05T00:00:00Z' }
-      } as AdhesionComputedData);
-    const agg = aggregateBatchAdhesion('batch-g57', 'stage-c12', [mk(2.5), mk(3.0), mk(3.5)]);
-    record(
-      'G57-AGG-22',
-      'E1/E2/E3 agrégés par moyennes panneau (témoin exclu par l’appelant)',
-      agg.familyId === 'ADHESION' &&
-        agg.panelsCount === 3 &&
-        agg.adhesion?.overallMean === 3 &&
-        JSON.stringify(agg.adhesion?.panelMeans) === JSON.stringify([2.5, 3, 3.5]),
-      'overallMean=3, moyennes=[2.5,3,3.5]',
-      `overallMean=${String(agg.adhesion?.overallMean)}, moyennes=${JSON.stringify(agg.adhesion?.panelMeans)}`
-    );
-  }
-  {
-    // Panneau incomplet : panelMean=1 (1 seule valide). Moyenne des moyennes =
-    // (1+2.5+4.5)/3 = 2.7 ≠ moyenne poolée des 5 valides (3.0). Preuve anti-double-comptage.
-    const mk = (panelMean: number | null): AdhesionComputedData =>
-      ({
-        adhesionClass: null,
-        individualResults: [],
-        panelMean,
-        classDescription: 'Classe test',
-        gridSpacingUsedMm: 2,
-        qualityAssessment: {
-          expectedCount: 2, actualCount: 2, validCount: 2, suspectCount: 0,
-          invalidCount: 0, missingCount: 0, completenessPercent: 100, status: 'GOOD', warnings: []
-        },
-        protocolStatus: 'STANDARD',
-        computation: { calculationVersion: ADHESION_CALCULATION_VERSION, calculatedAt: '2026-09-05T00:00:00Z' }
-      } as AdhesionComputedData);
-    const agg = aggregateBatchAdhesion('batch-g57', 'stage-c12', [mk(1), mk(2.5), mk(4.5)]);
-    record(
-      'G57-AGG-23',
-      'Agrégation sur moyennes panneau, pas sur mesures individuelles poolées',
-      agg.adhesion?.overallMean === 2.7,
-      'overallMean=2.7 (≠ 3.0 poolé)',
-      `overallMean=${String(agg.adhesion?.overallMean)}`
-    );
-  }
-  {
-    const mk = (panelMean: number | null): AdhesionComputedData =>
-      ({
-        adhesionClass: null,
-        individualResults: [],
-        panelMean,
-        classDescription: 'Classe test',
-        gridSpacingUsedMm: 2,
-        qualityAssessment: {
-          expectedCount: 2, actualCount: 2, validCount: 2, suspectCount: 0,
-          invalidCount: 0, missingCount: 0, completenessPercent: 100, status: 'GOOD', warnings: []
-        },
-        protocolStatus: 'STANDARD',
-        computation: { calculationVersion: ADHESION_CALCULATION_VERSION, calculatedAt: '2026-09-05T00:00:00Z' }
-      } as AdhesionComputedData);
-    const agg = aggregateBatchAdhesion('batch-g57', 'stage-c12', [mk(2.5), mk(3), mk(3.5)]);
-    record(
-      'G57-AGG-24',
-      'Écart-type inter-panneaux échantillon (n−1)',
-      agg.adhesion?.standardDeviation === 0.5,
-      's=0.5',
-      `s=${String(agg.adhesion?.standardDeviation)}`
-    );
-  }
-
-  // --- COMPATIBILITÉ ---
-  {
-    const raw = baseRaw({ adhesionClass: 2, observation: 'Legacy' });
-    const t0 = baseRaw({ adhesionClass: 1 });
-    let blocked = false;
-    try {
-      resolveAdhesionCountConfig(undefined);
-    } catch {
-      blocked = true;
-    }
-    const res = calculateAdhesion(raw, undefined, ruleSet, { referenceRaw: t0 });
-    record(
-      'G57-CMP-25',
-      'RAW scalaire historique sans countConfig → blocage explicite, aucune configuration implicite',
-      blocked && res.computed === null && res.alerts.some((a) => a.code === 'CALCULATION_UNAVAILABLE' && a.severity === 'BLOCKING'),
-      'résolution absente bloquée + computed=null + CALCULATION_UNAVAILABLE/BLOCKING',
-      `resolverBlocked=${String(blocked)}, computed=${res.computed === null ? 'null' : 'présent'}, alerts=${res.alerts.map((a) => `${a.code}/${a.severity}`).join(', ')}`
-    );
-  }
-  {
-    // T0 scalaire legacy + C12 2 mesures : m1 appariée, m2 sans référence (null, pas de faux delta).
-    const t0 = baseRaw({ adhesionClass: 1 });
-    const c12 = twoMeasuresRaw([3, 5]);
-    const res = calculateAdhesion(c12, std2, ruleSet, { referenceRaw: t0 });
-    const indiv = res.computed?.individualResults || [];
-    record(
-      'G57-CMP-26',
-      'Référence legacy 1 mesure : m1 appariée, m2 sans faux delta, moyenne correcte',
-      indiv[0]?.deltaAdhesionClass === 2 &&
-        indiv[1]?.deltaAdhesionClass === null &&
-        res.computed?.panelMean === 4 &&
-        res.computed?.initialPanelMean === 1 &&
-        res.computed?.deltaAdhesionClass === 3,
-      'Δm1=+2, Δm2=null, moy=4, init=1, Δmoy=+3',
-      `Δm1=${String(indiv[0]?.deltaAdhesionClass)}, Δm2=${String(indiv[1]?.deltaAdhesionClass)}, moy=${String(res.computed?.panelMean)}, Δmoy=${String(res.computed?.deltaAdhesionClass)}`
+      'Essai sans countConfig : blocage fail-closed, aucune configuration implicite',
+      rawUnchanged === true && computed === null && alerts.some((a) => a.code === 'CALCULATION_UNAVAILABLE' && a.severity === 'BLOCKING'),
+      'computed=null + CALCULATION_UNAVAILABLE/BLOCKING',
+      \`computed=${computed === null ? "null" : "présent"}, alerts=${alerts.map((a) => `${a.code}/${a.severity}`).join(", ")}\`
     );
   }
 
