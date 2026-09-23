@@ -15,6 +15,7 @@ import {
   ScientificRuleSet,
   UUID
 } from '../types/scientific';
+import { evaluateCountProtocolCompliance } from './protocolEngine';
 
 export const ADHESION_CALCULATION_VERSION = '1.2.0';
 export const ADHESION_NORM_REFERENCE = 'NF EN ISO 2409:2020';
@@ -403,13 +404,15 @@ export function calculateAdhesion(
     warnings: alerts.map((a) => a.message)
   };
 
-  const protocolStatus: ProtocolComplianceStatus = !countConfig
-    ? 'INCOMPLETE'
-    : countConfig.configuredCount > 3 || countConfig.configuredCount < 1 || !Number.isInteger(countConfig.configuredCount)
-      ? 'INVALID'
-      : countConfig.deviationFromStandard
-        ? countConfig.justification?.trim() ? 'ADAPTED_JUSTIFIED' : 'ADAPTED_UNJUSTIFIED'
-        : 'STANDARD';
+  // ÉTAPE 3 — Mutualisation : le statut descriptif de configuration de la famille
+  // ADHESION (mode de configuration COUNT) provient de la fonction commune
+  // evaluateCountProtocolCompliance(). Celle-ci lit la référence standard PERSISTÉE
+  // de l'essai (config.standardRecommendedCount) en priorité ; le RuleSet live
+  // n'intervient qu'en repli legacy (ÉTAPE 2). Cette logique n'est plus réimplémentée
+  // localement. Le statut est descriptif uniquement : il ne participe à aucun calcul
+  // scientifique — configuredCount reste le nombre opérationnel des valeurs utilisées.
+  const protocolStatus: ProtocolComplianceStatus =
+    evaluateCountProtocolCompliance(countConfig, ruleSet).status;
 
   const computed: AdhesionComputedData = {
     adhesionClass,

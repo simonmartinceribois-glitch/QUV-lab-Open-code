@@ -17,7 +17,8 @@ import {
   MeasurementCountConfiguration,
   MeasurementSeriesConfiguration,
   ComputationMetadata,
-  ScientificReport
+  ScientificReport,
+  ScientificContext
 } from './scientific';
 
 export interface TrialMetadata {
@@ -277,6 +278,12 @@ export interface Trial {
   status: TrialStatus;
   configurationStatus: ConfigurationStatus;
   config: TrialProtocolConfig;
+  /**
+   * Contexte scientifique historique gelé (ÉTAPE 1 — contrat de type uniquement).
+   * Optionnel : les essais existants créés avant le mécanisme de gel n'en portent pas.
+   * La capture et le figeage seront implémentés dans les étapes ultérieures.
+   */
+  scientificContext?: ScientificContext;
   scheduleConfig: ExposureScheduleConfig;
   stages: ExposureStage[];
   batches: BatchDefinition[];

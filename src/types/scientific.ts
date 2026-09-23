@@ -233,6 +233,34 @@ export interface ScientificRuleSet {
 }
 
 // ============================================================================
+// 3bis. CONTEXTE SCIENTIFIQUE HISTORIQUE (ÉTAPE 1 — CONTRAT DE TYPE UNIQUEMENT)
+// ============================================================================
+// Contrat de type préparant le futur gel du contexte scientifique d'un essai.
+// À cette étape, AUCUN comportement ne consomme encore ce type : il est ajouté
+// de manière strictement additive et rétrocompatible (champ optionnel sur Trial).
+// La capture (snapshot par valeur) et le figeage seront traités dans les étapes
+// ultérieures de l'architecture validée.
+
+export type ScientificContextStatus =
+  | 'FROZEN'
+  | 'NOT_FROZEN';
+
+export interface ScientificContext {
+  scientificRuleSetId: string;
+  scientificRuleSetVersion: string;
+  /** Copie PAR VALEUR du référentiel scientifique au moment du gel (jamais une référence live). */
+  scientificRuleSetSnapshot: ScientificRuleSet;
+  /** Étiquette de version du moteur — information de traçabilité, jamais un mécanisme de restauration. */
+  calculationEngineVersion: string;
+  /** Versions moteur par famille, lorsqu'elles ont été tracées au gel. Optionnel. */
+  engineVersionsByFamily?: Record<MeasurementFamilyId, string>;
+  frozenAt: ISODateString;
+  frozenBy: string;
+  frozenTrigger: 'FIRST_ACQUISITION';
+  status: ScientificContextStatus;
+}
+
+// ============================================================================
 // 4. DONNÉES BRUTES (RAW) & CALCULÉES (COMPUTED) PAR FAMILLE
 // ============================================================================
 
@@ -581,6 +609,13 @@ export interface ScientificReportMetadata {
   schemaVersion: string;
   calculationVersion: string;
   scientificRuleSetId: string;
+  /**
+   * Version du référentiel scientifique gelé (ÉTAPE 1 — contrat de type uniquement).
+   * Optionnel : rempli par les étapes ultérieures, jamais dérivé d'un faux historique.
+   */
+  scientificRuleSetVersion?: string;
+  /** Statut du contexte scientifique de l'essai au moment du rapport (optionnel). */
+  scientificContextStatus?: ScientificContextStatus;
 }
 
 export interface ScientificReportReviewComment {
