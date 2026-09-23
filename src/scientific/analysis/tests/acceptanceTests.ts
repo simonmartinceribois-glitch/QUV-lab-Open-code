@@ -4,10 +4,11 @@
  */
 
 import { Trial } from '../../../types/trial';
-import { ScientificRuleSet } from '../../../types/scientific';
+import { ScientificRuleSet, MeasurementFamilyId, MeasurementCountConfiguration, MeasurementSeriesConfiguration } from '../../../types/scientific';
 import { getDefaultScientificRuleSet, createCountConfiguration } from '../../ruleSet';
 import { runQUVAnalysis, ANALYSIS_VERSION } from '../AnalysisEngine';
 import { detectTrialAnomalies } from '../AnalysisAnomalyDetector';
+import { evaluateCountProtocolCompliance, evaluateSeriesProtocolCompliance } from '../../protocolEngine';
 import { analyzeBatchTrends } from '../TrendAnalyzer';
 import { compareSystemsAtStage } from '../MultiSystemComparator';
 import { generateTechnicalSynthesis } from '../TechnicalSynthesisGenerator';
@@ -844,6 +845,339 @@ export function runAllAcceptanceTests(): {
       passed,
       expected: 'PERSOZ_ADAPTATION_JUSTIFIED et ADHESION_ADAPTATION_JUSTIFIED en INFO',
       actual: `Persoz: ${persoz?.severity ?? 'absente'} | Adhérence: ${adhesion?.severity ?? 'absente'}`
+    });
+  }
+
+  // --------------------------------------------------------------------------
+  // Helpers de configurations incohérentes (état historique/importé) :
+  // deviationFromStandard en contradiction avec la valeur configurée, pour
+  // vérifier que le détecteur reflète strictement le moteur central.
+  // --------------------------------------------------------------------------
+  const makeCountConfig = (opts: {
+    configuredCount: number;
+    deviationFromStandard: boolean;
+    justification?: string;
+  }): MeasurementCountConfiguration => ({
+    familyId: 'COLOR',
+    mode: opts.deviationFromStandard ? 'CUSTOM_JUSTIFIED' : 'STANDARD_DEFAULT',
+    origin: opts.deviationFromStandard ? 'PROTOCOL_ADAPTATION' : 'NORMATIVE_REQUIREMENT',
+    standardReference: 'NF EN 927-6',
+    clause: '6.3.2',
+    rationale: 'Mesure de couleur CIE L*a*b* en 4 points représentatifs de la surface exposée',
+    standardRecommendedCount: 4,
+    configuredCount: opts.configuredCount,
+    deviationFromStandard: opts.deviationFromStandard,
+    justification: opts.justification,
+    configuredBy: 'SYSTEM',
+    configuredAt: '2026-09-01T00:00:00Z',
+    ruleSource: 'NORMATIVE_REQUIREMENT'
+  });
+
+  const makeSeriesConfig = (opts: {
+    seriesCount: number;
+    readingsPerSeries: number;
+    deviationFromStandard: boolean;
+    justification?: string;
+  }): MeasurementSeriesConfiguration => ({
+    familyId: 'GLOSS',
+    mode: opts.deviationFromStandard ? 'CUSTOM_JUSTIFIED' : 'STANDARD_DEFAULT',
+    origin: opts.deviationFromStandard ? 'PROTOCOL_ADAPTATION' : 'NORMATIVE_REQUIREMENT',
+    standardReference: 'NF EN 927-6',
+    clause: '6.3.3',
+    rationale: 'Mesure de brillance spéculaire sous géométrie 60° (2 séries)',
+    standardConfiguration: { seriesCount: 2, readingsPerSeries: 2, totalReadings: 4, orientations: ['GRAIN_DIRECTION', 'OPPOSITE_GRAIN_DIRECTION'], description: '2×2' },
+    configuredConfiguration: { seriesCount: opts.seriesCount, readingsPerSeries: opts.readingsPerSeries, totalReadings: opts.seriesCount * opts.readingsPerSeries, orientations: ['GRAIN_DIRECTION'], description: `${opts.seriesCount}×${opts.readingsPerSeries}` },
+    deviationFromStandard: opts.deviationFromStandard,
+    justification: opts.justification,
+    configuredBy: 'SYSTEM',
+    configuredAt: '2026-09-01T00:00:00Z',
+    ruleSource: 'NORMATIVE_REQUIREMENT'
+  });
+
+  const detectorHas = (trial: Trial, families: MeasurementFamilyId[], code: string): { found: boolean; severity?: string; blocking?: boolean } => {
+    const a = detectTrialAnomalies(trial, ruleSet, { families }).find((x) => x.code === code);
+    return a ? { found: true, severity: a.severity, blocking: a.blocking } : { found: false };
+  };
+  const hasAdaptationCode = (trial: Trial, families: MeasurementFamilyId[], adaptedCode: string, justifiedCode: string): 'JUSTIFIED' | 'UNJUSTIFIED' | 'NONE' => {
+    const unjust = detectorHas(trial, families, adaptedCode);
+    const justif = detectorHas(trial, families, justifiedCode);
+    if (justif.found) return 'JUSTIFIED';
+    if (unjust.found) return 'UNJUSTIFIED';
+    return 'NONE';
+  };
+
+  // --------------------------------------------------------------------------
+  // TEST 32 : COUNT — écart sans adaptation déclarée (deviationFromStandard=false)
+  // --------------------------------------------------------------------------
+  {
+    const trial = createMockTrial('T32');
+    const countConfig = makeCountConfig({ configuredCount: 3, deviationFromStandard: false });
+    trial.config.familyConfigs.COLOR = { familyId: 'COLOR', enabled: true, countConfig };
+    const engine = evaluateCountProtocolCompliance(countConfig, ruleSet);
+    const verdict = hasAdaptationCode(trial, ['COLOR'], 'COLOR_ADAPTATION_UNJUSTIFIED', 'COLOR_ADAPTATION_JUSTIFIED');
+    const passed = engine.status === 'ADAPTED_UNJUSTIFIED' && verdict === 'UNJUSTIFIED' && detectorHas(trial, ['COLOR'], 'COLOR_ADAPTATION_UNJUSTIFIED').severity === 'CRITICAL';
+    results.push({
+      id: 32,
+      code: 'TEST_32_COUNT_ECART_SANS_ADAPTATION_DECLAREE',
+      title: 'COUNT : écart sans adaptation déclarée → CRITICAL, jamais ADAPTATION_JUSTIFIED',
+      category: 'ANOMALIES',
+      passed,
+      expected: 'Moteur ADAPTED_UNJUSTIFIED + détecteur CRITICALsans code JUSTIFIED',
+      actual: `Moteur: ${engine.status} | Détecteur: ${verdict}`
+    });
+  }
+
+  // --------------------------------------------------------------------------
+  // TEST 33 : COUNT — adaptation déclarée sans justification
+  // --------------------------------------------------------------------------
+  {
+    const trial = createMockTrial('T33');
+    const countConfig = makeCountConfig({ configuredCount: 3, deviationFromStandard: true, justification: undefined });
+    trial.config.familyConfigs.COLOR = { familyId: 'COLOR', enabled: true, countConfig };
+    const engine = evaluateCountProtocolCompliance(countConfig, ruleSet);
+    const unjust = detectorHas(trial, ['COLOR'], 'COLOR_ADAPTATION_UNJUSTIFIED');
+    const passed = engine.status === 'ADAPTED_UNJUSTIFIED' && unjust.found && unjust.severity === 'CRITICAL' && unjust.blocking === true;
+    results.push({
+      id: 33,
+      code: 'TEST_33_COUNT_ADAPTATION_SANS_JUSTIFICATION',
+      title: 'COUNT : adaptation déclarée sans justification → CRITICAL bloquant',
+      category: 'ANOMALIES',
+      passed,
+      expected: 'Moteur ADAPTED_UNJUSTIFIED + détecteur CRITICAL/blocking',
+      actual: `Moteur: ${engine.status} | Détecteur: ${unjust.found ? `${unjust.severity}/blocking=${unjust.blocking}` : 'absente'}`
+    });
+  }
+
+  // --------------------------------------------------------------------------
+  // TEST 34 : COUNT — justification trop courte ("abc")
+  // --------------------------------------------------------------------------
+  {
+    const trial = createMockTrial('T34');
+    const countConfig = makeCountConfig({ configuredCount: 3, deviationFromStandard: true, justification: 'abc' });
+    trial.config.familyConfigs.COLOR = { familyId: 'COLOR', enabled: true, countConfig };
+    const engine = evaluateCountProtocolCompliance(countConfig, ruleSet);
+    const unjust = detectorHas(trial, ['COLOR'], 'COLOR_ADAPTATION_UNJUSTIFIED');
+    const justif = detectorHas(trial, ['COLOR'], 'COLOR_ADAPTATION_JUSTIFIED');
+    const passed = engine.status === 'ADAPTED_UNJUSTIFIED' && unjust.found && unjust.blocking === true && !justif.found;
+    results.push({
+      id: 34,
+      code: 'TEST_34_COUNT_JUSTIFICATION_TROP_COURTE',
+      title: 'COUNT : justification < 8 caractères → non justifiée CRITICAL',
+      category: 'ANOMALIES',
+      passed,
+      expected: 'Moteur ADAPTED_UNJUSTIFIED + détecteur CRITICAL, pas de JUSTIFIED',
+      actual: `Moteur: ${engine.status} | Détecteur unjustified: ${unjust.found} / justified: ${justif.found}`
+    });
+  }
+
+  // --------------------------------------------------------------------------
+  // TEST 35 : COUNT — justification valide
+  // --------------------------------------------------------------------------
+  {
+    const trial = createMockTrial('T35');
+    const countConfig = makeCountConfig({ configuredCount: 3, deviationFromStandard: true, justification: 'Éprouvettes étroites 50 mm' });
+    trial.config.familyConfigs.COLOR = { familyId: 'COLOR', enabled: true, countConfig };
+    const engine = evaluateCountProtocolCompliance(countConfig, ruleSet);
+    const justif = detectorHas(trial, ['COLOR'], 'COLOR_ADAPTATION_JUSTIFIED');
+    const passed = engine.status === 'ADAPTED_JUSTIFIED' && justif.found && justif.severity === 'INFO';
+    results.push({
+      id: 35,
+      code: 'TEST_35_COUNT_JUSTIFICATION_VALIDE',
+      title: 'COUNT : justification valide → INFO / adaptation justifiée',
+      category: 'ANOMALIES',
+      passed,
+      expected: 'Moteur ADAPTED_JUSTIFIED + détecteur INFO COLOR_ADAPTATION_JUSTIFIED',
+      actual: `Moteur: ${engine.status} | Détecteur: ${justif.found ? justif.severity : 'absente'}`
+    });
+  }
+
+  // --------------------------------------------------------------------------
+  // TEST 36 : COUNT — configuration conforme (standard)
+  // --------------------------------------------------------------------------
+  {
+    const trial = createMockTrial('T36');
+    const countConfig = makeCountConfig({ configuredCount: 4, deviationFromStandard: false });
+    trial.config.familyConfigs.COLOR = { familyId: 'COLOR', enabled: true, countConfig };
+    const engine = evaluateCountProtocolCompliance(countConfig, ruleSet);
+    const verdict = hasAdaptationCode(trial, ['COLOR'], 'COLOR_ADAPTATION_UNJUSTIFIED', 'COLOR_ADAPTATION_JUSTIFIED');
+    const passed = engine.status === 'STANDARD' && verdict === 'NONE';
+    results.push({
+      id: 36,
+      code: 'TEST_36_COUNT_CONFORME_STANDARD',
+      title: 'COUNT : configuration conforme → aucune anomalie d\'adaptation',
+      category: 'ANOMALIES',
+      passed,
+      expected: 'Moteur STANDARD + aucune anomalie d\'adaptation',
+      actual: `Moteur: ${engine.status} | Détecteur: ${verdict}`
+    });
+  }
+
+  // --------------------------------------------------------------------------
+  // TEST 37 : GLOSS — écart sans adaptation déclarée
+  // --------------------------------------------------------------------------
+  {
+    const trial = createMockTrial('T37');
+    const seriesConfig = makeSeriesConfig({ seriesCount: 1, readingsPerSeries: 2, deviationFromStandard: false });
+    trial.config.familyConfigs.GLOSS = { familyId: 'GLOSS', enabled: true, seriesConfig };
+    const engine = evaluateSeriesProtocolCompliance(seriesConfig, ruleSet);
+    const unjust = detectorHas(trial, ['GLOSS'], 'GLOSS_SERIES_ADAPTATION_UNJUSTIFIED');
+    const justif = detectorHas(trial, ['GLOSS'], 'GLOSS_SERIES_ADAPTATION_JUSTIFIED');
+    const passed = engine.status === 'ADAPTED_UNJUSTIFIED' && unjust.found && unjust.severity === 'CRITICAL' && !justif.found;
+    results.push({
+      id: 37,
+      code: 'TEST_37_GLOSS_ECART_SANS_ADAPTATION_DECLAREE',
+      title: 'GLOSS : écart sans adaptation déclarée → CRITICAL, jamais JUSTIFIED',
+      category: 'ANOMALIES',
+      passed,
+      expected: 'Moteur ADAPTED_UNJUSTIFIED + détecteur CRITICAL, pas de JUSTIFIED',
+      actual: `Moteur: ${engine.status} | Détecteur unjustified: ${unjust.found} / justified: ${justif.found}`
+    });
+  }
+
+  // --------------------------------------------------------------------------
+  // TEST 38 : GLOSS — adaptation déclarée sans justification
+  // --------------------------------------------------------------------------
+  {
+    const trial = createMockTrial('T38');
+    const seriesConfig = makeSeriesConfig({ seriesCount: 1, readingsPerSeries: 2, deviationFromStandard: true, justification: undefined });
+    trial.config.familyConfigs.GLOSS = { familyId: 'GLOSS', enabled: true, seriesConfig };
+    const engine = evaluateSeriesProtocolCompliance(seriesConfig, ruleSet);
+    const unjust = detectorHas(trial, ['GLOSS'], 'GLOSS_SERIES_ADAPTATION_UNJUSTIFIED');
+    const passed = engine.status === 'ADAPTED_UNJUSTIFIED' && unjust.found && unjust.blocking === true;
+    results.push({
+      id: 38,
+      code: 'TEST_38_GLOSS_ADAPTATION_SANS_JUSTIFICATION',
+      title: 'GLOSS : adaptation déclarée sans justification → CRITICAL bloquant',
+      category: 'ANOMALIES',
+      passed,
+      expected: 'Moteur ADAPTED_UNJUSTIFIED + détecteur CRITICAL/blocking',
+      actual: `Moteur: ${engine.status} | Détecteur: ${unjust.found ? `${unjust.severity}/blocking=${unjust.blocking}` : 'absente'}`
+    });
+  }
+
+  // --------------------------------------------------------------------------
+  // TEST 39 : GLOSS — justification trop courte
+  // --------------------------------------------------------------------------
+  {
+    const trial = createMockTrial('T39');
+    const seriesConfig = makeSeriesConfig({ seriesCount: 1, readingsPerSeries: 2, deviationFromStandard: true, justification: 'abc' });
+    trial.config.familyConfigs.GLOSS = { familyId: 'GLOSS', enabled: true, seriesConfig };
+    const engine = evaluateSeriesProtocolCompliance(seriesConfig, ruleSet);
+    const unjust = detectorHas(trial, ['GLOSS'], 'GLOSS_SERIES_ADAPTATION_UNJUSTIFIED');
+    const justif = detectorHas(trial, ['GLOSS'], 'GLOSS_SERIES_ADAPTATION_JUSTIFIED');
+    const passed = engine.status === 'ADAPTED_UNJUSTIFIED' && unjust.found && unjust.blocking === true && !justif.found;
+    results.push({
+      id: 39,
+      code: 'TEST_39_GLOSS_JUSTIFICATION_TROP_COURTE',
+      title: 'GLOSS : justification < 8 caractères → non justifiée CRITICAL',
+      category: 'ANOMALIES',
+      passed,
+      expected: 'Moteur ADAPTED_UNJUSTIFIED + détecteur CRITICAL, pas de JUSTIFIED',
+      actual: `Moteur: ${engine.status} | Détecteur unjustified: ${unjust.found} / justified: ${justif.found}`
+    });
+  }
+
+  // --------------------------------------------------------------------------
+  // TEST 40 : GLOSS — justification valide
+  // --------------------------------------------------------------------------
+  {
+    const trial = createMockTrial('T40');
+    const seriesConfig = makeSeriesConfig({ seriesCount: 1, readingsPerSeries: 2, deviationFromStandard: true, justification: 'Surface de panneau réduite' });
+    trial.config.familyConfigs.GLOSS = { familyId: 'GLOSS', enabled: true, seriesConfig };
+    const engine = evaluateSeriesProtocolCompliance(seriesConfig, ruleSet);
+    const justif = detectorHas(trial, ['GLOSS'], 'GLOSS_SERIES_ADAPTATION_JUSTIFIED');
+    const passed = engine.status === 'ADAPTED_JUSTIFIED' && justif.found && justif.severity === 'INFO';
+    results.push({
+      id: 40,
+      code: 'TEST_40_GLOSS_JUSTIFICATION_VALIDE',
+      title: 'GLOSS : justification valide → INFO / adaptation justifiée',
+      category: 'ANOMALIES',
+      passed,
+      expected: 'Moteur ADAPTED_JUSTIFIED + détecteur INFO GLOSS_SERIES_ADAPTATION_JUSTIFIED',
+      actual: `Moteur: ${engine.status} | Détecteur: ${justif.found ? justif.severity : 'absente'}`
+    });
+  }
+
+  // --------------------------------------------------------------------------
+  // TEST 41 : GLOSS — configuration conforme (2×2)
+  // --------------------------------------------------------------------------
+  {
+    const trial = createMockTrial('T41');
+    const seriesConfig = makeSeriesConfig({ seriesCount: 2, readingsPerSeries: 2, deviationFromStandard: false });
+    trial.config.familyConfigs.GLOSS = { familyId: 'GLOSS', enabled: true, seriesConfig };
+    const engine = evaluateSeriesProtocolCompliance(seriesConfig, ruleSet);
+    const unjust = detectorHas(trial, ['GLOSS'], 'GLOSS_SERIES_ADAPTATION_UNJUSTIFIED');
+    const justif = detectorHas(trial, ['GLOSS'], 'GLOSS_SERIES_ADAPTATION_JUSTIFIED');
+    const passed = engine.status === 'STANDARD' && !unjust.found && !justif.found;
+    results.push({
+      id: 41,
+      code: 'TEST_41_GLOSS_CONFORME_STANDARD',
+      title: 'GLOSS : configuration conforme → aucune anomalie d\'adaptation',
+      category: 'ANOMALIES',
+      passed,
+      expected: 'Moteur STANDARD + aucune anomalie de grille',
+      actual: `Moteur: ${engine.status} | Détecteur: unjustified ${unjust.found} / justified ${justif.found}`
+    });
+  }
+
+  // --------------------------------------------------------------------------
+  // TEST 42 : COHÉRENCE INTER-MOTEURS (protocolEngine ↔ AnalysisAnomalyDetector)
+  // Même configuration → même source centrale → même statut : aucune contradiction.
+  // --------------------------------------------------------------------------
+  {
+    const countVariants: Array<{ name: string; config: MeasurementCountConfiguration }> = [
+      { name: 'standard', config: makeCountConfig({ configuredCount: 4, deviationFromStandard: false }) },
+      { name: 'justifiee', config: makeCountConfig({ configuredCount: 3, deviationFromStandard: true, justification: 'Éprouvettes étroites 50 mm' }) },
+      { name: 'non-justifiee', config: makeCountConfig({ configuredCount: 5, deviationFromStandard: true }) },
+      { name: 'incoherente-sans-declaration', config: makeCountConfig({ configuredCount: 3, deviationFromStandard: false }) }
+    ];
+    const seriesVariants: Array<{ name: string; config: MeasurementSeriesConfiguration }> = [
+      { name: 'standard', config: makeSeriesConfig({ seriesCount: 2, readingsPerSeries: 2, deviationFromStandard: false }) },
+      { name: 'justifiee', config: makeSeriesConfig({ seriesCount: 1, readingsPerSeries: 2, deviationFromStandard: true, justification: 'Surface de panneau réduite' }) },
+      { name: 'non-justifiee', config: makeSeriesConfig({ seriesCount: 2, readingsPerSeries: 1, deviationFromStandard: true }) },
+      { name: 'incoherente-sans-declaration', config: makeSeriesConfig({ seriesCount: 1, readingsPerSeries: 2, deviationFromStandard: false }) }
+    ];
+    let matched = 0;
+    let total = 0;
+    const mismatches: string[] = [];
+
+    for (const v of countVariants) {
+      total += 1;
+      const trial = createMockTrial('T42-C');
+      trial.config.familyConfigs.COLOR = { familyId: 'COLOR', enabled: true, countConfig: v.config };
+      const engineStatus = evaluateCountProtocolCompliance(v.config, ruleSet).status;
+      const detectorVerdict = hasAdaptationCode(trial, ['COLOR'], 'COLOR_ADAPTATION_UNJUSTIFIED', 'COLOR_ADAPTATION_JUSTIFIED');
+      const coherent =
+        (engineStatus === 'STANDARD' && detectorVerdict === 'NONE') ||
+        (engineStatus === 'ADAPTED_JUSTIFIED' && detectorVerdict === 'JUSTIFIED') ||
+        (engineStatus === 'ADAPTED_UNJUSTIFIED' && detectorVerdict === 'UNJUSTIFIED');
+      if (coherent) matched += 1;
+      else mismatches.push(`COUNT/${v.name}: moteur=${engineStatus} détecteur=${detectorVerdict}`);
+    }
+
+    for (const v of seriesVariants) {
+      total += 1;
+      const trial = createMockTrial('T42-S');
+      trial.config.familyConfigs.GLOSS = { familyId: 'GLOSS', enabled: true, seriesConfig: v.config };
+      const engineStatus = evaluateSeriesProtocolCompliance(v.config, ruleSet).status;
+      const detectorVerdict = hasAdaptationCode(trial, ['GLOSS'], 'GLOSS_SERIES_ADAPTATION_UNJUSTIFIED', 'GLOSS_SERIES_ADAPTATION_JUSTIFIED');
+      const coherent =
+        (engineStatus === 'STANDARD' && detectorVerdict === 'NONE') ||
+        (engineStatus === 'ADAPTED_JUSTIFIED' && detectorVerdict === 'JUSTIFIED') ||
+        (engineStatus === 'ADAPTED_UNJUSTIFIED' && detectorVerdict === 'UNJUSTIFIED');
+      if (coherent) matched += 1;
+      else mismatches.push(`SERIES/${v.name}: moteur=${engineStatus} détecteur=${detectorVerdict}`);
+    }
+
+    const passed = matched === total;
+    results.push({
+      id: 42,
+      code: 'TEST_42_COHERENCE_INTER_MOTEURS',
+      title: 'Cohérence inter-moteurs : protocolEngine et détecteur ne se contredisent jamais',
+      category: 'ANOMALIES',
+      passed,
+      expected: `${total}/${total} configurations en accord`,
+      actual: passed ? `${matched}/${total} en accord` : `Divergences : ${mismatches.join(' | ')}`
     });
   }
 
