@@ -1,20 +1,22 @@
-# QUV-Lab — ARCHITECTURE (v2, état `develop` post-v1.4.0 — 2026-09-04)
+# QUV-Lab — ARCHITECTURE (v2, état `develop` post-PR #136 — 2026-09-24)
 
-> Régénéré le 2026-09-04 (audit N2) : remplace la v1 (audit initial, pré-tickets).
-> Source de vérité : GitHub `simonmartinceribois-glitch/QUV-lab-Open-code` (`main` taguée `v1.4.0`).
-> Preuves : `tsc --strict` 0 erreur, `npm test` 195/195, `vite build` OK (0 warning circulaire).
+> Régénéré le 2026-09-24 (F06) : remplace la v1 (audit initial, pré-tickets).
+> Source de vérité : origin GitHub `simonmartinceribois-glitch/QUV-lab-Open-code`, branche `develop`
+> (PR #136 `feat/freeze-scientific-context` mergée — gel du contexte scientifique).
+> Preuves : `tsc --strict` 0 erreur, `npm test` 1039/1039 (exécution réelle 2026-09-24),
+> `vite build` OK (0 warning circulaire).
 
 ## 1. Vue d'ensemble
 
 - **Stack** : React 19 + Vite 6 + TypeScript 5.8 (`strict:true`) + Tailwind 4.
 - **Objet** : suivi d'essais de vieillissement accéléré UV selon NF EN 927-6 (Cycle A : T0 + 12 × 168 h = 2016 h).
 - **Scripts** (`package.json`) : `dev` (port 3000), `build` (`tsc --noEmit && vite build`),
-  `test` (`tsx run_tests.ts`, 195 tests), `typecheck`/`lint` (`tsc --noEmit`), `clean` (cross-platform, `dist/` seul), `preview`.
+  `test` (`tsx run_tests.ts`, 1039 tests validés), `typecheck`/`lint` (`tsc --noEmit`), `clean` (cross-platform, `dist/` seul), `preview`.
 - **Dépendances** : react, vite, tailwind, recharts, motion, lucide (+ `@types/*`).
   `express`/`dotenv`/`@google/genai` purgés (PR #8). 100 % local, sans backend ni clé API.
-- Plus gros fichiers restants : `UXTestsSuite.tsx` (1346 l, tests UI),
-  `trialStoreService.ts` (1106 l), `trialSeed.ts` (1013 l), `Tab06MeasurementsBench.tsx` (574 l),
-  `CreateTrialWizardModal.tsx` (557 l). God files C8 tous découpés.
+- Plus gros fichiers restants (mesures réelles 2026-09-24) : `UXTestsSuite.tsx` (1530 l, tests UI),
+  `trialStoreService.ts` (1640 l), `trialSeed.ts` (1187 l), `CreateTrialWizardModal.tsx` (643 l).
+  God files C8 tous découpés.
 
 ## 2. Architecture React (lazy par section depuis perf/lazy-sections)
 
@@ -25,10 +27,12 @@ src/main.tsx → src/App.tsx — TRIALS eager, 3 sections + wizard en React.lazy
     05 Étapes / 06 Mesures (bench/ : topbar, grille, calculs, 5 formulaires) /
     PHOTO Photothèque (phototheque/ : 7 vues, jalons actifs uniquement) /
     08 Résultats (7 sous-vues) / 09 Journal d'audit
-  UX_TESTS → UXTestsSuite.tsx (64 tests, dynamique)
-  SCIENTIFIC_TESTS → ScientificTestsViewer.tsx (44 tests, dynamique)
+  UX_TESTS → UXTestsSuite.tsx (tests UI, dynamique)
+  SCIENTIFIC_TESTS → ScientificTestsViewer.tsx (tests scientifiques, dynamique)
   RULESET → ScientificRuleSetView.tsx
-  Wizard → CreateTrialWizardModal.tsx + wizard/ (7 fichiers d'étape, 04 masquée : flux 01-02-03-05-06-07)
+  Wizard → CreateTrialWizardModal.tsx + wizard/ (10 fichiers :
+    WizardStep1..7 + wizardSteps.ts + wizardTypes.ts + measurementApplicability.ts ;
+    04 masquée : flux 01-02-03-05-06-07)
 ```
 
 - État : `useState` local + singleton `globalTrialStore` (façade `services/trialStore.ts`).
@@ -51,13 +55,13 @@ Cycle historique `reportGenerator ↔ trialStore` cassé (`reportGenerator` → 
 ## 4. Modèle de données
 
 - `src/types/trial.ts` : `Trial { metadata, commonCharacteristics, status, configurationStatus,
-  config, scheduleConfig, stages[], batches[], acquisitions{}, auditTrail[], mediaReferences[], reports? }`.
+  config, scheduleConfig, stages[], batches[], acquisitions{}, auditTrail[], mediaReferences[], reports?, scientificContext? }`.
 - Lots → 4 `PanelDefinition` (T + E1/E2/E3). `INACTIVE` = cycle conservé, exclu du plan.
 - `WoodGrainOrientation` / `ExposureFace` : listes contrôlées strictes (plus de `| string`) ;
   wizard : whitelist à la frontière (`CreateTrialWizardModal`, fix/scripts-typing).
 - `src/types/scientific.ts` (5 niveaux), `src/types/analysis.ts` (6 niveaux, `NON_EVALUEE` par défaut).
 
-## 5. Moteurs scientifiques (purs, versionnés 1.2.0 — inchangés par les refactors)
+## 5. Moteurs scientifiques & gel du contexte (ScientificContext)
 
 Couleur CIE 1976 (6.3.2), Brillance 2×2 60° + rétention (6.3.3/ISO 2813), Persoz (ISO 1522),
 Adhérence 0-5 + délai 168 h (ISO 2409:2020), Observations (ISO 4628) ; socle `statistics.ts`
@@ -65,6 +69,31 @@ Adhérence 0-5 + délai 168 h (ISO 2409:2020), Observations (ISO 4628) ; socle `
 `ruleSet.ts` (origines NORMATIVE/LAB/METRO/ADAPTATION). Règles : ADHESION T0+C12,
 `getActiveStages` (INACTIVE exclu, aussi appliqué à photothèque/chronologie/matrice/modal),
 T exclu des moyennes.
+
+### 5.1 Contexte scientifique gelé (PR #136)
+
+- `ScientificContextStatus = 'FROZEN' | 'NOT_FROZEN'` (statut écrit dans le Trial).
+- État dérivé de validation (`trialStoreService.ts`) : `NOT_FROZEN` (contexte absent) |
+  `FROZEN` (contexte complet et cohérent) | `INVALID` (contexte incohérent — jamais écrit,
+  état fail-closed : aucune réparation, aucune conversion).
+- Snapshot **par valeur** : `scientificRuleSetSnapshot` copié au gel (jamais de référence live
+  vers le RuleSet courant) ; le RuleSet live n'est plus utilisé pour le calcul d'un essai
+  dont le contexte scientifique est gelé.
+- Déclencheur : première acquisition (`frozenTrigger: 'FIRST_ACQUISITION'`) ; traçabilité
+  `frozenAt` / `frozenBy` / version du référentiel gelé.
+- Résolution fail-closed : `resolveScientificRuleSetForTrial` utilise **uniquement le snapshot**
+  quand le contexte est `FROZEN` ; contexte `INVALID` → `IntegrityViolationError` (arrêt) ;
+  pas de fallback silencieux, pas de reconfiguration de 2016 h.
+- Constante protocolaire : **2016 h = 12 × 168 h**, non paramétrable (pas de réglage utilisateur).
+- Adaptations de protocole (traçabilité) : `standardRecommendedCount` (référence norme) vs
+  `configuredCount` (adaptation justifiée) + `configuredBy` / `configuredAt` / `ruleSource` /
+  `configuredReason` — jamais de hardcode silencieux ; toute adaptation reste documentée.
+
+### 5.2 Dates
+
+- Dates civiles : représentation locale (`toLocaleDateString('en-CA')` dans `dateUtils.ts`) —
+  **jamais** `toISOString().slice(0, 10)` pour une date civile.
+- Instants techniques : timestamps complets pour la traçabilité d'audit.
 
 ## 6. Persistance, exports
 
@@ -74,18 +103,20 @@ T exclu des moyennes.
 
 ## 7. Tests & CI
 
-- `run_tests.ts` : 12 suites, **195 tests** (44+7+30+12+6+23+9+12+11+18+8+15), intitulés corrigés.
+- `run_tests.ts` : **1039 tests validés** (exécution réelle `npm test` 2026-09-24,
+  sortie « 🎉 TOUS LES TESTS SONT AU VERT ! Total : 1039 tests validés »).
+  Suites de test déclarées : `suite1..suite59` + `suite10b` (décompte par suite non recopié).
 - CI (`.github/workflows/ci.yml`) : `npm ci` + `tsc` + `npm test` + `vite build`, branches
   `main/develop/*`, protections PR + checks sur `main` et `develop`.
-- Labels UI dynamiques (64/44). `test-results.txt` sorti du versionnement (la CI fait foi).
+- Labels UI dynamiques (suites de tests UI pour vues UX/scientifiques).
+  `test-results.txt` sorti du versionnement (la CI fait foi).
 
 ## 8. Build (chunks, sans cycle depuis fix N1)
 
-Entrée 8 kB ; vendors (`react-vendor` 194, `charts` 312, `vendor`, `icons`) ;
-applicatif (`quv-tabs` 106, `quv-shell` 110, `quv-results` 92, `quv-services` 72,
-`quv-science` 36, `quv-photo` 42, `quv-wizard` 37, `quv-bench` 27, `quv-tests` 24) ;
-lazy par section. Max 312 kB, 0 warning circulaire (règle : couches basses services/science
-dédiées, suites de tests isolées — voir audit N1).
+Entrée ~8 kB ; vendors (react, charts…) et applicatif lazy par section
+(`quv-tabs`, `quv-shell`, `quv-results`, `quv-services`, `quv-science`, `quv-photo`,
+`quv-wizard`, `quv-bench`, `quv-tests`) ; max ~312 kB, 0 warning circulaire (règle :
+couches basses services/science dédiées, suites de tests isolées — voir audit N1).
 
 ## 9. Cible atteinte (mise à jour)
 
