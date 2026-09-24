@@ -24,6 +24,7 @@ import {
   UUID,
   MeasurementFamilyId,
   ScientificRuleSet,
+  ScientificContext,
   ColorRawData,
   GlossRawData,
   PersozRawData,
@@ -52,6 +53,85 @@ import { createDemoTrial, createValidationTrial } from './trialSeed';
 import { evaluateCountProtocolCompliance, evaluateSeriesProtocolCompliance, evaluatePreExposureConditioning } from '../scientific/protocolEngine';
 
 const STORAGE_KEY = 'quv_lab_trials_v2_2';
+
+// ============================================================================
+// ÉTAPE 4 — CONTEXTE SCIENTIFIQUE (SCIENTIFIC CONTEXT)
+// États techniques exclusifs (dérivés, jamais matérialisés dans
+// scientificContext.status — seul 'FROZEN' y est écrit) :
+//   - NOT_FROZEN : contexte ABSENT (scientificContext === undefined)
+//   - FROZEN     : contexte présent, complet, cohérent, snapshot obligatoire
+//   - INVALID    : contexte présent mais incohérent/incomplet → FAIL CLOSED
+// ============================================================================
+/**
+ * Étiquette de version du moteur consignée dans le contexte gelé.
+ * Information de traçabilité uniquement (jamais un mécanisme de restauration).
+ * Le RuleSet (ruleSet.version = '2018 / Moteur v1.2.0') n'est pas modifié.
+ */
+const SCIENTIFIC_CONTEXT_ENGINE_VERSION = '1.2.0';
+
+export type ScientificContextState = 'NOT_FROZEN' | 'FROZEN' | 'INVALID';
+
+/**
+ * ÉTAPE 4 — VALIDATION DU CONTEXTE (structure réelle, jamais le statut protocolaire).
+ * Retourne FROZEN si et seulement si : identité présente, snapshot exploitable et
+ * cohérent (id/version identiques à l'identité), étiquette moteur, frozenAt/frozenBy,
+ * frozenTrigger === 'FIRST_ACQUISITION', status === 'FROZEN'.
+ * Ne modifie pas le Trial, ne crée pas de snapshot, ne répare rien.
+ */
+export function validateScientificContext(context: ScientificContext | undefined): ScientificContextState {
+  if (context === undefined) return 'NOT_FROZEN';
+
+  const snapshot = context.scientificRuleSetSnapshot;
+  const snapshotExploitable =
+    !!snapshot &&
+    typeof snapshot === 'object' &&
+    typeof snapshot.id === 'string' &&
+    snapshot.id.length > 0 &&
+    typeof snapshot.version === 'string' &&
+    snapshot.version.length > 0;
+
+  const frozen =
+    typeof context.scientificRuleSetId === 'string' &&
+    context.scientificRuleSetId.length > 0 &&
+    typeof context.scientificRuleSetVersion === 'string' &&
+    context.scientificRuleSetVersion.length > 0 &&
+    snapshotExploitable &&
+    context.scientificRuleSetId === snapshot.id &&
+    context.scientificRuleSetVersion === snapshot.version &&
+    typeof context.calculationEngineVersion === 'string' &&
+    context.calculationEngineVersion.length > 0 &&
+    typeof context.frozenAt === 'string' &&
+    context.frozenAt.length > 0 &&
+    typeof context.frozenBy === 'string' &&
+    context.frozenBy.length > 0 &&
+    context.frozenTrigger === 'FIRST_ACQUISITION' &&
+    context.status === 'FROZEN';
+
+  return frozen ? 'FROZEN' : 'INVALID';
+}
+
+/**
+ * ÉTAPE 4 — HELPER UNIQUE DE RÉSOLUTION FAIL-CLOSED DU RULESET DE CALCUL.
+ *   - NOT_FROZEN : RuleSet live autorisé (seule source légitime tant que le
+ *     contexte est absent ; ancien essai non migré inclus).
+ *   - FROZEN     : scientificRuleSetSnapshot UNIQUEMENT (live interdit).
+ *   - INVALID    : IntegrityViolationError explicite (fail-closed) — jamais de
+ *     snapshot ?? live, jamais de réparation, jamais de conversion en NOT_FROZEN.
+ * Ne modifie pas le Trial, ne crée pas de snapshot, ne répare rien.
+ */
+export function resolveScientificRuleSetForTrial(trial: Trial, currentRuleSet: ScientificRuleSet): ScientificRuleSet {
+  const state = validateScientificContext(trial.scientificContext);
+  if (state === 'FROZEN') {
+    return trial.scientificContext!.scientificRuleSetSnapshot;
+  }
+  if (state === 'NOT_FROZEN') {
+    return currentRuleSet;
+  }
+  throw new IntegrityViolationError(
+    'Contexte scientifique présent mais invalide ou incomplet : aucun RuleSet de remplacement n’est autorisé (fail-closed).',
+    { trialId: trial.id }
+  );
+}
 
 /**
  * Événement émis lorsqu'une écriture localStorage échoue (quota dépassé ou autre).
@@ -845,8 +925,67 @@ export class TrialStoreService {
       }
     }
 
+    // ====================================================================
+    // ÉTAPE 4 — GEL DU CONTEXTE SCIENTIFIQUE À LA PREMIÈRE ACQUISITION
+    // ====================================================================
+    // Résolution fail-closed (helper unique) :
+    //   - NOT_FROZEN (contexte absent) : RuleSet live autorisé.
+    //   - FROZEN (valide) : scientificRuleSetSnapshot UNIQUEMENT.
+    //   - INVALID (présent mais incohérent/incomplet) : erreur explicite,
+    //     jamais de RuleSet live de remplacement, jamais de conversion NOT_FROZEN.
+    // Atomicité du gel : construction COMPLÈTE du ScientificContext en mémoire
+    // (identité + snapshot profonde issus d'une seule instance ruleSetToFreeze),
+    // validation avant écriture, calcul de la première acquisition SUR LE SNAPSHOT,
+    // puis persistance finale unique (saveTrial). Échec → ancien état conservé,
+    // aucune écriture partielle FROZEN.
+    const contextState = validateScientificContext(trial.scientificContext);
+    const isAboutToLock = trial.configurationStatus !== 'LOCKED';
+
+    let calculationRuleSet: ScientificRuleSet;
+    let frozenContext: ScientificContext | null = null;
+
+    if (contextState === 'FROZEN') {
+      // C1..C12 : contexte déjà gelé → snapshot uniquement, jamais le live.
+      calculationRuleSet = resolveScientificRuleSetForTrial(trial, this.ruleSet);
+    } else if (contextState === 'INVALID') {
+      // Contexte présent mais invalide/incomplet → fail-closed explicite AVANT
+      // toute écriture : ni acquisition, ni verrou, ni audit, ni saveTrial.
+      throw new IntegrityViolationError(
+        'Contexte scientifique présent mais invalide ou incomplet : aucun RuleSet de remplacement n’est autorisé (fail-closed).',
+        { trialId: trial.id, familyId: params.familyId, stageId: params.stageId }
+      );
+    } else if (isAboutToLock) {
+      // Première acquisition valide verrouillée (NOT_FROZEN + premier verrouillage)
+      // → GEL du contexte scientifique. ruleSetToFreeze est l'instance live unique.
+      const ruleSetToFreeze = this.ruleSet;
+      frozenContext = {
+        scientificRuleSetId: ruleSetToFreeze.id,
+        scientificRuleSetVersion: ruleSetToFreeze.version,
+        scientificRuleSetSnapshot: structuredClone(ruleSetToFreeze),
+        calculationEngineVersion: SCIENTIFIC_CONTEXT_ENGINE_VERSION,
+        frozenAt: now,
+        frozenBy: params.operatorId || 'OPERATOR',
+        frozenTrigger: 'FIRST_ACQUISITION',
+        status: 'FROZEN'
+      };
+      // Validation AVANT écriture (défense en profondeur) : un contexte construit
+      // mais invalide ne doit JAMAIS être associé à l'essai.
+      if (validateScientificContext(frozenContext) !== 'FROZEN') {
+        throw new IntegrityViolationError(
+          'Contexte scientifique construit invalide : gel refusé (fail-closed, aucune écriture partielle).',
+          { trialId: trial.id, familyId: params.familyId }
+        );
+      }
+      // Le calcul de la PREMIÈRE acquisition s'effectue SUR LE SNAPSHOT.
+      calculationRuleSet = frozenContext.scientificRuleSetSnapshot;
+    } else {
+      // Essai déjà verrouillé sans contexte (hérité, non migré) : NOT_FROZEN,
+      // RuleSet live autorisé (pas de migration, pas d'injection de snapshot).
+      calculationRuleSet = resolveScientificRuleSetForTrial(trial, this.ruleSet);
+    }
+
     // Calcul immédiat via PROMPT 5 sans toucher à raw
-    const { updatedRecord, rawUnchanged } = recalculateAcquisition(newRecord, trial, this.ruleSet);
+    const { updatedRecord, rawUnchanged } = recalculateAcquisition(newRecord, trial, calculationRuleSet);
     if (!rawUnchanged) {
       // P0 : rejet transactionnel AVANT tout commit — aucune mutation n'a encore eu lieu
       // (ni verrouillage, ni acquisition, ni audit, ni sauvegarde). L'ancien enregistrement,
@@ -899,6 +1038,14 @@ export class TrialStoreService {
         rawUnchanged
       }
     });
+
+    // ÉTAPE 4 — Gel atomique : l'association du contexte FROZEN complet (construit
+    // et validé en mémoire) se fait au dernier instant, juste avant la persistance
+    // finale unique. Aucun verrouillage partiel FROZEN n'est possible : en cas
+    // d'échec précédent, trial.scientificContext reste inchangé (absence = NOT_FROZEN).
+    if (frozenContext) {
+      trial.scientificContext = frozenContext;
+    }
 
     this.saveTrial(trial);
     return { trial, record: updatedRecord };

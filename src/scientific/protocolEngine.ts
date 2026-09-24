@@ -78,14 +78,16 @@ export function evaluateCountProtocolCompliance(
     };
   }
 
-  // Compatibilité historique (Gate 57 / D-10 GO) : le standard de référence est celui
-  // enregistré dans la configuration au moment de sa création, pas le standard live du
-  // référentiel. Ainsi les configs 1/1/STANDARD antérieures au Gate 57 restent STANDARD
-  // au lieu de basculer artificiellement en adaptation. Les nouvelles configs portent le
-  // standard courant via createCountConfiguration(), donc le comportement est identique
-  // pour tout ce qui est construit après le changement de standard.
-  const standardRef = ruleSet.measurementConfigurations[config.familyId];
-  const standardRecommended = standardRef?.standardRecommendedCount;
+  // Règle (ÉTAPE 2) — COUNT : la référence standard provient EN PRIORITÉ de la
+  // configuration persistée de l'essai (standardRecommendedCount copié au moment de la
+  // création/adaptation par createCountConfiguration(), cf. ruleSet.ts). Elle est
+  // descriptive uniquement : elle ne pilote aucun calcul scientifique. Le RuleSet live
+  // n'intervient qu'en repli legacy explicite, si une très ancienne configuration
+  // (import antérieur) ne porte pas cette valeur. Aucune valeur par défaut n'est inventée.
+  const standardRecommended =
+    config.standardRecommendedCount !== undefined
+      ? config.standardRecommendedCount
+      : ruleSet.measurementConfigurations[config.familyId]?.standardRecommendedCount;
   if (standardRecommended === undefined) {
     return {
       status: 'INCOMPLETE',
@@ -182,12 +184,24 @@ export function evaluateSeriesProtocolCompliance(
     };
   }
 
-  const standardRef = ruleSet.seriesConfigurations?.[config.familyId];
-  if (!standardRef) {
+  // Règle (ÉTAPE 2) — GLOSS, configuration SERIES : la référence standard provient EN
+  // PRIORITÉ de la configuration persistée de l'essai (standardConfiguration copiée au
+  // moment de la création/adaptation par createSeriesConfiguration(), cf. ruleSet.ts).
+  // Elle est descriptive uniquement : elle ne pilote aucun calcul scientifique. Le
+  // RuleSet live n'intervient qu'en repli legacy explicite. Aucune valeur par défaut
+  // n'est inventée.
+  const standardConfig =
+    config.standardConfiguration ??
+    ruleSet.seriesConfigurations?.[config.familyId]?.standardConfiguration;
+  if (
+    !standardConfig ||
+    typeof standardConfig.seriesCount !== 'number' ||
+    typeof standardConfig.readingsPerSeries !== 'number'
+  ) {
     return { status: 'INCOMPLETE', isAdapted: false, isCompliantWithStandard: false, alerts: [{ id: `alert-proto-series-reference-missing-${config.familyId}`, severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE', message: `Configuration scientifique standard manquante pour la famille de séries ${config.familyId}.`, familyId: config.familyId }] };
   }
-  const stdSeries = standardRef.standardConfiguration.seriesCount;
-  const stdReadings = standardRef.standardConfiguration.readingsPerSeries;
+  const stdSeries = standardConfig.seriesCount;
+  const stdReadings = standardConfig.readingsPerSeries;
 
   const isAdapted =
     config.configuredConfiguration.seriesCount !== stdSeries ||
