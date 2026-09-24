@@ -77,7 +77,8 @@ T exclu des moyennes.
   `FROZEN` (contexte complet et cohérent) | `INVALID` (contexte incohérent — jamais écrit,
   état fail-closed : aucune réparation, aucune conversion).
 - Snapshot **par valeur** : `scientificRuleSetSnapshot` copié au gel (jamais de référence live
-  vers le RuleSet courant) ; le RuleSet live ne peut plus être modifié une fois le contexte gelé.
+  vers le RuleSet courant) ; le RuleSet live n'est plus utilisé pour le calcul d'un essai
+  dont le contexte scientifique est gelé.
 - Déclencheur : première acquisition (`frozenTrigger: 'FIRST_ACQUISITION'`) ; traçabilité
   `frozenAt` / `frozenBy` / version du référentiel gelé.
 - Résolution fail-closed : `resolveScientificRuleSetForTrial` utilise **uniquement le snapshot**
@@ -112,7 +113,7 @@ T exclu des moyennes.
 
 ## 8. Build (chunks, sans cycle depuis fix N1)
 
-Entrée ~8 kB ; vendors (react, charts, vue…) et applicatif lazy par section
+Entrée ~8 kB ; vendors (react, charts…) et applicatif lazy par section
 (`quv-tabs`, `quv-shell`, `quv-results`, `quv-services`, `quv-science`, `quv-photo`,
 `quv-wizard`, `quv-bench`, `quv-tests`) ; max ~312 kB, 0 warning circulaire (règle :
 couches basses services/science dédiées, suites de tests isolées — voir audit N1).
