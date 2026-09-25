@@ -84,6 +84,12 @@ T exclu des moyennes.
 - Résolution fail-closed : `resolveScientificRuleSetForTrial` utilise **uniquement le snapshot**
   quand le contexte est `FROZEN` ; contexte `INVALID` → `IntegrityViolationError` (arrêt) ;
   pas de fallback silencieux, pas de reconfiguration de 2016 h.
+- **Essais legacy (verrouillés avant le gel)** : un essai `configurationStatus === 'LOCKED'`
+  créé avant l'introduction de `scientificContext` conserve `scientificContext === undefined`
+  et reste donc dans l'état `NOT_FROZEN`. Aucune migration automatique ni injection
+  rétroactive de snapshot n'est effectuée : une acquisition ultérieure peut utiliser le
+  RuleSet live. Ces essais ne bénéficient pas de la garantie de reproductibilité par snapshot
+  propre aux essais `FROZEN`. Comportement assumé et couvert par le test G34-CONTEXT-07.
 - Constante protocolaire : **2016 h = 12 × 168 h**, non paramétrable (pas de réglage utilisateur).
 - Adaptations de protocole (traçabilité) : `standardRecommendedCount` (référence norme) vs
   `configuredCount` (adaptation justifiée) + `configuredBy` / `configuredAt` / `ruleSource` /
@@ -99,6 +105,12 @@ T exclu des moyennes.
 
 - `localStorage` clé `quv_lab_trials_v2_2` (choix assumé, `07_KNOWN_LIMITATIONS.md`) ;
   seed démo + validation ; photos démo SVG vs consigne prod serveur.
+- **Atomicité mémoire ↔ persistance : non garantie (risque connu et accepté).**
+  `saveTrial` met à jour l'état mémoire *avant* l'écriture dans le stockage : en cas d'échec
+  d'écriture, l'état mémoire conserve la modification alors que le stockage conserve l'état
+  antérieur. L'échec est détecté et signalé (`persistenceHealthy`, `StorageErrorEvent`), ce qui
+  ne constitue pas une atomicité transactionnelle. Aucun rollback automatique n'est mis en œuvre ;
+  la visibilité de l'erreur côté utilisateur dépend de la couche UI.
 - Exports : Blob texte/JSON + `window.print()` (pas de CSV/XLSX/PDF réel).
 
 ## 7. Tests & CI
