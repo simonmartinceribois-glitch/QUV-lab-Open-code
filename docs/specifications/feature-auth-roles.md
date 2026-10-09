@@ -1,6 +1,7 @@
 # SPEC — Profils, connexion et droits par rôle (évolution future)
 
-> Demande utilisateur (2026-10-09) : à terme, connexion par profil **Prénom + Nom + rôle**.
+> Demande utilisateur (2026-10-09) : à terme, connexion par profil **Prénom + Nom + rôle**,
+> identification par **adresse e-mail + mot de passe**, **une personne = un compte = un rôle** (D-12).
 > Préparer le processus et les fichiers **sans coder l'ensemble des fonctionnalités**.
 > Statut : **phase 0 livrée (fondation inactive)** — aucun changement de comportement.
 
@@ -40,7 +41,7 @@ Distincte des niveaux de risque de développement (LOW / MEDIUM / HIGH de `WORKF
 | Modifier lots et éprouvettes (onglet 02) | STANDARD | `updateLotsAndSpecimens` | MODIFY_BATCH, MODIFY_PANEL |
 | Saisir des mesures | STANDARD | `recordAcquisition` | RECORD_ACQUISITION, UPDATE_ACQUISITION, LOCK_TRIAL_CONFIGURATION |
 | Générer un rapport | STANDARD | `generateScientificReportForTrial` | GENERATE_REPORT, REGENERATE_REPORT |
-| Valider une étape | HIGH | `validateStage` | VALIDATE_STAGE |
+| Valider une étape *(D-12)* | STANDARD | `validateStage` | VALIDATE_STAGE |
 | Exclure une éprouvette | HIGH | `excludePanel` | EXCLUDE_PANEL |
 | Adapter le protocole de mesure | HIGH | `adaptProtocolConfig` | MODIFY_MEASUREMENT_CONFIG(URATION) |
 | Modifier le plan de mesure | HIGH | `updateMeasurementPlan` | UPDATE_MEASUREMENT_PLAN |
@@ -68,10 +69,10 @@ réservées au Responsable.
 
 | Fichier | Rôle |
 |---|---|
-| `src/types/auth.ts` | `Role`, `Criticity`, `UserProfile` (Prénom, Nom, rôle, actif), identifiants d'onglets et sections |
-| `src/services/permissions.ts` | Catalogue des actions, matrice rôle → criticités / onglets / sections, `canPerform`, `canViewTab`, `canViewSection`, `formatOperatorLabel` |
+| `src/types/auth.ts` | `Role`, `Criticity`, `UserProfile` (e-mail, Prénom, Nom, rôle unique, actif — jamais de mot de passe), identifiants d'onglets et sections |
+| `src/services/permissions.ts` | Catalogue des actions, matrice rôle → criticités / onglets / sections, `canPerform`, `canViewTab`, `canViewSection`, `formatOperatorLabel`, `validateUserProfile` (e-mail unique) |
 | `src/services/session.ts` | Point d'accroche : `AUTH_ENABLED = false`, `getCurrentUser` / `setCurrentUser`, `isAllowed`, `isTabVisible` (tout autorisé tant que désactivé) |
-| `src/scientific/tests/auth_roles_foundation.test.ts` | Suite 66 R-AUTH-01 → 08 (matrice + garde-fous de classement) |
+| `src/scientific/tests/auth_roles_foundation.test.ts` | Suite 66 R-AUTH-01 → 10 (matrice, garde-fous de classement, règles de compte) |
 
 ## 6. Feuille de route
 
@@ -99,7 +100,35 @@ côté serveur) est un projet d'architecture à part entière.
 
 1. L'**Utilisateur** voit-il aussi **09 Journal de bord** ? (défaut retenu : non, comme le Technicien.)
 2. Les **exports** (PDF, CSV, sauvegarde) sont-ils permis à l'Utilisateur ? (défaut : non, LOW = Technicien+.)
-3. **Valider une étape** : HIGH (défaut) ou STANDARD pour le Technicien ?
+3. ~~Valider une étape~~ — **tranché (D-12) : STANDARD**, ouvert au Technicien.
 4. **Créer un essai** : Technicien autorisé (défaut STANDARD) ou Responsable seul ?
 5. Faut-il une **double validation** (Technicien saisit, Responsable approuve) pour certaines actions HIGH ?
-6. Profils **partagés entre postes** (nécessite la phase 2) ou propres à chaque poste ?
+6. ~~Profils par poste ou partagés~~ — **tranché (D-12) : une personne = un compte = un rôle**, connexion
+   par e-mail + mot de passe (voir §8).
+
+## 8. Identification par e-mail + mot de passe (D-12)
+
+**Règles de compte** (déjà codées : `validateUserProfile`, R-AUTH-10) : e-mail obligatoire, valide et
+**unique** (insensible à la casse) ; prénom et nom obligatoires ; **un seul rôle** par compte (changer de
+rôle = modifier le compte, jamais en créer un second) ; un compte n'est jamais supprimé, il est
+**désactivé** (les entrées du journal qui le citent restent lisibles).
+
+**Mot de passe — exigences quelle que soit la phase**
+- Jamais stocké en clair, jamais dans un essai, un export, une sauvegarde complète ni le journal.
+- Empreinte salée et lente (PBKDF2-SHA-256 via Web Crypto, sel aléatoire par compte, ≥ 600 000
+  itérations — ou Argon2id côté serveur) ; comparaison en temps constant.
+- Longueur minimale 12 caractères ; blocage temporaire après plusieurs échecs ; déconnexion
+  automatique après inactivité (poste de laboratoire partagé).
+- Comptes stockés à part des essais (clé dédiée, ex. `quv_lab_accounts_v1`), hors sauvegardes d'essai.
+
+**Ce que l'e-mail + mot de passe implique pour la feuille de route**
+- **Phase 1 (locale)** possible, mais limitée : les comptes n'existent que sur le poste où ils sont
+  créés (un même agent doit être créé sur chaque poste), **aucune réinitialisation par e-mail**
+  (le Responsable réinitialise le mot de passe), et protection **non opposable** à quelqu'un qui
+  manipule le navigateur. Elle reste utile pour la traçabilité nominative (« Prénom NOM (Rôle) »).
+- **Phase 2 (serveur ou annuaire de l'entreprise, ex. Microsoft 365 / Entra ID)** recommandée pour
+  « une personne = un compte » sur tous les postes : comptes centralisés, réinitialisation par e-mail,
+  vérification du mot de passe hors d'atteinte de l'utilisateur, éventuellement authentification
+  unique avec le compte de messagerie de l'entreprise (aucun mot de passe supplémentaire à gérer).
+- **Décision à prendre avant la phase 1** : faire une phase 1 locale transitoire, ou passer directement
+  à la phase 2 avec l'annuaire de l'entreprise.

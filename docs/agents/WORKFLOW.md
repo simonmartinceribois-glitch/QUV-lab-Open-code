@@ -64,7 +64,8 @@ Nouveaux tickets : ouvrir une section §5 ci-dessous (ne pas réécrire l'histor
 9. ~~`release/v1.8.0`~~ — **publiée** (PR #149, #150, tag `v1.8.0`).
 10. ~~`feature/tab01-locked-edit-journal`~~ — **mergé** (PR #151).
 11. ~~`feature/tab02-locked-edit-journal`~~ — **mergé** (PR #152, #153).
-12. `feature/auth-roles-foundation` — **PR ouverte** (LOW) : fondation inactive profils & droits (D-11).
+12. ~~`feature/auth-roles-foundation`~~ — **mergé** (PR #154).
+13. `feature/auth-roles-decisions` — **PR ouverte** (LOW) : D-12 (validation d'étape STANDARD, compte e-mail + mot de passe).
 
 ## 6. Règle permanente — actions et droits (D-11)
 

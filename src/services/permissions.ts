@@ -67,7 +67,8 @@ export const ACTION_CATALOG: Record<ActionId, ActionDefinition> = {
     auditActions: ['RECORD_ACQUISITION', 'UPDATE_ACQUISITION', 'LOCK_TRIAL_CONFIGURATION']
   },
   GENERATE_REPORT: { label: 'Générer un rapport', criticity: 'STANDARD', storeMethods: ['generateScientificReportForTrial'], auditActions: ['GENERATE_REPORT', 'REGENERATE_REPORT'] },
-  VALIDATE_STAGE: { label: 'Valider une étape', criticity: 'HIGH', storeMethods: ['validateStage'], auditActions: ['VALIDATE_STAGE'] },
+  // D-12 : validation d'étape ouverte au Technicien (STANDARD).
+  VALIDATE_STAGE: { label: 'Valider une étape', criticity: 'STANDARD', storeMethods: ['validateStage'], auditActions: ['VALIDATE_STAGE'] },
   EXCLUDE_PANEL: { label: 'Exclure une éprouvette', criticity: 'HIGH', storeMethods: ['excludePanel'], auditActions: ['EXCLUDE_PANEL'] },
   ADAPT_PROTOCOL: {
     label: 'Adapter le protocole de mesure',
@@ -142,4 +143,28 @@ export function actionForAuditCode(auditCode: string): ActionId | null {
     def.auditActions.includes(auditCode)
   );
   return entry ? entry[0] : null;
+}
+
+const ROLES: Role[] = ['UTILISATEUR', 'TECHNICIEN', 'RESPONSABLE'];
+
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/**
+ * Règles d'un compte (D-12) : prénom et nom renseignés, adresse e-mail valide
+ * et unique parmi les comptes existants (une personne = un compte = un rôle),
+ * rôle connu. Retourne la liste des erreurs (vide si valide).
+ */
+export function validateUserProfile(profile: UserProfile, existing: UserProfile[]): string[] {
+  const errors: string[] = [];
+  if (!profile.firstName.trim()) errors.push('Prénom obligatoire.');
+  if (!profile.lastName.trim()) errors.push('Nom obligatoire.');
+  const email = normalizeEmail(profile.email);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push('Adresse e-mail invalide.');
+  else if (existing.some((u) => u.id !== profile.id && normalizeEmail(u.email) === email)) {
+    errors.push('Un compte existe déjà avec cette adresse e-mail (une personne = un compte).');
+  }
+  if (!ROLES.includes(profile.role)) errors.push('Rôle inconnu.');
+  return errors;
 }
