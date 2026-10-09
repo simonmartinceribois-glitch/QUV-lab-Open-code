@@ -57,4 +57,5 @@ Nouveaux tickets : ouvrir une section §5 ci-dessous (ne pas réécrire l'histor
 2. ~~`release/v1.6.0`~~ — **publiée** (PR #140, #141, tag `v1.6.0`) : notes de version, manifeste 1051/1051, docs d'exploitation, réalignement `main` / `develop`.
 3. ~~`fix/audit-json-export-type`~~ — **mergé** (PR #142).
 4. ~~`refactor/cleanup-deps-ids`~~ — **mergé** (PR #143).
-5. `feature/trial-import` — **PR ouverte** (HIGH) : import d'un essai depuis le dossier scientifique JSON.
+5. ~~`feature/trial-import`~~ — **mergé** (PR #144).
+6. `release/v1.7.0` — **PR ouverte** : import d'essai en production.

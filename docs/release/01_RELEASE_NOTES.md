@@ -1,3 +1,23 @@
+# QUV-LAB v1.7.0 — RELEASE NOTES
+**Date de Release :** 09 Octobre 2026
+**Statut :** RELEASE QUALIFIED — 1061 / 1061 tests, `tsc` strict 0 erreur, build OK, `npm audit` 0 vulnérabilité
+**Périmètre :** PR #142 → #144 depuis la v1.6.0
+
+## Nouveautés
+- **Import d'un essai** depuis le dossier scientifique JSON (tableau de bord → « Importer un essai ») :
+  restauration à l'identique (RAW, calculs, rapports, journal d'audit), opérateur obligatoire, import tracé
+  (`IMPORT_TRIAL`), jamais d'écrasement d'un essai existant, refus de tout fichier anormal (#144).
+
+## Corrections
+- Journal d'audit : l'export JSON est tracé sous son propre type `EXPORT_SCIENTIFIC_DOSSIER` (il apparaissait
+  comme un export CSV calculé) (#142).
+
+## Maintenance
+- Identifiants générés par `crypto.randomUUID()` ; dépendance `motion` inutilisée supprimée ; outils de build
+  en `devDependencies` ; typage des sélecteurs de l'interface ; README et identité du projet (#143).
+
+---
+
 # QUV-LAB v1.6.0 — RELEASE NOTES
 **Date de Release :** 09 Octobre 2026
 **Référentiel Normatif :** NF EN 927-6:2018 (critères complémentaires NF EN 927-2:2014 et INFIPERF / FCBA)

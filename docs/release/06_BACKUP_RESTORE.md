@@ -1,4 +1,4 @@
-# QUV-LAB v1.6.0 — POLITIQUE DE SAUVEGARDE & RESTAURATION
+# QUV-LAB v1.7.0 — POLITIQUE DE SAUVEGARDE & RESTAURATION
 
 ## 1. Principe de Persistance à 3 Niveaux
 ```text
@@ -27,8 +27,7 @@ essai sans binaires, RuleSet, rapport actif, évaluations complémentaires) et e
 Les photographies (IndexedDB) ne sont pas incluses dans le JSON : conserver les originaux sur le serveur.
 
 ## 4. Restauration
-- **v1.6.0** : aucune fonction d'import ; le JSON est une archive de traçabilité uniquement.
-- **Depuis la version suivante (`develop`)** : tableau de bord → **« Importer un essai »** → choisir le
+- **Depuis v1.7.0** : tableau de bord → **« Importer un essai »** → choisir le
   `DOSSIER_SCIENTIFIQUE_<REF>.json` et saisir l'opérateur. L'essai est restauré à l'identique
   (données RAW, calculs, rapports, journal d'audit) et l'import est tracé (`IMPORT_TRIAL`).
   Un essai déjà présent n'est jamais écrasé. Les photographies ne sont pas restaurées
