@@ -1,17 +1,17 @@
 {
   "applicationName": "QUV-Lab",
-  "applicationVersion": "1.6.0",
+  "applicationVersion": "1.7.0",
   "schemaVersion": "1.2.0",
   "scientificEngineVersion": "v1.2.0",
   "scientificRuleSetId": "rule-set-nf-en-927-6-2018",
   "standardReference": "NF EN 927-6:2018",
-  "buildDate": "2026-10-09T00:00:00Z",
+  "buildDate": "2026-10-09T12:00:00Z",
   "releaseStatus": "RELEASE QUALIFIED",
   "qualificationGate": "GATE 6.0 (CI GitHub Actions « verify » obligatoire sur develop et main)",
   "testSuiteSummary": {
-    "totalDiscovered": 1051,
-    "totalExecuted": 1051,
-    "passed": 1051,
+    "totalDiscovered": 1061,
+    "totalExecuted": 1061,
+    "passed": 1061,
     "failed": 0,
     "successRatePercent": 100.0
   },
