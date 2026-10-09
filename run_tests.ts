@@ -919,7 +919,7 @@ suite65.results.forEach((r) => {
 });
 
 console.log('================================================================');
-console.log('66. EXÉCUTION DE LA FONDATION PROFILS & DROITS (R-AUTH-01 → 10)');
+console.log('66. EXÉCUTION DE LA FONDATION PROFILS & DROITS (R-AUTH-01 → 11)');
 console.log('================================================================');
 const suite66 = runAuthRolesFoundationTests();
 console.log(`Résultats Auth : ${suite66.summary.passed} / ${suite66.summary.total} réussis.`);
@@ -932,7 +932,7 @@ suite66.results.forEach((r) => {
 });
 
 console.log('================================================================');
-console.log("67. EXÉCUTION DES GARDE-FOUS D'ARCHITECTURE CIBLE SERVEUR (R-ARCH-01 → 07)");
+console.log("67. EXÉCUTION DES GARDE-FOUS D'ARCHITECTURE CIBLE SERVEUR (R-ARCH-01 → 08)");
 console.log('================================================================');
 const suite67 = runServerReadinessTests();
 console.log(`Résultats Archi : ${suite67.summary.passed} / ${suite67.summary.total} réussis.`);

@@ -1,5 +1,16 @@
 # QUV-Lab — DÉCISIONS (journal, ordre antichronologique)
 
+## 2026-10-09 — D-14 : opérateur issu du compte courant, jamais saisi ; plan d'action serveur
+
+- **Décidé (utilisateur)** : le créateur d'un essai et l'opérateur de toute validation sont renseignés
+  automatiquement à partir du compte connecté et ne sont pas modifiables.
+- **Mise en œuvre avant la connexion serveur** : profil de session provisoire (Prénom, Nom, e-mail, rôle,
+  sans mot de passe), saisi une fois par navigateur et affiché dans l'en-tête ; `session.ts` est la seule
+  source de l'opérateur (`useOperatorLabel`). Les 10 champs « Opérateur » de l'interface sont en lecture
+  seule ; garde-fou R-ARCH-08. Le profil provisoire sera supprimé au lot 5 du plan.
+- **Plan** : `docs/plans/PLAN_ACTION_SERVEUR.md` (lots 0 → 6 : cadrage informatique, A4, A2, A5, A6,
+  connexion, migration des données).
+
 ## 2026-10-09 — D-13 : cible serveur — architecture préparée, rien de codé côté serveur
 
 - **Décidé (utilisateur)** : l'application sera hébergée sur un serveur ; la connexion n'est pas codée

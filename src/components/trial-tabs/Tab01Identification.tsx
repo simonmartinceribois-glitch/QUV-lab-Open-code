@@ -7,6 +7,7 @@
  */
 
 import React, { useState } from 'react';
+import { useOperatorLabel } from '../../hooks/useCurrentUser';
 import { Trial } from '../../types/trial';
 import { globalTrialStore } from '../../services/trialStore';
 import {
@@ -31,7 +32,8 @@ export function Tab01Identification({ trial, onTrialUpdated }: Props) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<IdentificationForm>(() => identificationFormFromTrial(trial));
   const [dialog, setDialog] = useState<Dialog>(null);
-  const [operatorId, setOperatorId] = useState('');
+  // Opérateur = compte courant (session.ts), jamais saisi : D-13.
+  const operatorId = useOperatorLabel();
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -312,7 +314,7 @@ export function Tab01Identification({ trial, onTrialUpdated }: Props) {
         <ConfirmDialog
           title="Valider les modifications"
           message="Confirmez-vous l'enregistrement des modifications suivantes ?"
-          confirmDisabled={operatorId.trim() === ''}
+          confirmDisabled={operatorId === ''}
           onConfirm={confirmValidation}
           onCancel={() => setDialog(null)}
         >
@@ -334,16 +336,9 @@ export function Tab01Identification({ trial, onTrialUpdated }: Props) {
               ))}
             </tbody>
           </table>
-          <label className="block space-y-1">
-            <span className="font-bold text-slate-600">Opérateur (obligatoire)</span>
-            <input
-              type="text"
-              value={operatorId}
-              onChange={(e) => setOperatorId(e.target.value)}
-              placeholder="Initiales ou nom"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </label>
+          <p className="text-slate-600">
+            Opérateur : <strong className="text-slate-900">{operatorId || 'aucun profil'}</strong>
+          </p>
         </ConfirmDialog>
       )}
     </div>

@@ -17,7 +17,7 @@ import {
   validateUserProfile
 } from '../../services/permissions';
 import type { ActionId } from '../../services/permissions';
-import { AUTH_ENABLED, isAllowed, isTabVisible, setCurrentUser } from '../../services/session';
+import { AUTH_ENABLED, getOperatorLabel, isAllowed, isTabVisible, setCurrentUser } from '../../services/session';
 import type { Role, TrialTabId, UserProfile } from '../../types/auth';
 
 export interface AuthFoundationTestResult {
@@ -145,9 +145,9 @@ export function runAuthRolesFoundationTests(): {
 
   // R-AUTH-07 : fondation inactive → comportement actuel inchangé.
   {
-    setCurrentUser(user('UTILISATEUR'));
+    setCurrentUser(user('UTILISATEUR'), false);
     const unchanged = !AUTH_ENABLED && ACTIONS.every((a) => isAllowed(a)) && isTabVisible('09');
-    setCurrentUser(null);
+    setCurrentUser(null, false);
     record('R-AUTH-07', 'AUTH_ENABLED = false : toutes les actions et tous les onglets restent accessibles (aucun changement de comportement)',
       unchanged, 'tout autorisé', `AUTH_ENABLED=${AUTH_ENABLED}, toutAutorisé=${unchanged}`);
   }
@@ -178,6 +178,20 @@ export function runAuthRolesFoundationTests(): {
     record('R-AUTH-10', 'D-12 : e-mail unique (même personne = un seul compte, un seul rôle), e-mail valide, prénom et nom obligatoires',
       ok, 'doublon refusé, 2 erreurs, changement de rôle du même compte accepté, compte valide',
       `doublon=${duplicate.length}, invalide=${invalid.length}, mêmeCompte=${sameAccount.length}, valide=${valid.length}`);
+  }
+
+  // R-AUTH-11 : l'opérateur journalisé vient du compte courant (aucun profil ou profil inactif → vide).
+  {
+    setCurrentUser(null, false);
+    const none = getOperatorLabel();
+    setCurrentUser({ id: 'p', email: 's.martin@labo.test', firstName: 'Simon', lastName: 'Martin', role: 'RESPONSABLE', active: true }, false);
+    const label = getOperatorLabel();
+    setCurrentUser({ id: 'p', email: 's.martin@labo.test', firstName: 'Simon', lastName: 'Martin', role: 'RESPONSABLE', active: false }, false);
+    const inactive = getOperatorLabel();
+    setCurrentUser(null, false);
+    record('R-AUTH-11', 'Opérateur = compte courant : « Prénom NOM (Rôle) » ; aucun profil ou profil désactivé → aucun opérateur',
+      none === '' && label === 'Simon MARTIN (Responsable)' && inactive === '', '« » / Simon MARTIN (Responsable) / « »',
+      `${JSON.stringify(none)} / ${label} / ${JSON.stringify(inactive)}`);
   }
 
   const passed = results.filter((r) => r.passed).length;

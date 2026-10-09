@@ -23,7 +23,6 @@ interface Props {
   newPhotoCaption: string;
   onCaptionChange: Dispatch<SetStateAction<string>>;
   newPhotoOperator: string;
-  onOperatorChange: Dispatch<SetStateAction<string>>;
   newPhotoPreviewUrl: string;
   modalBatchPanels: PanelDefinition[];
   onFileSelected: (e: ChangeEvent<HTMLInputElement>) => void;
@@ -44,7 +43,6 @@ export function PhotoAddModal({
   newPhotoCaption,
   onCaptionChange,
   newPhotoOperator,
-  onOperatorChange,
   newPhotoPreviewUrl,
   modalBatchPanels,
   onFileSelected,
@@ -183,8 +181,8 @@ export function PhotoAddModal({
             <input
               type="text"
               value={newPhotoOperator}
-              onChange={(e) => onOperatorChange(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg font-medium"
+              readOnly
+              className="w-full px-3 py-2 rounded-lg font-medium bg-slate-100 border border-slate-200 text-slate-600 cursor-not-allowed"
             />
           </div>
         </div>

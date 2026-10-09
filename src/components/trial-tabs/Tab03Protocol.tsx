@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { useOperatorLabel } from '../../hooks/useCurrentUser';
 import { Trial } from '../../types/trial';
 import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
 import { globalTrialStore } from '../../services/trialStore';
@@ -27,7 +28,8 @@ export function Tab03Protocol({ trial, ruleSet, onTrialUpdated }: Props) {
   const [selectedFamilyForAdapt, setSelectedFamilyForAdapt] = useState<MeasurementFamilyId | null>(null);
   const [newCount, setNewCount] = useState<number>(0);
   const [justification, setJustification] = useState<string>('');
-  const [operatorId, setOperatorId] = useState<string>('Simon Martin (Technicien)');
+  // Opérateur = compte courant (session.ts), jamais saisi : D-13.
+  const operatorId = useOperatorLabel();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const isLocked = trial.configurationStatus === 'LOCKED';
@@ -290,8 +292,8 @@ export function Tab03Protocol({ trial, ruleSet, onTrialUpdated }: Props) {
               <input
                 type="text"
                 value={operatorId}
-                onChange={(e) => setOperatorId(e.target.value)}
-                className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-lg"
+                readOnly
+                className="w-full text-xs px-3 py-2 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 cursor-not-allowed"
               />
             </div>
 

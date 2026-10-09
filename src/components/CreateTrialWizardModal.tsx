@@ -10,6 +10,7 @@
  */
 
 import React, { useState } from 'react';
+import { useOperatorLabel } from '../hooks/useCurrentUser';
 import { getTodayLocalISODate } from '../utils/dateUtils';
 import { getPresetCycles } from './wizard/measurementApplicability';
 import { WIZARD_STEPS_LIST, NEXT_WIZARD_STEP, PREVIOUS_WIZARD_STEP } from './wizard/wizardSteps';
@@ -88,7 +89,8 @@ export function CreateTrialWizardModal({
   const [reference, setReference] = useState(`QUV-${new Date().getFullYear()}-0${Math.floor(Math.random() * 80 + 20)}`);
   const [title, setTitle] = useState('');
   const [projectOrClient, setProjectOrClient] = useState('');
-  const [createdBy, setCreatedBy] = useState('Simon Martin (Technicien Labo)');
+  // Créateur = compte courant (session.ts), non modifiable : D-13.
+  const createdBy = useOperatorLabel();
   const [generalNotes, setGeneralNotes] = useState('');
 
   // ==========================================
@@ -466,7 +468,6 @@ export function CreateTrialWizardModal({
               projectOrClient={projectOrClient}
               onProjectOrClientChange={setProjectOrClient}
               createdBy={createdBy}
-              onCreatedByChange={setCreatedBy}
               generalNotes={generalNotes}
               onGeneralNotesChange={setGeneralNotes}
             />

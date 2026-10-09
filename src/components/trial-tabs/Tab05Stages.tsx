@@ -7,6 +7,7 @@
  */
 
 import React, { useState } from 'react';
+import { useOperatorLabel } from '../../hooks/useCurrentUser';
 import { Trial, ExposureStage } from '../../types/trial';
 import { MeasurementFamilyId } from '../../types/scientific';
 import { globalTrialStore } from '../../services/trialStore';
@@ -56,7 +57,8 @@ export function Tab05Stages({
     }
   }, [selectedStageId, activeStages, currentStage, onSelectStageId]);
 
-  const [operatorId, setOperatorId] = useState<string>('Simon Martin (Technicien)');
+  // Opérateur = compte courant (session.ts), jamais saisi : D-13.
+  const operatorId = useOperatorLabel();
   const [validationNotes, setValidationNotes] = useState<string>('');
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [showDeactivationModal, setShowDeactivationModal] = useState(false);
@@ -545,8 +547,8 @@ export function Tab05Stages({
                 <input
                   type="text"
                   value={operatorId}
-                  onChange={(e) => setOperatorId(e.target.value)}
-                  className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  readOnly
+                  className="w-full text-xs px-3 py-2 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 cursor-not-allowed"
                 />
               </div>
 

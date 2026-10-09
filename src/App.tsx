@@ -7,6 +7,9 @@ import { Trial } from './types/trial';
 import { TrialDashboard } from './components/TrialDashboard';
 import { TrialDetailView } from './components/TrialDetailView';
 import type { StorageErrorEvent } from './services/trialStore';
+import { SessionProfileDialog } from './components/SessionProfileDialog';
+import { useCurrentUser } from './hooks/useCurrentUser';
+import { formatOperatorLabel } from './services/permissions';
 
 // perf/lazy-sections : sections secondaires chargées à la demande (TRIALS reste eager).
 const ImportTrialModal = lazy(() =>
@@ -40,7 +43,8 @@ import {
   ShieldCheck,
   LayoutDashboard,
   CheckSquare,
-  AlertTriangle
+  AlertTriangle,
+  UserCircle2
 } from 'lucide-react';
 
 export default function App() {
@@ -53,6 +57,9 @@ export default function App() {
   const [activeTrialTab, setActiveTrialTab] = useState<string>('06');
   const [showCreateWizard, setShowCreateWizard] = useState<boolean>(false);
   const [showImport, setShowImport] = useState<boolean>(false);
+  // Compte courant (profil provisoire en attendant la connexion serveur, D-13).
+  const currentUser = useCurrentUser();
+  const [showProfile, setShowProfile] = useState<boolean>(false);
 
   // État d'initialisation de la migration média (Base64 → IndexedDB)
   const [mediaMigration, setMediaMigration] = useState<'idle' | 'migrating' | 'success' | 'failed' | 'interrupted'>('idle');
@@ -177,6 +184,17 @@ export default function App() {
               Normes
             </button>
           </div>
+
+          {/* Compte courant : source unique de l'opérateur */}
+          <button
+            type="button"
+            onClick={() => setShowProfile(true)}
+            title="Profil de l'opérateur (modifier)"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800/90 text-xs text-slate-200 hover:bg-slate-700/60 whitespace-nowrap"
+          >
+            <UserCircle2 className="w-4 h-4 text-blue-300" />
+            <span className="font-semibold">{currentUser ? formatOperatorLabel(currentUser) : 'Aucun profil'}</span>
+          </button>
         </div>
 
         {/* Bandeau d'initialisation de la migration média (Base64 → IndexedDB) */}
@@ -286,6 +304,11 @@ export default function App() {
             }}
           />
         </Suspense>
+      )}
+
+      {/* Profil : obligatoire au premier lancement, modifiable ensuite */}
+      {(!currentUser || showProfile) && (
+        <SessionProfileDialog current={currentUser} onClose={currentUser ? () => setShowProfile(false) : undefined} />
       )}
 
       {/* Import Modal */}
