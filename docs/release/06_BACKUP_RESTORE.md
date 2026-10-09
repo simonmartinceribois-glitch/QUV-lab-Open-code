@@ -22,16 +22,21 @@ Serveur Réseau Sécurisé    ──► Archivage réglementaire définitif
 ```
 
 ## 3. Export de sauvegarde
-Onglet **08 Résultats & Fiches → 8. Rapport Scientifique & Exports** : bouton d'export **JSON** (`DOSSIER_SCIENTIFIQUE_<REF>.json` :
-essai sans binaires, RuleSet, rapport actif, évaluations complémentaires) et exports **RAW CSV** / **REPORT CSV**.
-Les photographies (IndexedDB) ne sont pas incluses dans le JSON : conserver les originaux sur le serveur.
+Onglet **08 Résultats & Fiches → 8. Rapport Scientifique & Exports**, encadré **« Sauvegarde de l'essai »**
+(disponible même sans rapport généré) :
+- **Sauvegarde complète (avec photos)** → `SAUVEGARDE_COMPLETE_<REF>.json` : essai complet + photographies.
+  **Format recommandé** pour la sauvegarde après chaque jalon.
+- **Dossier JSON** → `DOSSIER_SCIENTIFIQUE_<REF>.json` : essai sans photographies (archive scientifique légère).
+- Exports **RAW CSV** / **REPORT CSV** : disponibles une fois un rapport généré.
+
+> Avant la version suivant la v1.7.0, aucun bouton n'exposait l'export JSON (le code existait sans être
+> relié à l'interface) : les versions v1.6.0 et v1.7.0 ne permettent pas de produire ces fichiers.
 
 ## 4. Restauration
-- **Depuis v1.7.0** : tableau de bord → **« Importer un essai »** → choisir le
-  `DOSSIER_SCIENTIFIQUE_<REF>.json` et saisir l'opérateur. L'essai est restauré à l'identique
-  (données RAW, calculs, rapports, journal d'audit) et l'import est tracé (`IMPORT_TRIAL`).
-  Un essai déjà présent n'est jamais écrasé. Les photographies ne sont pas restaurées
-  (absentes du JSON) : réimporter les originaux depuis le serveur si nécessaire.
+Tableau de bord → **« Importer un essai »** → choisir la sauvegarde et saisir l'opérateur.
+- L'essai est restauré à l'identique (données RAW, calculs, rapports, journal d'audit), import tracé (`IMPORT_TRIAL`).
+- Sauvegarde complète : les photographies sont restaurées ; une photo déjà présente n'est jamais remplacée.
+- Un essai déjà présent n'est jamais écrasé (import refusé).
 
 ## 5. Copies de secours automatiques (v1.6.0)
 Si le stockage local est illisible au démarrage, son contenu brut est copié tel quel sous la clé
