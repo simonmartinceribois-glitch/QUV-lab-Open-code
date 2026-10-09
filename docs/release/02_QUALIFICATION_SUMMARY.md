@@ -1,8 +1,8 @@
-# QUV-LAB v1.7.0 — SYNTHÈSE DE QUALIFICATION
+# QUV-LAB v1.8.0 — SYNTHÈSE DE QUALIFICATION
 
 | Contrôle | Commande | Résultat |
 | :--- | :--- | :--- |
-| Suites de tests scientifiques (63 suites, dont Gates 2.2 → 6.0, critères NF EN 927-2 / INFIPERF, persistance R-STORAGE, export R-CSV, audit des exports, import R-IMPORT) | `npm test` | **1061 / 1061** |
+| Suites de tests scientifiques (64 suites, dont Gates 2.2 → 6.0, critères NF EN 927-2 / INFIPERF, persistance R-STORAGE, export R-CSV, audit des exports, import R-IMPORT, sauvegarde complète R-BACKUP) | `npm test` | **1069 / 1069** |
 | Compilation TypeScript (strict) | `npm run lint` | 0 erreur |
 | Build de production | `npm run build` | OK (tous les chunks < 500 kB) |
 | Audit des dépendances | `npm audit` | 0 vulnérabilité |

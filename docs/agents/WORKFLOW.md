@@ -60,4 +60,5 @@ Nouveaux tickets : ouvrir une section §5 ci-dessous (ne pas réécrire l'histor
 5. ~~`feature/trial-import`~~ — **mergé** (PR #144).
 6. ~~`release/v1.7.0`~~ — **publiée** (PR #145, #146, tag `v1.7.0`).
 7. ~~`feature/full-backup-with-photos`~~ — **mergé** (PR #147).
-8. `feature/import-as-copy` — **PR ouverte** (HIGH) : import d'un essai déjà présent sous un nouvel identifiant.
+8. ~~`feature/import-as-copy`~~ — **mergé** (PR #148).
+9. `release/v1.8.0` — **PR ouverte** : boutons de sauvegarde, sauvegarde complète, import en copie.
