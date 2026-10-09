@@ -61,6 +61,7 @@ import { runCsvExportEscapingTests } from './src/scientific/tests/csv_export_esc
 import { runExportAuditTraceTests } from './src/scientific/tests/export_audit_trace.test';
 import { runTrialImportTests } from './src/scientific/tests/trial_import.test';
 import { runFullBackupTests } from './src/scientific/tests/full_backup.test';
+import { runTrialIdentificationEditTests } from './src/scientific/tests/trial_identification_edit.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -888,6 +889,19 @@ suite63.results.forEach((r) => {
   }
 });
 
+console.log('================================================================');
+console.log("64. EXÉCUTION DE LA MODIFICATION VALIDÉE DE L'IDENTIFICATION (R-IDENT-01 → 06)");
+console.log('================================================================');
+const suite64 = runTrialIdentificationEditTests();
+console.log(`Résultats Identification : ${suite64.summary.passed} / ${suite64.summary.total} réussis.`);
+suite64.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Identification] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -951,7 +965,8 @@ const totalFailed =
   suite60.summary.failed +
   suite61.summary.failed +
   suite62.summary.failed +
-  suite63.summary.failed;
+  suite63.summary.failed +
+  suite64.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -1015,7 +1030,8 @@ const totalCount =
   suite60.summary.total +
   suite61.summary.total +
   suite62.summary.total +
-  suite63.summary.total;
+  suite63.summary.total +
+  suite64.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

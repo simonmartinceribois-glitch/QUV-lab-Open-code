@@ -26,7 +26,7 @@ src/main.tsx → src/App.tsx — TRIALS eager, 3 sections + wizard en React.lazy
     01 Identification / 02 Lots & Échantillons / 03 Protocole / 04 Calendrier /
     05 Étapes / 06 Mesures (bench/ : topbar, grille, calculs, 5 formulaires) /
     PHOTO Photothèque (phototheque/ : 7 vues, jalons actifs uniquement) /
-    08 Résultats (7 sous-vues) / 09 Journal d'audit
+    08 Résultats (7 sous-vues) / 09 Journal de bord
   UX_TESTS → UXTestsSuite.tsx (tests UI, dynamique)
   SCIENTIFIC_TESTS → ScientificTestsViewer.tsx (tests scientifiques, dynamique)
   RULESET → ScientificRuleSetView.tsx

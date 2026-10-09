@@ -44,6 +44,8 @@ import { isFamilyScheduledForStage, isPersozEligiblePanel, isAdhesionEligiblePan
 import { generateUUID } from './trialIds';
 import { IntegrityViolationError, validateAcquisitionTarget, validatePhotoTarget, validateAcquisitionFamily, validateAcquisitionRaw, isStructurallyValidTrial, isPlainRecord } from './trialIntegrity';
 import { generateStandardExposureStages } from './trialStages';
+import { diffIdentification, applyIdentificationChanges, identificationFormFromTrial, validateIdentificationForm } from './trialIdentification';
+import type { IdentificationChange, IdentificationForm } from './trialIdentification';
 
 // P4-b (audit 11-12/09/2026) : constante nommée remplaçant le repli en dur
 // `|| 2016` sur le libellé d'affichage de l'étape finale C12, cohérente avec
@@ -529,6 +531,45 @@ export class TrialStoreService {
     trial.auditTrail.push({ id: generateUUID(), trialId, timestamp: trial.updatedAt, operatorId: operatorId || 'OPERATOR', action: 'UPDATE_T0_EFFECTIVE_DATE', entityType: 'STAGE', entityId: t0.id, details: { effectiveDate: t0Iso, scheduleRule: 'Ck = T0 + k × 168 h' } });
     this.saveTrial(trial);
     return trial;
+  }
+
+  /**
+   * Modification validée de l'identification (onglet 01). Chaque champ modifié
+   * produit sa propre entrée MODIFY_IDENTIFICATION dans le journal de bord
+   * (champ, valeur avant, valeur après, opérateur, horodatage commun).
+   * Opérateur obligatoire ; saisie invalide → IntegrityViolationError, rien
+   * n'est modifié. Aucune différence → aucune écriture, liste vide.
+   */
+  public updateTrialIdentification(trialId: UUID, form: IdentificationForm, operatorId: string): IdentificationChange[] {
+    const trial = this.getTrial(trialId);
+    if (!trial) throw new Error('Essai introuvable');
+    const operator = typeof operatorId === 'string' ? operatorId.trim() : '';
+    if (!operator) {
+      throw new IntegrityViolationError("L'opérateur est obligatoire pour modifier l'identification.", { trialId });
+    }
+    const errors = validateIdentificationForm(form, identificationFormFromTrial(trial));
+    if (errors.length > 0) {
+      throw new IntegrityViolationError(errors.join(' '), { trialId });
+    }
+    const changes = diffIdentification(trial, form);
+    if (changes.length === 0) return [];
+
+    applyIdentificationChanges(trial, changes);
+    const timestamp = new Date().toISOString();
+    for (const change of changes) {
+      trial.auditTrail.push({
+        id: generateUUID(),
+        trialId,
+        timestamp,
+        operatorId: operator,
+        action: 'MODIFY_IDENTIFICATION',
+        entityType: 'TRIAL',
+        entityId: trialId,
+        details: { field: change.field, label: change.label, before: change.before, after: change.after }
+      });
+    }
+    this.saveTrial(trial);
+    return changes;
   }
 
   public saveTrial(trial: Trial): void {

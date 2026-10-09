@@ -350,7 +350,7 @@ export const uxTestCases: UXTestCase[] = [
     },
     {
       id: 19,
-      title: 'TEST UX 19 — Journal d\'Audit Append-Only',
+      title: 'TEST UX 19 — Journal de bord Append-Only',
       category: 'Audit & Traçabilité',
       description: 'Vérifie la journalisation immuable de chaque événement avec horodatage et opérateur.',
       expectedResult: 'Journal consultable et filtrable contenant l\'historique complet.',

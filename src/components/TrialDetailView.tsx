@@ -56,7 +56,7 @@ export function TrialDetailView({
     { id: '06', label: '06 Mesures', icon: PlayCircle },
     { id: 'PHOTO', label: 'Photothèque', icon: Camera },
     { id: '08', label: '08 Résultats & Fiches', icon: BarChart3 },
-    { id: '09', label: "09 Journal d'Audit", icon: History }
+    { id: '09', label: '09 Journal de bord', icon: History }
   ];
 
   const handleNavigateToBench = (fam: MeasurementFamilyId) => {

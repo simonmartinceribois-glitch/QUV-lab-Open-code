@@ -1,5 +1,5 @@
 /**
- * QUV-Lab — 09 Historique & Journal d'Audit (PROMPT 6 - Section 21)
+ * QUV-Lab — 09 Journal de bord (PROMPT 6 - Section 21)
  * Journal d'audit complet immuable (append-only) de toutes les actions métrologiques et administratives.
  */
 
@@ -47,13 +47,13 @@ export function Tab09AuditTrail({ trial }: Props) {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 bg-white shadow-xs">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold text-slate-900">Journal d'Audit Métrologique (Append-Only)</h3>
+            <h3 className="text-base font-bold text-slate-900">Journal de bord (Append-Only)</h3>
             <span className="px-2 py-0.5 text-xs font-mono font-bold rounded-md bg-blue-100 text-blue-800">
               {trial.auditTrail.length} événements tracés
             </span>
           </div>
           <p className="text-xs text-slate-500">
-            Traçabilité intégrale de l'ensemble des créations, exclusions, verrouillages, saisies et validations.
+            Traçabilité intégrale de l'ensemble des créations, modifications, exclusions, verrouillages, saisies et validations.
           </p>
         </div>
 
@@ -85,6 +85,7 @@ export function Tab09AuditTrail({ trial }: Props) {
         >
           <option value="ALL">Toutes les actions</option>
           <option value="CREATE_TRIAL">CREATE_TRIAL</option>
+          <option value="MODIFY_IDENTIFICATION">MODIFY_IDENTIFICATION</option>
           <option value="LOCK_TRIAL_CONFIGURATION">LOCK_TRIAL_CONFIGURATION</option>
           <option value="EXCLUDE_PANEL">EXCLUDE_PANEL</option>
           <option value="RECORD_ACQUISITION">RECORD_ACQUISITION</option>
@@ -142,7 +143,15 @@ export function Tab09AuditTrail({ trial }: Props) {
                       {ev.operatorId}
                     </td>
                     <td className="py-2.5 px-4 font-sans text-slate-700">
-                      {typeof ev.details === 'object' ? (
+                      {ev.action === 'MODIFY_IDENTIFICATION' && ev.details ? (
+                        <div className="text-[11px]">
+                          <span className="font-bold text-slate-800">{String(ev.details['label'] ?? ev.details['field'])}</span>
+                          {' : '}
+                          <span className="text-slate-500 line-through">{String(ev.details['before'] ?? '') || '—'}</span>
+                          {' → '}
+                          <strong className="text-slate-900">{String(ev.details['after'] ?? '') || '—'}</strong>
+                        </div>
+                      ) : typeof ev.details === 'object' ? (
                         <div className="space-y-0.5">
                           {Object.entries(ev.details || {}).map(([k, v]) => (
                             <div key={k} className="text-[11px]">
