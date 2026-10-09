@@ -111,7 +111,7 @@ export function ResultsReportAndReviewView({ trial, ruleSet, onTrialUpdated }: P
       // INFIPERF). Aucune clé existante n'est modifiée ou retirée.
       criteriaEvaluation: evaluateScientificCriteriaPerBatch(trial, ruleSet)
     });
-    globalTrialStore.logReportExport(trial.id, activeReport?.id || trial.id, 'COMPUTED_DATA_CSV', operatorId);
+    globalTrialStore.logReportExport(trial.id, activeReport?.id || trial.id, 'SCIENTIFIC_DOSSIER_JSON', operatorId);
   };
 
   const handlePrintPdf = () => {
