@@ -53,4 +53,5 @@ Nouveaux tickets : ouvrir une section §5 ci-dessous (ne pas réécrire l'histor
 
 ## 5. Tickets ouverts
 
-1. `fix/storage-overwrite-csv-escaping` — **PR ouverte** (HIGH, audit 2026-10-09) : copie de secours avant écrasement du stockage illisible, échappement CSV, `npm audit fix`.
+1. ~~`fix/storage-overwrite-csv-escaping`~~ — **mergé** (PR #139) (HIGH, audit 2026-10-09) : copie de secours avant écrasement du stockage illisible, échappement CSV, `npm audit fix`.
+2. `release/v1.6.0` — **PR ouverte** : notes de version, manifeste 1051/1051, docs d'exploitation, réalignement `main` / `develop`.

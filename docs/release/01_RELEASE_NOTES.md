@@ -1,3 +1,34 @@
+# QUV-LAB v1.6.0 — RELEASE NOTES
+**Date de Release :** 09 Octobre 2026
+**Référentiel Normatif :** NF EN 927-6:2018 (critères complémentaires NF EN 927-2:2014 et INFIPERF / FCBA)
+**Statut :** RELEASE QUALIFIED — 1051 / 1051 tests, `tsc` strict 0 erreur, build OK, `npm audit` 0 vulnérabilité
+**Périmètre :** PR #27 → #139 depuis la v1.5.0 (04/09/2026)
+
+## Évolutions scientifiques
+- **Critères complémentaires** NF EN 927-2:2014 (classification STABLE / SEMI_STABLE / NON_STABLE) et INFIPERF / FCBA, évalués par lot, indépendants entre eux, sans verdict global (#124, #126, #127).
+- **Adhérence** : 2 mesures par éprouvette (Gate 57), protocole adapté à 3 mesures, quadrillage non applicable au-delà de 250 µm, référence T0 du témoin (#60, #61, #64, #65, #96, #97, #131).
+- **Persoz** : agrégation Gate 58, absence de mesure verrouillée sur le témoin, dénominateurs de delta séparés (#62, #63, #69, #82).
+- **Protocoles de mesure adaptés** explicites et tracés pour toutes les familles ; nombre de mesures = choix explicite du protocole (#101, #102, #129, #132, #134, #135).
+- **Gel du contexte scientifique** à la première acquisition (RuleSet figé par essai, reproductibilité) (#136).
+- **Fidélité scientifique** : aucune valeur ni conclusion fabriquée, séparation stricte COMPUTED / critère, traçabilité explicite des références (#71, #79, #92, #93, #100).
+- **Calendrier** : jalons d'exposition verrouillés, applicabilité par famille, suppression des faux jalons C1/C2 (#80, #95, #98, #109).
+
+## Robustesse et données
+- **Photothèque migrée vers IndexedDB** : les photos ne saturent plus le `localStorage` (#111, #120, #121, #122).
+- **Persistance** : échecs d'écriture signalés à l'opérateur ; un stockage illisible est copié intégralement sous une clé de secours avant toute écriture, ou les écritures sont bloquées (#112, #139).
+- **Exports CSV** échappés (séparateurs, guillemets, injection de formule) et encodés avec BOM UTF-8 (#139).
+- **ErrorBoundary** global : plus d'écran blanc sur erreur d'affichage (#113).
+- Imports et données mal formées rejetés sans plantage (#75).
+
+## Interface
+- Allègement de l'assistant de création (étapes 1 à 7), des onglets 01 à 03 et du calendrier ; suppression de l'onglet 07 Contrôle Qualité et des badges de verrouillage (#27 → #54).
+
+## Sécurité et CI
+- Workflow opencode réservé aux propriétaires / collaborateurs ; actions GitHub figées par SHA (#114, #115, #117).
+- Branche par défaut `develop` ; check `verify` (GitHub Actions) et résolution des conversations exigés pour fusionner sur `develop` et `main`.
+
+---
+
 # QUV-LAB v1.2.0 — RELEASE NOTES
 **Date de Release :** 01 Septembre 2026  
 **Référentiel Normatif :** NF EN 927-6:2018  
