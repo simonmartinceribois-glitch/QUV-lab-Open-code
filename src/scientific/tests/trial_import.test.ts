@@ -2,7 +2,7 @@
  * QUV-Lab — Import d'un essai depuis le dossier scientifique JSON (R-IMPORT).
  *
  * Contrat : fail-closed (toute anomalie est refusée avant modification du
- * store), jamais d'écrasement d'un essai existant, fidélité intégrale des
+ * store), jamais d'écrasement d'un essai existant (import en copie possible), fidélité intégrale des
  * données (RAW, COMPUTED, rapports, audit trail), import tracé.
  */
 import { TrialStoreService } from '../../services/trialStoreService';
@@ -160,6 +160,66 @@ export function runTrialImportTests(): {
     record('R-IMPORT-08', 'Copie profonde : modifier l’objet source après import n’altère pas le store',
       store.getTrial(imported.id)?.metadata.title !== 'MUTATION APRÈS IMPORT', 'titre inchangé',
       `titre=${store.getTrial(imported.id)?.metadata.title}`);
+  }
+
+  // R-IMPORT-09 : doublon signalé comme tel ; import en copie = nouvel essai réidentifié.
+  {
+    const store = TrialStoreService.createIsolatedStore();
+    const original = store.resetToDemo();
+    const before = JSON.stringify(store.getTrial(original.id));
+    let reason: unknown;
+    try {
+      store.importTrialFromExport(exportPayload(original), 'OP');
+    } catch (err) {
+      reason = (err as { details?: { reason?: unknown } }).details?.reason;
+    }
+    const copy = store.importTrialFromExport(exportPayload(original), 'OP', 'DOSSIER.json', { asCopy: true });
+    const last = copy.auditTrail[copy.auditTrail.length - 1];
+    // Aucun champ ne doit encore VALOIR l'ancien id (les identifiants internes
+    // qui le contiennent comme sous-chaîne, ex. « stage-<id>-0 », sont conservés).
+    const valuesEqualTo = (node: unknown, target: string): number =>
+      Array.isArray(node)
+        ? node.reduce((n: number, v) => n + valuesEqualTo(v, target), 0)
+        : node && typeof node === 'object'
+          ? Object.values(node).reduce((n: number, v) => n + valuesEqualTo(v, target), 0)
+          : node === target ? 1 : 0;
+    const oldIdLeft = valuesEqualTo({ ...copy, auditTrail: copy.auditTrail.slice(0, -1) }, original.id) > 0;
+    const ok =
+      reason === 'DUPLICATE_TRIAL_ID' &&
+      copy.id !== original.id &&
+      copy.metadata.reference === `${original.metadata.reference}-COPIE` &&
+      !oldIdLeft &&
+      Object.keys(copy.acquisitions).length === Object.keys(original.acquisitions).length &&
+      (last?.details as { importedAsCopyOf?: string } | undefined)?.importedAsCopyOf === original.id &&
+      JSON.stringify(store.getTrial(original.id)) === before;
+    record('R-IMPORT-09', 'Doublon → DUPLICATE_TRIAL_ID ; copie : nouvel id, référence -COPIE, aucun champ ne vaut l’ancien id, original inchangé',
+      ok, 'reason=DUPLICATE_TRIAL_ID, -COPIE, ancien id absent, original inchangé',
+      `reason=${String(reason)}, réf=${copy.metadata.reference}, ancienIdRestant=${oldIdLeft}, originalInchangé=${JSON.stringify(store.getTrial(original.id)) === before}`);
+  }
+
+  // R-IMPORT-10 : copies successives → références uniques.
+  {
+    const store = TrialStoreService.createIsolatedStore();
+    const original = store.resetToDemo();
+    const c1 = store.importTrialFromExport(exportPayload(original), 'OP', undefined, { asCopy: true });
+    const c2 = store.importTrialFromExport(exportPayload(original), 'OP', undefined, { asCopy: true });
+    const base = `${original.metadata.reference}-COPIE`;
+    record('R-IMPORT-10', 'Deux copies du même essai → références « -COPIE » puis « -COPIE-2 », identifiants distincts',
+      c1.metadata.reference === base && c2.metadata.reference === `${base}-2` && c1.id !== c2.id,
+      `${base} / ${base}-2`, `${c1.metadata.reference} / ${c2.metadata.reference}`);
+  }
+
+  // R-IMPORT-11 : la copie est indépendante de l'original.
+  {
+    const store = TrialStoreService.createIsolatedStore();
+    const original = store.resetToDemo();
+    const copy = store.importTrialFromExport(exportPayload(original), 'OP', undefined, { asCopy: true });
+    const stored = store.getTrial(copy.id) as Trial;
+    stored.metadata.title = 'MODIFIÉ DANS LA COPIE';
+    store.saveTrial(stored);
+    record('R-IMPORT-11', 'Modifier la copie n’altère pas l’essai d’origine',
+      store.getTrial(original.id)?.metadata.title !== 'MODIFIÉ DANS LA COPIE', 'titre d’origine inchangé',
+      `titre original=${store.getTrial(original.id)?.metadata.title}`);
   }
 
   const passed = results.filter((r) => r.passed).length;

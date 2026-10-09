@@ -21,16 +21,19 @@ export function ImportTrialModal({ onClose, onImported }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [operatorId, setOperatorId] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // Doublon d'identifiant : l'opérateur peut importer l'essai en copie.
+  const [duplicate, setDuplicate] = useState(false);
   const [busy, setBusy] = useState(false);
   // Import réussi mais photos partiellement restaurées : on reste ouvert pour l'afficher.
   const [mediaWarning, setMediaWarning] = useState<{ trialId: string; message: string } | null>(null);
 
   const canImport = !!file && operatorId.trim().length > 0 && !busy;
 
-  const handleImport = async () => {
+  const handleImport = async (asCopy = false) => {
     if (!file) return;
     setBusy(true);
     setError(null);
+    setDuplicate(false);
     try {
       const text = await file.text();
       let payload: unknown;
@@ -39,7 +42,7 @@ export function ImportTrialModal({ onClose, onImported }: Props) {
       } catch {
         throw new Error('Fichier illisible : le contenu n’est pas un JSON valide.');
       }
-      const trial = globalTrialStore.importTrialFromExport(payload, operatorId, file.name);
+      const trial = globalTrialStore.importTrialFromExport(payload, operatorId, file.name, { asCopy });
       if (isFullBackup(payload)) {
         const summary = await restoreFullBackupMedia(payload, trial, mediaStorage);
         if (summary.failed.length > 0) {
@@ -55,6 +58,8 @@ export function ImportTrialModal({ onClose, onImported }: Props) {
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      const details = (err as { details?: { reason?: unknown } } | null)?.details;
+      setDuplicate(details?.reason === 'DUPLICATE_TRIAL_ID');
     } finally {
       setBusy(false);
     }
@@ -88,6 +93,7 @@ export function ImportTrialModal({ onClose, onImported }: Props) {
               onChange={(e) => {
                 setFile(e.target.files?.[0] ?? null);
                 setError(null);
+                setDuplicate(false);
               }}
               className="block w-full text-xs file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-slate-100 file:font-semibold"
             />
@@ -117,6 +123,20 @@ export function ImportTrialModal({ onClose, onImported }: Props) {
               <span>{error}</span>
             </div>
           )}
+
+          {duplicate && (
+            <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+              <span>Importer une copie indépendante (nouvel identifiant, référence suffixée « -COPIE ») ?</span>
+              <button
+                type="button"
+                onClick={() => handleImport(true)}
+                disabled={busy}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-white hover:bg-slate-900 disabled:opacity-40 shrink-0"
+              >
+                Importer comme copie
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
@@ -129,7 +149,7 @@ export function ImportTrialModal({ onClose, onImported }: Props) {
           </button>
           <button
             type="button"
-            onClick={handleImport}
+            onClick={() => handleImport(false)}
             disabled={!canImport || !!mediaWarning}
             className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
           >
