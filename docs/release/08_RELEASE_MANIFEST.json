@@ -1,17 +1,17 @@
 {
   "applicationName": "QUV-Lab",
-  "applicationVersion": "1.5.0",
+  "applicationVersion": "1.6.0",
   "schemaVersion": "1.2.0",
   "scientificEngineVersion": "v1.2.0",
   "scientificRuleSetId": "rule-set-nf-en-927-6-2018",
   "standardReference": "NF EN 927-6:2018",
-  "buildDate": "2026-09-04T15:08:01Z",
+  "buildDate": "2026-10-09T00:00:00Z",
   "releaseStatus": "RELEASE QUALIFIED",
-  "qualificationGate": "GATE 5.4",
+  "qualificationGate": "GATE 6.0 (CI GitHub Actions « verify » obligatoire sur develop et main)",
   "testSuiteSummary": {
-    "totalDiscovered": 195,
-    "totalExecuted": 195,
-    "passed": 195,
+    "totalDiscovered": 1051,
+    "totalExecuted": 1051,
+    "passed": 1051,
     "failed": 0,
     "successRatePercent": 100.0
   },
@@ -22,17 +22,25 @@
     "status": "PASSED"
   },
   "productionBuild": {
-    "bundler": "Vite 6.2.3",
+    "bundler": "Vite 6.4.3",
     "status": "SUCCESSFUL"
   },
   "qualifiedEnvironment": {
-    "nodeVersion": "18.x / 20.x LTS",
-    "browsers": ["Google Chrome (v110+)", "Mozilla Firefox (v110+)", "Microsoft Edge (v110+)"]
+    "nodeVersion": "20.x LTS (CI)",
+    "browsers": [
+      "Google Chrome (v110+)",
+      "Mozilla Firefox (v110+)",
+      "Microsoft Edge (v110+)"
+    ]
   },
   "complianceCertificates": [
     "NF EN 927-6:2018 (Cl. 6.3.2 Couleur, Cl. 6.3.3 Brillance, Calendrier 2016 h)",
     "ISO 2813 (Brillance 60°)",
     "ISO 1522 (Dureté Persoz)",
     "ISO 4628 (Observations dégradations visuelles)"
-  ]
+  ],
+  "dependencyAudit": {
+    "command": "npm audit",
+    "vulnerabilities": 0
+  }
 }
