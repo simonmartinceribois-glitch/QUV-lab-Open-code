@@ -20,6 +20,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
+import { useOperatorLabel } from '../../hooks/useCurrentUser';
 import { Trial, MediaReference, BatchDefinition, PanelDefinition, ExposureStage } from '../../types/trial';
 import { globalTrialStore } from '../../services/trialStore';
 import { mediaStorage } from '../../services/mediaStorageService';
@@ -112,7 +113,8 @@ export function TabPhotographs({ trial, onTrialUpdated }: Props) {
   const [newPhotoStageId, setNewPhotoStageId] = useState<string>(trial.stages[0]?.id || '');
   const [newPhotoCaption, setNewPhotoCaption] = useState<string>('');
 
-  const [newPhotoOperator, setNewPhotoOperator] = useState<string>(trial.metadata.createdBy || 'Simon Martin (Technicien)');
+  // Opérateur = compte courant (session.ts), jamais saisi : D-13.
+  const newPhotoOperator = useOperatorLabel();
   const [newPhotoFile, setNewPhotoFile] = useState<File | null>(null);
   const [newPhotoPreviewUrl, setNewPhotoPreviewUrl] = useState<string>('');
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -346,7 +348,7 @@ export function TabPhotographs({ trial, onTrialUpdated }: Props) {
         stageId: newPhotoStageId,
         filename,
         caption: newPhotoCaption.trim() || `Cliché documentaire ${label} — ${stageName}`,
-        operatorId: newPhotoOperator.trim() || 'Simon Martin (Technicien)',
+        operatorId: newPhotoOperator,
         storageKey,
         sizeBytes: blob.size,
         mimeType
@@ -383,8 +385,7 @@ export function TabPhotographs({ trial, onTrialUpdated }: Props) {
     if (!window.confirm(confirmMessage)) return;
 
     // Traçabilité de suppression dans l'audit trail
-    // Note d'architecture : opérateur passé via createdBy à défaut d'une session utilisateur connectée
-    globalTrialStore.deletePhoto(trial.id, mediaId, trial.metadata.createdBy || 'OPERATOR');
+    globalTrialStore.deletePhoto(trial.id, mediaId, newPhotoOperator);
     if (lightboxMedia?.id === mediaId) {
       setLightboxMedia(null);
     }
@@ -520,7 +521,6 @@ export function TabPhotographs({ trial, onTrialUpdated }: Props) {
           newPhotoCaption={newPhotoCaption}
           onCaptionChange={setNewPhotoCaption}
           newPhotoOperator={newPhotoOperator}
-          onOperatorChange={setNewPhotoOperator}
           newPhotoPreviewUrl={newPhotoPreviewUrl}
           modalBatchPanels={modalBatchPanels}
           onFileSelected={handleFileSelected}

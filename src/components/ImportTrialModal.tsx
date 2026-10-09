@@ -7,6 +7,7 @@
  * fichier et afficher le refus éventuel.
  */
 import React, { useState } from 'react';
+import { useOperatorLabel } from '../hooks/useCurrentUser';
 import { Upload, X, AlertTriangle } from 'lucide-react';
 import { globalTrialStore } from '../services/trialStore';
 import { isFullBackup, restoreFullBackupMedia } from '../services/fullBackupService';
@@ -19,7 +20,8 @@ interface Props {
 
 export function ImportTrialModal({ onClose, onImported }: Props) {
   const [file, setFile] = useState<File | null>(null);
-  const [operatorId, setOperatorId] = useState('');
+  // Opérateur = compte courant (session.ts), jamais saisi : D-13.
+  const operatorId = useOperatorLabel();
   const [error, setError] = useState<string | null>(null);
   // Doublon d'identifiant : l'opérateur peut importer l'essai en copie.
   const [duplicate, setDuplicate] = useState(false);
@@ -27,7 +29,7 @@ export function ImportTrialModal({ onClose, onImported }: Props) {
   // Import réussi mais photos partiellement restaurées : on reste ouvert pour l'afficher.
   const [mediaWarning, setMediaWarning] = useState<{ trialId: string; message: string } | null>(null);
 
-  const canImport = !!file && operatorId.trim().length > 0 && !busy;
+  const canImport = !!file && operatorId !== '' && !busy;
 
   const handleImport = async (asCopy = false) => {
     if (!file) return;
@@ -99,16 +101,9 @@ export function ImportTrialModal({ onClose, onImported }: Props) {
             />
           </label>
 
-          <label className="block space-y-1">
-            <span className="font-bold text-slate-600">Opérateur (obligatoire)</span>
-            <input
-              type="text"
-              value={operatorId}
-              onChange={(e) => setOperatorId(e.target.value)}
-              placeholder="Initiales ou nom"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </label>
+          <p className="text-slate-600">
+            Opérateur : <strong className="text-slate-900">{operatorId || 'aucun profil'}</strong>
+          </p>
 
           {mediaWarning && (
             <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900">

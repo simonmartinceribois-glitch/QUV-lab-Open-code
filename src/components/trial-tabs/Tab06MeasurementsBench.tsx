@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useOperatorLabel } from '../../hooks/useCurrentUser';
 import {
   Trial,
   PanelAcquisitionRecord,
@@ -118,7 +119,8 @@ export function Tab06MeasurementsBench({
     benchPanelsList.length > 0 ? benchPanelsList[0].panel.id : ''
   );
 
-  const [operatorId, setOperatorId] = useState<string>('Simon Martin (Technicien)');
+  // Opérateur = compte courant (session.ts), jamais saisi : D-13.
+  const operatorId = useOperatorLabel();
   const [showValidationSummaryModal, setShowValidationSummaryModal] = useState<boolean>(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
 

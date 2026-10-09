@@ -14,7 +14,7 @@
 | Persistance des essais | `localStorage`, un tableau JSON, store **synchrone** | Base de données serveur, API **asynchrone** |
 | Photographies | IndexedDB (`MediaStoragePort`) | Stockage de fichiers serveur (même port) |
 | Journal de bord | Écrit par le navigateur dans l'essai | Écrit **par le serveur**, append-only, horodaté serveur |
-| Identité de l'opérateur | Champ libre « Opérateur » | Compte connecté (« Prénom NOM (Rôle) »), jamais saisi |
+| Identité de l'opérateur | Profil de session provisoire, jamais saisi dans les écrans (D-14) | Compte connecté (« Prénom NOM (Rôle) ») |
 | Droits | Aucun (`AUTH_ENABLED = false`) | Contrôlés **par le serveur** (`permissions.ts` partagé), l'interface ne fait que masquer |
 | Moteur scientifique | Exécuté dans le navigateur | Même code TypeScript, **réexécuté côté serveur** (les valeurs calculées du client ne sont jamais crues sur parole) |
 | Multi-utilisateurs | Un seul navigateur | Accès simultanés → verrouillage optimiste (version de l'essai) |
@@ -55,11 +55,14 @@ aussi la **liste des futurs points d'API**.
 | ~~A1~~ | ~~Ajout de lot écrit directement par l'interface~~ | — | **Résorbée** : `TrialStoreService.createBatch` (R-ARCH-05) ; liste de dette de R-ARCH-02 vide |
 | A2 | Store synchrone, `localStorage` intégré | `trialStoreService.ts` | Extraire un port de persistance (`TrialRepository`) puis passer les méthodes en asynchrone (une PR dédiée, HIGH) |
 | ~~A3~~ | ~~Horodatages produits dans l'onglet 06~~ | — | **Résorbée** : `stampAcquisitionRaw` dans `recordAcquisition` pose `measurementDateTime` / `assessedAt` / `assessedBy` s'ils manquent, sans écraser une valeur fournie (R-ARCH-06 / 07) |
-| A4 | Essais de démonstration semés au premier lancement | `trialSeed.ts` | Désactiver en production serveur |
+| A4 | Essais de démonstration semés au premier lancement | `trialSeed.ts` | Désactiver en production serveur (plan, lot 1) |
 | A5 | Essai stocké comme un seul document JSON | modèle | Côté serveur : essai + table de journal séparée append-only + numéro de version |
 | A6 | Valeurs calculées produites par le client | moteur scientifique | Le serveur recalcule à la réception (même code) |
 
-## 5. Étapes de migration envisagées (non planifiées)
+## 5. Étapes de migration envisagées
+
+> Plan détaillé et suivi : [`../plans/PLAN_ACTION_SERVEUR.md`](../plans/PLAN_ACTION_SERVEUR.md).
+
 
 1. ~~Résorber A1 et A3~~ — fait (PR `refactor/server-debt-a1-a3`).
 2. Port de persistance `TrialRepository` + store asynchrone, implémentation `localStorage` conservée (A2).

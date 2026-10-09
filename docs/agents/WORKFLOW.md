@@ -67,7 +67,8 @@ Nouveaux tickets : ouvrir une section §5 ci-dessous (ne pas réécrire l'histor
 12. ~~`feature/auth-roles-foundation`~~ — **mergé** (PR #154).
 13. ~~`feature/auth-roles-decisions`~~ — **mergé** (PR #155).
 14. ~~`docs/server-target-architecture`~~ — **mergé** (PR #156).
-15. `refactor/server-debt-a1-a3` — **PR ouverte** (MEDIUM) : dette serveur A1 (createBatch) et A3 (horodatages dans le store).
+15. ~~`refactor/server-debt-a1-a3`~~ — **mergé** (PR #157).
+16. `feature/operator-from-session` — **PR ouverte** (MEDIUM) : opérateur issu du compte courant (D-14), plan d'action serveur.
 
 ## 6. Règle permanente — actions et droits (D-11)
 

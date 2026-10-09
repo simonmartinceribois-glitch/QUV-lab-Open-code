@@ -134,7 +134,12 @@ export function canViewSection(user: UserProfile | null | undefined, section: Ap
  * place (remplacera la saisie libre « Opérateur ») : « Prénom NOM (Rôle) ».
  */
 export function formatOperatorLabel(user: UserProfile): string {
-  return `${user.firstName.trim()} ${user.lastName.trim().toUpperCase()} (${ROLE_LABELS[user.role]})`;
+  // Prénom capitalisé (« jean-marc » → « Jean-Marc »), nom en capitales.
+  const firstName = user.firstName
+    .trim()
+    .toLowerCase()
+    .replace(/(^|[\s-])(\p{L})/gu, (_m, sep: string, letter: string) => sep + letter.toUpperCase());
+  return `${firstName} ${user.lastName.trim().toUpperCase()} (${ROLE_LABELS[user.role]})`;
 }
 
 /** Action du catalogue correspondant à un code d'audit (null si non classé). */

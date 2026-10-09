@@ -14,7 +14,6 @@ interface Props {
   projectOrClient: string;
   onProjectOrClientChange: TextSetter;
   createdBy: string;
-  onCreatedByChange: TextSetter;
   generalNotes: string;
   onGeneralNotesChange: TextSetter;
 }
@@ -27,7 +26,6 @@ export function WizardStep1Identification({
   projectOrClient,
   onProjectOrClientChange,
   createdBy,
-  onCreatedByChange,
   generalNotes,
   onGeneralNotesChange
 }: Props) {
@@ -87,15 +85,14 @@ export function WizardStep1Identification({
           <input
             type="text"
             value={createdBy}
-            onChange={(e) => onCreatedByChange(e.target.value)}
-            className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 font-medium ${
-              !createdBy.trim() ? 'border-rose-300 bg-rose-50/20' : 'border-slate-300'
-            }`}
-            placeholder="Ex: Simon Martin (Technicien)"
+            readOnly
+            title="Renseigné automatiquement à partir du profil connecté"
+            className="w-full px-3 py-2 text-sm rounded-lg font-medium bg-slate-100 border border-slate-200 text-slate-600 cursor-not-allowed"
+            placeholder="Aucun profil"
           />
           {!createdBy.trim() && (
             <p className="text-[11px] text-rose-600 mt-1 font-medium">
-              L'opérateur responsable est requis pour la traçabilité réglementaire de l'essai.
+              Aucun profil connecté : renseignez votre profil (en-tête de l'application).
             </p>
           )}
         </div>

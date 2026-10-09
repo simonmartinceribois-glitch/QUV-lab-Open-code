@@ -3,6 +3,7 @@
  */
 
 import React, { useState } from 'react';
+import { useOperatorLabel } from '../../hooks/useCurrentUser';
 import { Trial } from '../../types/trial';
 import {
   ScientificRuleSet,
@@ -51,7 +52,8 @@ export function ResultsReportAndReviewView({ trial, ruleSet, onTrialUpdated }: P
   const [selectedReportId, setSelectedReportId] = useState<string>(reports[0]?.id || '');
   const activeReport = reports.find((r) => r.id === selectedReportId) || reports[0];
 
-  const [operatorId, setOperatorId] = useState<string>('SM (Technicien)');
+  // Opérateur = compte courant (session.ts), jamais saisi : D-13.
+  const operatorId = useOperatorLabel();
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [backupStatus, setBackupStatus] = useState<string | null>(null);
 
@@ -228,8 +230,8 @@ export function ResultsReportAndReviewView({ trial, ruleSet, onTrialUpdated }: P
             <input
               type="text"
               value={operatorId}
-              onChange={(e) => setOperatorId(e.target.value)}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-800"
+              readOnly
+              className="rounded-lg px-2.5 py-1 text-xs font-semibold bg-slate-100 border border-slate-200 text-slate-600 cursor-not-allowed"
             />
           </div>
 

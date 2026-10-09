@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { useOperatorLabel } from '../../hooks/useCurrentUser';
 import { Trial, ExposureStage } from '../../types/trial';
 import { globalTrialStore } from '../../services/trialStore';
 import { isMandatoryStage, getActiveFamiliesForStage } from '../../scientific/panelUtils';
@@ -47,7 +48,8 @@ export function Tab04Calendar({ trial, onSelectStage, onTrialUpdated }: Props) {
   const hasAcquisitions = Object.keys(trial.acquisitions || {}).length > 0;
   const isPlanLocked = trial.configurationStatus === 'LOCKED' || hasAcquisitions;
 
-  const [operatorId, setOperatorId] = useState<string>('Simon Martin (Technicien)');
+  // Opérateur = compte courant (session.ts), jamais saisi : D-13.
+  const operatorId = useOperatorLabel();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handlePresetChange = (preset: 'FULL' | 'QUARTERLY' | 'LIGHT') => {

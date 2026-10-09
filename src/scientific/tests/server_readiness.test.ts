@@ -89,7 +89,13 @@ export function runServerReadinessTests(): {
 
   // R-ARCH-03 : localStorage / IndexedDB confinés aux services de persistance.
   {
-    const PERSISTENCE = ['services/trialStoreService.ts', 'services/mediaStorageService.ts', 'services/mediaMigrationService.ts'];
+    const PERSISTENCE = [
+      'services/trialStoreService.ts',
+      'services/mediaStorageService.ts',
+      'services/mediaMigrationService.ts',
+      // Profil de session provisoire : à supprimer avec la connexion serveur (D-13).
+      'services/sessionProfileStore.ts'
+    ];
     const bad = offenders(all.filter((f) => !rel(f).endsWith('UXTestsSuite.tsx')), STORAGE_API_CALL, PERSISTENCE);
     record('R-ARCH-03', 'localStorage / IndexedDB utilisés uniquement par les services de persistance',
       bad.length === 0, '0 fichier hors persistance', bad.join(', ') || '0 fichier');
@@ -101,6 +107,18 @@ export function runServerReadinessTests(): {
     const bad = modelFiles.filter((f) => /\b(password|motDePasse|passwordHash)\b/i.test(code(f))).map(rel);
     record('R-ARCH-04', 'Aucun champ mot de passe dans le modèle d’essai ni dans le profil utilisateur',
       bad.length === 0, '0 champ', bad.join(', ') || '0 champ');
+  }
+
+  // R-ARCH-08 : opérateur jamais saisi ni codé en dur dans l'interface (issu du compte, session.ts).
+  {
+    const components = all.filter((f) => /^(components\/|App\.tsx)/.test(rel(f)) && !rel(f).endsWith('UXTestsSuite.tsx'));
+    const HARDCODED = /Simon Martin|SM \(Technicien\)/;
+    const EDITABLE = /\bset(OperatorId|CreatedBy|NewPhotoOperator|EditOperator)\b|onOperatorChange|onCreatedByChange/;
+    const bad = components
+      .filter((f) => HARDCODED.test(fs.readFileSync(f, 'utf8')) || EDITABLE.test(code(f)))
+      .map(rel);
+    record('R-ARCH-08', 'Opérateur : aucun nom codé en dur ni champ opérateur modifiable dans l’interface (compte courant uniquement)',
+      bad.length === 0, '0 fichier', bad.join(', ') || '0 fichier');
   }
 
   // R-ARCH-05 : A1 — ajout de lot par le store (même modèle, refus si verrouillé ou sans référence).

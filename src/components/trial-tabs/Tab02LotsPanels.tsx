@@ -7,6 +7,7 @@
  */
 
 import React, { useState } from 'react';
+import { useOperatorLabel } from '../../hooks/useCurrentUser';
 import { Trial, BatchDefinition, PanelDefinition } from '../../types/trial';
 import { globalTrialStore } from '../../services/trialStore';
 import { getTodayLocalISODate } from '../../utils/dateUtils';
@@ -76,7 +77,8 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
     batch: BatchDefinition;
   } | null>(null);
   const [exclusionReason, setExclusionReason] = useState('');
-  const [operatorId, setOperatorId] = useState(trial.metadata.createdBy || 'Simon Martin (Technicien)');
+  // Opérateur = compte courant (session.ts), jamais saisi : D-13.
+  const operatorId = useOperatorLabel();
   const [exclusionError, setExclusionError] = useState<string | null>(null);
 
   // Ajout de nouveau lot (si non verrouillé)
@@ -105,7 +107,6 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<LotsSpecimensForm>(() => lotsSpecimensFormFromTrial(trial));
   const [editDialog, setEditDialog] = useState<'confirmEdit' | 'confirmValidate' | null>(null);
-  const [editOperator, setEditOperator] = useState('');
   const [editError, setEditError] = useState<string | null>(null);
   const [editNotice, setEditNotice] = useState<string | null>(null);
 
@@ -145,7 +146,7 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
 
   const confirmValidation = () => {
     try {
-      const applied = globalTrialStore.updateLotsAndSpecimens(trial.id, form, editOperator);
+      const applied = globalTrialStore.updateLotsAndSpecimens(trial.id, form, operatorId);
       setEditDialog(null);
       setEditing(false);
       setEditNotice(`${applied.length} modification(s) validée(s) et tracée(s) dans 09 Journal de bord.`);
@@ -607,7 +608,7 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
         <ConfirmDialog
           title="Valider les modifications"
           message="Confirmez-vous l'enregistrement des modifications suivantes ?"
-          confirmDisabled={editOperator.trim() === ''}
+          confirmDisabled={operatorId === ''}
           onConfirm={confirmValidation}
           onCancel={() => setEditDialog(null)}
         >
@@ -631,16 +632,9 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
               ))}
             </tbody>
           </table>
-          <label className="block space-y-1">
-            <span className="font-bold text-slate-600">Opérateur (obligatoire)</span>
-            <input
-              type="text"
-              value={editOperator}
-              onChange={(e) => setEditOperator(e.target.value)}
-              placeholder="Initiales ou nom"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </label>
+          <p className="text-slate-600">
+            Opérateur : <strong className="text-slate-900">{operatorId || 'aucun profil'}</strong>
+          </p>
         </ConfirmDialog>
       )}
 
@@ -682,8 +676,8 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
               <input
                 type="text"
                 value={operatorId}
-                onChange={(e) => setOperatorId(e.target.value)}
-                className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 font-medium"
+                readOnly
+                className="w-full text-xs px-3 py-2 rounded-lg font-medium bg-slate-100 border border-slate-200 text-slate-600 cursor-not-allowed"
               />
             </div>
 
