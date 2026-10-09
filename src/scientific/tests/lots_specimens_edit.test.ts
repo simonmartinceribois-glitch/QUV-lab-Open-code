@@ -23,8 +23,10 @@ export interface LotsSpecimensEditTestResult {
 function setup(): { store: TrialStoreService; trial: Trial; form: LotsSpecimensForm } {
   const store = TrialStoreService.createIsolatedStore();
   const trial = store.resetToDemo();
-  // Essai non verrouillé : l'épaisseur reste modifiable (cas de base).
-  trial.configurationStatus = 'EDITABLE';
+  // Cas de base : aucune mesure d'adhérence enregistrée → épaisseur modifiable.
+  for (const key of Object.keys(trial.acquisitions)) {
+    if (trial.acquisitions[key].familyId === 'ADHESION') delete trial.acquisitions[key];
+  }
   store.saveTrial(trial);
   return { store, trial, form: lotsSpecimensFormFromTrial(trial) };
 }
@@ -122,7 +124,7 @@ export function runLotsSpecimensEditTests(): {
       allRefused && JSON.stringify(store.getTrial(trial.id)) === before, '5 refus, inchangé', `tousRefusés=${allRefused}`);
   }
 
-  // R-LOTS-05 : épaisseur figée (essai verrouillé + adhérence mesurée sur le lot).
+  // R-LOTS-05 : épaisseur figée (adhérence mesurée sur le lot).
   {
     const { store, trial, form } = setup();
     const b = trial.batches[0];
@@ -157,6 +159,32 @@ export function runLotsSpecimensEditTests(): {
       (hadThickness ? changes.length === 1 && changes[0].after === '' && store.getTrial(trial.id)?.batches[0].dryFilmThicknessMicrons === undefined : changes.length === 0);
     record('R-LOTS-06', 'Éprouvette exclue et face du témoin jamais modifiées ; épaisseur non figée effaçable (tracée « → vide »)',
       ok, 'seule l’épaisseur effacée est tracée', `modifications=${changes.map((c) => `${c.target}:${c.field}`).join(',')}`);
+  }
+
+  // R-LOTS-07 : la règle ne dépend que des adhérences enregistrées, pas du verrouillage.
+  {
+    const { store, trial, form } = setup();
+    const [b0, b1] = trial.batches;
+    // Lot 0 : essai NON verrouillé mais adhérence enregistrée → figée.
+    trial.configurationStatus = 'EDITABLE';
+    for (const key of Object.keys(trial.acquisitions)) {
+      const a = trial.acquisitions[key];
+      if (a.familyId === 'ADHESION' && a.batchId === b1.id) delete trial.acquisitions[key];
+    }
+    if (!Object.values(trial.acquisitions).some((a) => a.familyId === 'ADHESION' && a.batchId === b0.id && a.raw)) {
+      trial.acquisitions['__test_adh__'] = { batchId: b0.id, familyId: 'ADHESION', raw: {} } as unknown as Trial['acquisitions'][string];
+    }
+    store.saveTrial(trial);
+    const frozenWhileEditable = isBatchThicknessLocked(trial, b0.id);
+    // Lot 1 : essai verrouillé mais aucune adhérence sur ce lot → modifiable.
+    trial.configurationStatus = 'LOCKED';
+    store.saveTrial(trial);
+    const f = clone(form);
+    f.thickness[b1.id] = String(Number(form.thickness[b1.id] || '60') + 5);
+    const changes = store.updateLotsAndSpecimens(trial.id, f, 'OP');
+    record('R-LOTS-07', 'Adhérence enregistrée → épaisseur figée même essai non verrouillé ; aucune adhérence → modifiable même essai verrouillé',
+      frozenWhileEditable && !isBatchThicknessLocked(trial, b1.id) && changes.length === 1 && changes[0].batchId === b1.id,
+      'lot 0 figé, lot 1 modifié', `lot0Figé=${frozenWhileEditable}, lot1Modifiés=${changes.length}`);
   }
 
   const passed = results.filter((r) => r.passed).length;

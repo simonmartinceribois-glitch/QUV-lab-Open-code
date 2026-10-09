@@ -276,7 +276,7 @@ export function Tab01Identification({ trial, onTrialUpdated }: Props) {
             ))}
             <div>
               <label className="block text-slate-700 mb-1 font-semibold">Unité de mesure</label>
-              <select value={values.unit} onChange={setField('unit')} disabled={!editing} className={inputClass('font-medium')}>
+              <select value={values.unit} onChange={setField('unit')} disabled={!editing} className={inputClass(editing ? 'font-medium' : 'font-medium appearance-none')}>
                 <option value="mm">mm</option>
                 <option value="cm">cm</option>
               </select>

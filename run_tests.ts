@@ -904,7 +904,7 @@ suite64.results.forEach((r) => {
 });
 
 console.log('================================================================');
-console.log('65. EXÉCUTION DE LA MODIFICATION VALIDÉE DES LOTS ET ÉPROUVETTES (R-LOTS-01 → 06)');
+console.log('65. EXÉCUTION DE LA MODIFICATION VALIDÉE DES LOTS ET ÉPROUVETTES (R-LOTS-01 → 07)');
 console.log('================================================================');
 const suite65 = runLotsSpecimensEditTests();
 console.log(`Résultats Lots : ${suite65.summary.passed} / ${suite65.summary.total} réussis.`);

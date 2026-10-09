@@ -73,9 +73,15 @@ export function lotsSpecimensFormFromTrial(trial: Trial): LotsSpecimensForm {
   return form;
 }
 
-/** Une adhérence mesurée sur le lot fige son épaisseur une fois l'essai verrouillé (fix/batch-thickness). */
+/**
+ * L'épaisseur sèche est le prérequis des mesures d'adhérence : elle détermine
+ * l'espacement du peigne (ISO 2409) et est recopiée dans chaque acquisition.
+ * Elle est donc DÉFINITIVEMENT figée dès qu'une mesure d'adhérence est
+ * enregistrée sur le lot (en pratique au T0), quel que soit le statut de
+ * l'essai : sinon T0 et C12 pourraient être mesurés avec des peignes
+ * différents. Sans aucune adhérence enregistrée, elle reste modifiable.
+ */
 export function isBatchThicknessLocked(trial: Trial, batchId: string): boolean {
-  if (trial.configurationStatus !== 'LOCKED') return false;
   return Object.values(trial.acquisitions || {}).some(
     (a) => a.batchId === batchId && a.familyId === 'ADHESION' && a.raw !== null && a.raw !== undefined
   );
@@ -121,7 +127,7 @@ export function validateLotsSpecimensChanges(trial: Trial, changes: LotsSpecimen
   for (const c of changes) {
     if (c.field === 'dryFilmThicknessMicrons') {
       if (isBatchThicknessLocked(trial, c.batchId)) {
-        errors.push(`${c.target} : épaisseur figée (adhérence déjà mesurée sur ce lot).`);
+        errors.push(`${c.target} : épaisseur figée définitivement (mesure d'adhérence déjà enregistrée sur ce lot).`);
       } else if (c.after !== '') {
         const n = Number(c.after);
         if (!Number.isFinite(n) || n <= 0 || n > 1000) errors.push(`${c.target} : épaisseur entre 1 et 1000 µm attendue.`);
