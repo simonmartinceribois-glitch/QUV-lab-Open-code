@@ -1,3 +1,22 @@
+# QUV-LAB v1.8.0 — RELEASE NOTES
+**Date de Release :** 09 Octobre 2026
+**Statut :** RELEASE QUALIFIED — 1069 / 1069 tests, `tsc` strict 0 erreur, build OK, `npm audit` 0 vulnérabilité
+**Périmètre :** PR #147 → #148 depuis la v1.7.0
+
+## Correctif important
+- **Boutons d'export de sauvegarde** : l'export JSON existait dans le code depuis l'origine mais n'était relié à
+  aucun bouton. En v1.6.0 et v1.7.0, aucune sauvegarde rechargeable ne pouvait donc être produite, et l'import
+  v1.7.0 n'était pas utilisable en pratique. Nouvel encadré **« Sauvegarde de l'essai »** dans l'onglet 08,
+  disponible même sans rapport généré (#147).
+
+## Nouveautés
+- **Sauvegarde complète avec photographies** (`SAUVEGARDE_COMPLETE_<REF>.json`) : restauration intégrale de
+  l'essai et de ses photos par « Importer un essai » ; une photo déjà présente n'est jamais remplacée (#147).
+- **Import en copie** : un essai déjà présent peut être importé comme copie indépendante (nouvel identifiant,
+  référence suffixée `-COPIE`), l'original n'est jamais modifié (#148).
+
+---
+
 # QUV-LAB v1.7.0 — RELEASE NOTES
 **Date de Release :** 09 Octobre 2026
 **Statut :** RELEASE QUALIFIED — 1061 / 1061 tests, `tsc` strict 0 erreur, build OK, `npm audit` 0 vulnérabilité

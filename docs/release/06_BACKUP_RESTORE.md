@@ -1,4 +1,4 @@
-# QUV-LAB v1.7.0 — POLITIQUE DE SAUVEGARDE & RESTAURATION
+# QUV-LAB v1.8.0 — POLITIQUE DE SAUVEGARDE & RESTAURATION
 
 ## 1. Principe de Persistance à 3 Niveaux
 ```text
@@ -29,8 +29,8 @@ Onglet **08 Résultats & Fiches → 8. Rapport Scientifique & Exports**, encadr�
 - **Dossier JSON** → `DOSSIER_SCIENTIFIQUE_<REF>.json` : essai sans photographies (archive scientifique légère).
 - Exports **RAW CSV** / **REPORT CSV** : disponibles une fois un rapport généré.
 
-> Avant la version suivant la v1.7.0, aucun bouton n'exposait l'export JSON (le code existait sans être
-> relié à l'interface) : les versions v1.6.0 et v1.7.0 ne permettent pas de produire ces fichiers.
+> Ces boutons existent depuis la v1.8.0. En v1.6.0 et v1.7.0, aucun bouton n'exposait l'export JSON (le code
+> existait sans être relié à l'interface) : ces versions ne permettent pas de produire ces fichiers.
 
 ## 4. Restauration
 Tableau de bord → **« Importer un essai »** → choisir la sauvegarde et saisir l'opérateur.

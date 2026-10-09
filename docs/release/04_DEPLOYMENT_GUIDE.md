@@ -1,4 +1,4 @@
-# QUV-LAB v1.7.0 — GUIDE DE DÉPLOIEMENT & EXÉCUTION
+# QUV-LAB v1.8.0 — GUIDE DE DÉPLOIEMENT & EXÉCUTION
 
 ## 1. Prérequis Système
 - **Node.js :** Version 20.x LTS (version utilisée par la CI)
@@ -17,7 +17,7 @@ npm ci
 npm run lint
 ```
 
-### Exécution de la suite complète de tests de qualification (1061 tests)
+### Exécution de la suite complète de tests de qualification (1069 tests)
 ```bash
 npm test
 ```
