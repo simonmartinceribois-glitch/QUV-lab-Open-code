@@ -1734,4 +1734,81 @@ export class TrialStoreService {
 
     this.saveTrial(trial);
   }
+
+  /**
+   * Importe un essai depuis le dossier scientifique JSON exporté
+   * (`{ trial, ruleSet, activeReport, criteriaEvaluation }`) ou depuis un
+   * objet Trial brut. Contrat FAIL-CLOSED : toute anomalie lève une
+   * IntegrityViolationError AVANT la moindre modification du store.
+   *   - jamais d'écrasement : un essai portant le même identifiant est refusé ;
+   *   - aucune réparation : structure invalide ou contexte scientifique
+   *     INVALID → refus (le Trial importé n'est jamais « corrigé ») ;
+   *   - les photographies (IndexedDB) ne voyagent pas dans le JSON : leurs
+   *     références sont conservées et s'affichent « introuvables » si le
+   *     média n'existe pas sur ce poste.
+   * L'import est tracé dans l'audit trail de l'essai (IMPORT_TRIAL).
+   */
+  public importTrialFromExport(payload: unknown, operatorId: string, sourceName?: string): Trial {
+    const operator = typeof operatorId === 'string' ? operatorId.trim() : '';
+    if (!operator) {
+      throw new IntegrityViolationError("L'opérateur est obligatoire pour importer un essai.");
+    }
+    const candidate: unknown = isPlainRecord(payload) && 'trial' in payload ? (payload as Record<string, unknown>)['trial'] : payload;
+    if (!isStructurallyValidTrial(candidate)) {
+      throw new IntegrityViolationError("Fichier non reconnu : ce n'est pas un essai QUV-Lab valide (structure invalide).");
+    }
+    const metadata: unknown = (candidate as unknown as Record<string, unknown>)['metadata'];
+    if (!isPlainRecord(metadata) || typeof metadata['reference'] !== 'string') {
+      throw new IntegrityViolationError("Fichier non reconnu : identification de l'essai (référence) absente.", { trialId: candidate.id });
+    }
+    for (const listKey of ['auditTrail', 'reports', 'mediaReferences'] as const) {
+      const list: unknown = (candidate as unknown as Record<string, unknown>)[listKey];
+      if (list !== undefined && !Array.isArray(list)) {
+        throw new IntegrityViolationError(`Fichier non reconnu : « ${listKey} » doit être une liste.`, { trialId: candidate.id });
+      }
+    }
+    if (candidate.id.startsWith('MOCK_TEST_')) {
+      throw new IntegrityViolationError("Les essais de test (MOCK_TEST_) ne peuvent pas être importés.", { trialId: candidate.id });
+    }
+    if (this.trials.has(candidate.id)) {
+      throw new IntegrityViolationError(
+        `Un essai portant le même identifiant existe déjà (${metadata['reference']}) : import refusé, aucun essai existant n'est écrasé.`,
+        { trialId: candidate.id }
+      );
+    }
+    if (validateScientificContext(candidate.scientificContext) === 'INVALID') {
+      throw new IntegrityViolationError(
+        'Contexte scientifique gelé présent mais invalide ou incomplet : import refusé (fail-closed).',
+        { trialId: candidate.id }
+      );
+    }
+
+    // Copie profonde : le store ne partage jamais de référence avec l'objet fourni.
+    const copy = JSON.parse(JSON.stringify(candidate)) as Trial;
+    let imported: Trial;
+    try {
+      imported = this.migrateTrialTerminology(copy);
+    } catch (err) {
+      throw new IntegrityViolationError("Migration de l'essai importé impossible : import refusé.", {
+        trialId: candidate.id,
+        cause: err instanceof Error ? err.message : String(err)
+      });
+    }
+    if (!Array.isArray(imported.auditTrail)) imported.auditTrail = [];
+    imported.auditTrail.push({
+      id: generateUUID(),
+      trialId: imported.id,
+      timestamp: new Date().toISOString(),
+      operatorId: operator,
+      action: 'IMPORT_TRIAL',
+      entityType: 'TRIAL',
+      entityId: imported.id,
+      details: {
+        source: sourceName || 'import JSON',
+        mediaReferenceCount: Array.isArray(imported.mediaReferences) ? imported.mediaReferences.length : 0
+      }
+    });
+    this.saveTrial(imported);
+    return imported;
+  }
 }

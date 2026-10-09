@@ -27,8 +27,12 @@ essai sans binaires, RuleSet, rapport actif, évaluations complémentaires) et e
 Les photographies (IndexedDB) ne sont pas incluses dans le JSON : conserver les originaux sur le serveur.
 
 ## 4. Restauration
-**Aucune fonction d'import n'existe dans l'application (v1.6.0).** Le fichier JSON est une archive de
-traçabilité, pas un point de restauration rechargeable. Voir `07_KNOWN_LIMITATIONS.md`.
+- **v1.6.0** : aucune fonction d'import ; le JSON est une archive de traçabilité uniquement.
+- **Depuis la version suivante (`develop`)** : tableau de bord → **« Importer un essai »** → choisir le
+  `DOSSIER_SCIENTIFIQUE_<REF>.json` et saisir l'opérateur. L'essai est restauré à l'identique
+  (données RAW, calculs, rapports, journal d'audit) et l'import est tracé (`IMPORT_TRIAL`).
+  Un essai déjà présent n'est jamais écrasé. Les photographies ne sont pas restaurées
+  (absentes du JSON) : réimporter les originaux depuis le serveur si nécessaire.
 
 ## 5. Copies de secours automatiques (v1.6.0)
 Si le stockage local est illisible au démarrage, son contenu brut est copié tel quel sous la clé
