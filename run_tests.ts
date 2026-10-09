@@ -60,6 +60,7 @@ import { runScientificCriteriaEvaluationTests } from './src/scientific/tests/sci
 import { runCsvExportEscapingTests } from './src/scientific/tests/csv_export_escaping.test';
 import { runExportAuditTraceTests } from './src/scientific/tests/export_audit_trace.test';
 import { runTrialImportTests } from './src/scientific/tests/trial_import.test';
+import { runFullBackupTests } from './src/scientific/tests/full_backup.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -862,12 +863,25 @@ suite61.results.forEach((r) => {
 });
 
 console.log('================================================================');
-console.log("62. EXÉCUTION DE L'IMPORT D'ESSAI (R-IMPORT-01 → 08)");
+console.log("62. EXÉCUTION DE L'IMPORT D'ESSAI (R-IMPORT-01 → 11)");
 console.log('================================================================');
 const suite62 = runTrialImportTests();
 console.log(`Résultats Import : ${suite62.summary.passed} / ${suite62.summary.total} réussis.`);
 suite62.results.forEach((r) => {
   console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Import] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
+console.log('================================================================');
+console.log('63. EXÉCUTION DE LA SAUVEGARDE COMPLÈTE AVEC PHOTOGRAPHIES (R-BACKUP-01 → 05)');
+console.log('================================================================');
+const suite63 = await runFullBackupTests();
+console.log(`Résultats Sauvegarde : ${suite63.summary.passed} / ${suite63.summary.total} réussis.`);
+suite63.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Sauvegarde] ${r.id} - ${r.name}`);
   if (!r.passed) {
     console.error(`   Attendu: ${r.expected}`);
     console.error(`   Obtenu:  ${r.actual}`);
@@ -936,7 +950,8 @@ const totalFailed =
   suite59.summary.failed +
   suite60.summary.failed +
   suite61.summary.failed +
-  suite62.summary.failed;
+  suite62.summary.failed +
+  suite63.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -999,7 +1014,8 @@ const totalCount =
   suite59.summary.total +
   suite60.summary.total +
   suite61.summary.total +
-  suite62.summary.total;
+  suite62.summary.total +
+  suite63.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

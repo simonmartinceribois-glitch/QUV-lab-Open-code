@@ -18,6 +18,8 @@ import {
 import { evaluateScientificCriteriaPerBatch } from '../../services/scientificCriteriaEvaluationService';
 import { downloadTextFile, downloadJsonFile, printElementById } from '../../services/exportService';
 import { sanitizeTrialForExport } from '../../services/mediaMigrationService';
+import { buildFullBackup } from '../../services/fullBackupService';
+import { mediaStorage } from '../../services/mediaStorageService';
 import { globalTrialStore } from '../../services/trialStore';
 import {
   FileText,
@@ -51,6 +53,7 @@ export function ResultsReportAndReviewView({ trial, ruleSet, onTrialUpdated }: P
 
   const [operatorId, setOperatorId] = useState<string>('SM (Technicien)');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [backupStatus, setBackupStatus] = useState<string | null>(null);
 
   // Formulaire de commentaire de revue
   const [reviewCommentText, setReviewCommentText] = useState<string>('');
@@ -112,6 +115,29 @@ export function ResultsReportAndReviewView({ trial, ruleSet, onTrialUpdated }: P
       criteriaEvaluation: evaluateScientificCriteriaPerBatch(trial, ruleSet)
     });
     globalTrialStore.logReportExport(trial.id, activeReport?.id || trial.id, 'SCIENTIFIC_DOSSIER_JSON', operatorId);
+    onTrialUpdated?.();
+  };
+
+  // Sauvegarde complète : dossier scientifique + photographies (base64), restaurable par l'import.
+  const handleExportFullBackup = async () => {
+    setBackupStatus('Préparation de la sauvegarde complète…');
+    try {
+      const backup = await buildFullBackup(trial, mediaStorage, {
+        ruleSet,
+        activeReport,
+        criteriaEvaluation: evaluateScientificCriteriaPerBatch(trial, ruleSet)
+      });
+      downloadJsonFile(`SAUVEGARDE_COMPLETE_${trial.metadata.reference}.json`, backup);
+      globalTrialStore.logReportExport(trial.id, activeReport?.id || trial.id, 'FULL_BACKUP_JSON', operatorId);
+      setBackupStatus(
+        backup.missingMediaKeys.length > 0
+          ? `Sauvegarde exportée : ${backup.media.length} photo(s) incluse(s), ${backup.missingMediaKeys.length} introuvable(s) sur ce poste.`
+          : `Sauvegarde exportée : ${backup.media.length} photo(s) incluse(s).`
+      );
+      onTrialUpdated?.();
+    } catch (err) {
+      setBackupStatus(`Échec de la sauvegarde complète : ${err instanceof Error ? err.message : String(err)}`);
+    }
   };
 
   const handlePrintPdf = () => {
@@ -217,6 +243,39 @@ export function ResultsReportAndReviewView({ trial, ruleSet, onTrialUpdated }: P
             {reports.length > 0 ? `Régénérer une nouvelle version (v${reports.length + 1}.0)` : 'Générer le Rapport Scientifique (v1.0)'}
           </button>
         </div>
+      </div>
+
+      {/* SAUVEGARDE DE L'ESSAI (disponible sans rapport) */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">Sauvegarde de l'essai</h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Fichiers rechargeables via « Importer un essai » sur le tableau de bord. La sauvegarde complète inclut les photographies.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExportJson}
+              className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-200 flex items-center gap-1.5 transition-all"
+              title="Dossier scientifique JSON, sans photographies"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-600" />
+              Dossier JSON
+            </button>
+            <button
+              type="button"
+              onClick={handleExportFullBackup}
+              className="px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 font-bold text-xs rounded-xl border border-blue-200 flex items-center gap-1.5 transition-all"
+              title="Dossier scientifique + photographies, pour une restauration complète"
+            >
+              <Download className="w-3.5 h-3.5 text-blue-700" />
+              Sauvegarde complète (avec photos)
+            </button>
+          </div>
+        </div>
+        {backupStatus && <p className="text-xs font-semibold text-slate-600">{backupStatus}</p>}
       </div>
 
       {/* 2. HISTORIQUE DES VERSIONS & ACTIONS D'EXPORTATION */}

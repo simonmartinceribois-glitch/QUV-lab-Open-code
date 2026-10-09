@@ -58,4 +58,7 @@ Nouveaux tickets : ouvrir une section §5 ci-dessous (ne pas réécrire l'histor
 3. ~~`fix/audit-json-export-type`~~ — **mergé** (PR #142).
 4. ~~`refactor/cleanup-deps-ids`~~ — **mergé** (PR #143).
 5. ~~`feature/trial-import`~~ — **mergé** (PR #144).
-6. `release/v1.7.0` — **PR ouverte** : import d'essai en production.
+6. ~~`release/v1.7.0`~~ — **publiée** (PR #145, #146, tag `v1.7.0`).
+7. ~~`feature/full-backup-with-photos`~~ — **mergé** (PR #147).
+8. ~~`feature/import-as-copy`~~ — **mergé** (PR #148).
+9. `release/v1.8.0` — **PR ouverte** : boutons de sauvegarde, sauvegarde complète, import en copie.
