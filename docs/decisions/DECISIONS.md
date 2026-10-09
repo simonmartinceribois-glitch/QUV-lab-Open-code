@@ -1,5 +1,16 @@
 # QUV-Lab — DÉCISIONS (journal, ordre antichronologique)
 
+## 2026-10-09 — D-11 : profils et droits par rôle — fondation inactive (phase 0)
+
+- **Demande** : future connexion Prénom + Nom + rôle (Utilisateur : consultation ; Technicien :
+  criticités LOW + STANDARD, onglets 01 → 08 ; Responsable : tout).
+- **Décidé** : livrer uniquement la fondation — modèle (`src/types/auth.ts`), catalogue des actions et
+  matrice (`src/services/permissions.ts`), point d'accroche `session.ts` avec `AUTH_ENABLED = false`,
+  suite R-AUTH qui impose le classement de toute nouvelle action. Aucun changement de comportement.
+- **Assumé** : dans une application 100 % locale, la phase 1 (profils locaux) apporte traçabilité et
+  prévention des erreurs, **pas** une sécurité ; une authentification réelle exige un serveur (phase 2).
+- **Réf.** : `docs/specifications/feature-auth-roles.md` (matrice, processus, questions ouvertes).
+
 ## 2026-09-04 — D-10 : étape 4 panneaux illustrative, création figée à 4 (statu quo)
 
 - **Constat** : l'étape 4 prévisualise `panelCount` panneaux (libellés P01…) mais

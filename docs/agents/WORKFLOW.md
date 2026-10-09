@@ -63,4 +63,12 @@ Nouveaux tickets : ouvrir une section §5 ci-dessous (ne pas réécrire l'histor
 8. ~~`feature/import-as-copy`~~ — **mergé** (PR #148).
 9. ~~`release/v1.8.0`~~ — **publiée** (PR #149, #150, tag `v1.8.0`).
 10. ~~`feature/tab01-locked-edit-journal`~~ — **mergé** (PR #151).
-11. `feature/tab02-locked-edit-journal` — **PR ouverte** (MEDIUM) : lots & éprouvettes en lecture seule, modification validée et tracée.
+11. ~~`feature/tab02-locked-edit-journal`~~ — **mergé** (PR #152, #153).
+12. `feature/auth-roles-foundation` — **PR ouverte** (LOW) : fondation inactive profils & droits (D-11).
+
+## 6. Règle permanente — actions et droits (D-11)
+
+Toute nouvelle action qui modifie un essai est déclarée dans `src/services/permissions.ts`
+(`ACTION_CATALOG` : criticité READ / LOW / STANDARD / HIGH, méthode du store, codes du journal) dans la
+même PR, et passe par une méthode dédiée du store. La suite R-AUTH échoue sinon.
+Réf. : `docs/specifications/feature-auth-roles.md`.
