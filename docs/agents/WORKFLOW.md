@@ -62,4 +62,5 @@ Nouveaux tickets : ouvrir une section §5 ci-dessous (ne pas réécrire l'histor
 7. ~~`feature/full-backup-with-photos`~~ — **mergé** (PR #147).
 8. ~~`feature/import-as-copy`~~ — **mergé** (PR #148).
 9. ~~`release/v1.8.0`~~ — **publiée** (PR #149, #150, tag `v1.8.0`).
-10. `feature/tab01-locked-edit-journal` — **PR ouverte** (MEDIUM) : identification en lecture seule, modification validée et tracée, onglet 09 « Journal de bord ».
+10. ~~`feature/tab01-locked-edit-journal`~~ — **mergé** (PR #151).
+11. `feature/tab02-locked-edit-journal` — **PR ouverte** (MEDIUM) : lots & éprouvettes en lecture seule, modification validée et tracée.

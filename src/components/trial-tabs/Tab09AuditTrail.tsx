@@ -86,6 +86,8 @@ export function Tab09AuditTrail({ trial }: Props) {
           <option value="ALL">Toutes les actions</option>
           <option value="CREATE_TRIAL">CREATE_TRIAL</option>
           <option value="MODIFY_IDENTIFICATION">MODIFY_IDENTIFICATION</option>
+          <option value="MODIFY_BATCH">MODIFY_BATCH</option>
+          <option value="MODIFY_PANEL">MODIFY_PANEL</option>
           <option value="LOCK_TRIAL_CONFIGURATION">LOCK_TRIAL_CONFIGURATION</option>
           <option value="EXCLUDE_PANEL">EXCLUDE_PANEL</option>
           <option value="RECORD_ACQUISITION">RECORD_ACQUISITION</option>
@@ -143,8 +145,11 @@ export function Tab09AuditTrail({ trial }: Props) {
                       {ev.operatorId}
                     </td>
                     <td className="py-2.5 px-4 font-sans text-slate-700">
-                      {ev.action === 'MODIFY_IDENTIFICATION' && ev.details ? (
+                      {ev.details && 'before' in ev.details && 'after' in ev.details && 'label' in ev.details ? (
                         <div className="text-[11px]">
+                          {ev.details['target'] !== undefined && (
+                            <span className="font-mono text-slate-500">{String(ev.details['target'])} · </span>
+                          )}
                           <span className="font-bold text-slate-800">{String(ev.details['label'] ?? ev.details['field'])}</span>
                           {' : '}
                           <span className="text-slate-500 line-through">{String(ev.details['before'] ?? '') || '—'}</span>

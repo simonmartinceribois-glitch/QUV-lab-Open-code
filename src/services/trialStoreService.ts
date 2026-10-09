@@ -46,6 +46,8 @@ import { IntegrityViolationError, validateAcquisitionTarget, validatePhotoTarget
 import { generateStandardExposureStages } from './trialStages';
 import { diffIdentification, applyIdentificationChanges, identificationFormFromTrial, validateIdentificationForm } from './trialIdentification';
 import type { IdentificationChange, IdentificationForm } from './trialIdentification';
+import { diffLotsSpecimens, validateLotsSpecimensChanges, applyLotsSpecimensChanges } from './trialLotsSpecimens';
+import type { LotsSpecimensChange, LotsSpecimensForm } from './trialLotsSpecimens';
 
 // P4-b (audit 11-12/09/2026) : constante nommée remplaçant le repli en dur
 // `|| 2016` sur le libellé d'affichage de l'étape finale C12, cohérente avec
@@ -566,6 +568,45 @@ export class TrialStoreService {
         entityType: 'TRIAL',
         entityId: trialId,
         details: { field: change.field, label: change.label, before: change.before, after: change.after }
+      });
+    }
+    this.saveTrial(trial);
+    return changes;
+  }
+
+  /**
+   * Modification validée des lots & éprouvettes (onglet 02) : épaisseur sèche
+   * (MODIFY_BATCH), orientation du fil et face d'exposition (MODIFY_PANEL).
+   * Une entrée de journal par valeur modifiée ; opérateur obligatoire ;
+   * toute erreur (valeur hors liste, épaisseur figée par une adhérence
+   * mesurée) refuse l'ensemble sans rien modifier.
+   */
+  public updateLotsAndSpecimens(trialId: UUID, form: LotsSpecimensForm, operatorId: string): LotsSpecimensChange[] {
+    const trial = this.getTrial(trialId);
+    if (!trial) throw new Error('Essai introuvable');
+    const operator = typeof operatorId === 'string' ? operatorId.trim() : '';
+    if (!operator) {
+      throw new IntegrityViolationError("L'opérateur est obligatoire pour modifier les lots et éprouvettes.", { trialId });
+    }
+    const changes = diffLotsSpecimens(trial, form);
+    const errors = validateLotsSpecimensChanges(trial, changes);
+    if (errors.length > 0) {
+      throw new IntegrityViolationError(errors.join(' '), { trialId });
+    }
+    if (changes.length === 0) return [];
+
+    applyLotsSpecimensChanges(trial, changes);
+    const timestamp = new Date().toISOString();
+    for (const change of changes) {
+      trial.auditTrail.push({
+        id: generateUUID(),
+        trialId,
+        timestamp,
+        operatorId: operator,
+        action: change.kind === 'BATCH' ? 'MODIFY_BATCH' : 'MODIFY_PANEL',
+        entityType: change.kind,
+        entityId: change.entityId,
+        details: { field: change.field, label: change.label, target: change.target, before: change.before, after: change.after }
       });
     }
     this.saveTrial(trial);
