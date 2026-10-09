@@ -1,9 +1,12 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { getDefaultScientificRuleSet } from './scientific/ruleSet';
 import { globalTrialStore } from './services/trialStore';
+import { mediaStorage } from './services/mediaStorageService';
+import { runMediaMigration } from './services/mediaMigrationService';
 import { Trial } from './types/trial';
 import { TrialDashboard } from './components/TrialDashboard';
 import { TrialDetailView } from './components/TrialDetailView';
+import type { StorageErrorEvent } from './services/trialStore';
 
 // perf/lazy-sections : sections secondaires chargées à la demande (TRIALS reste eager).
 const CreateTrialWizardModal = lazy(() =>
@@ -14,9 +17,6 @@ const UXTestsSuite = lazy(() =>
 );
 const ScientificRuleSetView = lazy(() =>
   import('./components/ScientificRuleSetView').then((m) => ({ default: m.ScientificRuleSetView }))
-);
-const ScientificCalculatorSandbox = lazy(() =>
-  import('./components/ScientificCalculatorSandbox').then((m) => ({ default: m.ScientificCalculatorSandbox }))
 );
 const ScientificTestsViewer = lazy(() =>
   import('./components/ScientificTestsViewer').then((m) => ({ default: m.ScientificTestsViewer }))
@@ -32,23 +32,61 @@ function SectionFallback() {
 import {
   FlaskConical,
   BookOpen,
-  Calculator,
   CheckCircle2,
   Layers,
   ShieldCheck,
   LayoutDashboard,
-  CheckSquare
+  CheckSquare,
+  AlertTriangle
 } from 'lucide-react';
 
 export default function App() {
   const [activeSection, setActiveSection] = useState<
-    'TRIALS' | 'UX_TESTS' | 'SANDBOX' | 'RULESET' | 'SCIENTIFIC_TESTS'
+    'TRIALS' | 'UX_TESTS' | 'RULESET' | 'SCIENTIFIC_TESTS'
   >('TRIALS');
 
   const [trials, setTrials] = useState<Trial[]>(() => globalTrialStore.getAllTrials());
   const [selectedTrialId, setSelectedTrialId] = useState<string | null>(null);
   const [activeTrialTab, setActiveTrialTab] = useState<string>('06');
   const [showCreateWizard, setShowCreateWizard] = useState<boolean>(false);
+
+  // État d'initialisation de la migration média (Base64 → IndexedDB)
+  const [mediaMigration, setMediaMigration] = useState<'idle' | 'migrating' | 'success' | 'failed' | 'interrupted'>('idle');
+  const [mediaMigrationSummary, setMediaMigrationSummary] = useState<{ migrated: number; remainingLegacy: number } | null>(null);
+  const migrationStartedRef = useRef(false);
+  // Initialisé avec l'éventuelle anomalie de lecture survenue au démarrage du
+  // store (avant que l'abonnement ci-dessous ne puisse exister).
+  const [storageWarning, setStorageWarning] = useState<StorageErrorEvent | null>(() => globalTrialStore.getStorageLoadIssue());
+
+  // Remonte à l'opérateur tout échec d'écriture des métadonnées localStorage
+  // (résiduel depuis la migration IndexedDB des photos, PR #111) au lieu de le
+  // laisser passer inaperçu.
+  useEffect(() => {
+    const unsubscribe = globalTrialStore.onStorageError((event) => {
+      setStorageWarning(event);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (migrationStartedRef.current) return;
+    migrationStartedRef.current = true;
+
+    setMediaMigration('migrating');
+    runMediaMigration({
+      backend: mediaStorage,
+      trials: globalTrialStore.getAllTrials(),
+      saveTrial: (t) => globalTrialStore.saveTrial(t)
+    })
+      .then((summary) => {
+        setMediaMigrationSummary({ migrated: summary.migrated, remainingLegacy: summary.remainingLegacy });
+        setMediaMigration(summary.remainingLegacy > 0 ? 'interrupted' : 'success');
+        refreshTrials();
+      })
+      .catch(() => {
+        setMediaMigration('failed');
+      });
+  }, []);
 
   const ruleSet = getDefaultScientificRuleSet();
 
@@ -124,18 +162,6 @@ export default function App() {
             </button>
 
             <button
-              onClick={() => setActiveSection('SANDBOX')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
-                activeSection === 'SANDBOX'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-700/50'
-              }`}
-            >
-              <Calculator className="w-3.5 h-3.5" />
-              Sandbox
-            </button>
-
-            <button
               onClick={() => setActiveSection('RULESET')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
                 activeSection === 'RULESET'
@@ -148,6 +174,46 @@ export default function App() {
             </button>
           </div>
         </div>
+
+        {/* Bandeau d'initialisation de la migration média (Base64 → IndexedDB) */}
+        {mediaMigration !== 'idle' && mediaMigration !== 'success' && (
+          <div
+            className={`px-4 py-1.5 text-[11px] font-semibold flex items-center gap-2 border-t ${
+              mediaMigration === 'failed'
+                ? 'bg-rose-900/60 text-rose-100 border-rose-700'
+                : 'bg-blue-900/60 text-blue-100 border-blue-700'
+            }`}
+          >
+            <FlaskConical className="w-3.5 h-3.5 shrink-0" />
+            {mediaMigration === 'migrating' ? (
+              <span>Initialisation de la photothèque : migration des clichés vers IndexedDB…</span>
+            ) : mediaMigration === 'interrupted' ? (
+              <span>
+                Migration média partielle ({mediaMigrationSummary?.migrated ?? 0} clichés migrés,{' '}
+                {(mediaMigrationSummary?.remainingLegacy ?? 0)} encore non migrés). Redémarrez
+                l'application pour reprendre la migration de façon idempotente.
+              </span>
+            ) : (
+              <span>Échec de l'initialisation de la migration média. Les clichés legacy restent non migrés.</span>
+            )}
+          </div>
+        )}
+
+        {/* Bandeau d'alerte : échec d'écriture des métadonnées localStorage */}
+        {storageWarning && (
+          <div className="px-4 py-1.5 text-[11px] font-semibold flex items-center justify-between gap-2 border-t bg-rose-900/60 text-rose-100 border-rose-700">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span>{storageWarning.message}</span>
+            </div>
+            <button
+              onClick={() => setStorageWarning(null)}
+              className="text-rose-100/80 hover:text-white text-[11px] font-semibold underline underline-offset-2 shrink-0"
+            >
+              Masquer
+            </button>
+          </div>
+        )}
       </header>
 
       {/* Main Content */}
@@ -193,12 +259,6 @@ export default function App() {
         {activeSection === 'SCIENTIFIC_TESTS' && (
           <Suspense fallback={<SectionFallback />}>
             <ScientificTestsViewer />
-          </Suspense>
-        )}
-
-        {activeSection === 'SANDBOX' && (
-          <Suspense fallback={<SectionFallback />}>
-            <ScientificCalculatorSandbox ruleSet={ruleSet} />
           </Suspense>
         )}
 

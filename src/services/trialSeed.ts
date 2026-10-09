@@ -38,21 +38,26 @@ import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConf
 import { recalculateAcquisition } from '../scientific/recalculator';
 import { createConfigChangeEvent } from '../scientific/auditEngine';
 import { buildScientificReport } from './reportGenerator';
-import { isFamilyScheduledForStage } from '../scientific/panelUtils';
+import { isFamilyScheduledForStage, isPersozEligiblePanel } from '../scientific/panelUtils';
 import { generateUUID } from './trialIds';
-import { validateAcquisitionTarget } from './trialIntegrity';
+import { IntegrityViolationError, validateAcquisitionTarget } from './trialIntegrity';
 import { generateStandardExposureStages } from './trialStages';
 
 /**
  * Crée un essai de démonstration complet représentatif d'une campagne active
  */
 export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
-  const trialId = 'quv-trial-2026-042';
+  // Identité de démonstration totalement générique (G52-CLEAN) :
+  // aucun numéro de référence issu d'une campagne réelle.
+  const trialId = 'quv-trial-demo-001';
+  const demoReference = 'DEMO-APP-001';
+  // Jalon T0 du scénario de démonstration — passé au générateur de calendrier.
+  const demoStartIso = '2026-01-15T08:00:00Z';
 
   const metadata: TrialMetadata = {
-    reference: 'QUV-2026-042',
-    orderNumber: 'CO-VAN2026-001',
-    reportNumber: 'RA-VAN2026-001',
+    reference: demoReference,
+    orderNumber: 'CO-DEMO-001',
+    reportNumber: 'RA-DEMO-001',
     title: 'Système Lasurage Chêne Haute Durabilité',
     projectOrClient: 'Projet X — Ceribois & Partenaires',
     coatingSystemDescription: 'Système 3 couches lasure acrylique microporeuse en phase aqueuse',
@@ -184,7 +189,8 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
       },
       ADHESION: {
         familyId: 'ADHESION',
-        enabled: true
+        enabled: true,
+        countConfig: createCountConfiguration('ADHESION', 2, ruleSet)
       },
       OBSERVATIONS: {
         familyId: 'OBSERVATIONS',
@@ -193,33 +199,40 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
     }
   };
 
-  const stages = generateStandardExposureStages(trialId);
+  const stages = generateStandardExposureStages(trialId, demoStartIso);
+
+  // Données de démonstration uniquement : le générateur de production
+  // (generateStandardExposureStages) ne fabrique aucune acquisition fictive.
+  // La démo reconstruit ici, APRÈS génération, un scénario de campagne en cours
+  // (T0 validé, C1/168h validé, C2/336h en cours) cohérent avec les acquisitions
+  // seedées ci-dessous (seedDemoAcquisitions). Jamais injecté dans createTrial().
+  applyDemoStageMetadata(stages);
 
   const auditTrail: AuditEvent[] = [
     {
       id: 'audit-1',
       trialId,
-      timestamp: '2026-08-30T08:15:00Z',
+      timestamp: '2026-01-15T08:15:00Z',
       operatorId: 'SM',
       action: 'CREATE_TRIAL',
       entityType: 'TRIAL',
       entityId: trialId,
-      details: { reference: 'QUV-2026-042', title: metadata.title }
+      details: { reference: demoReference, title: metadata.title }
     },
     {
       id: 'audit-2',
       trialId,
-      timestamp: '2026-08-30T08:20:00Z',
+      timestamp: '2026-01-15T08:20:00Z',
       operatorId: 'SM',
       action: 'CONFIGURE_PROTOCOL',
       entityType: 'PROTOCOL',
       entityId: 'ALL',
-      details: { activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'OBSERVATIONS'], colorPoints: 4, glossSeries: '2x2' }
+      details: { activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'ADHESION', 'OBSERVATIONS'], colorPoints: 4, glossSeries: '2x2', persozPoints: 3, adhesionPoints: 2 }
     },
     {
       id: 'audit-3',
       trialId,
-      timestamp: '2026-08-30T08:35:00Z',
+      timestamp: '2026-01-15T08:35:00Z',
       operatorId: 'SM',
       action: 'CREATE_BATCH',
       entityType: 'BATCH',
@@ -229,7 +242,7 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
     {
       id: 'audit-4',
       trialId,
-      timestamp: '2026-08-30T08:40:00Z',
+      timestamp: '2026-01-15T08:40:00Z',
       operatorId: 'SM',
       action: 'CREATE_BATCH',
       entityType: 'BATCH',
@@ -239,7 +252,7 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
     {
       id: 'audit-5',
       trialId,
-      timestamp: '2026-08-30T08:45:00Z',
+      timestamp: '2026-01-15T08:45:00Z',
       operatorId: 'SM',
       action: 'CREATE_BATCH',
       entityType: 'BATCH',
@@ -249,7 +262,7 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
     {
       id: 'audit-6',
       trialId,
-      timestamp: '2026-08-30T09:00:00Z',
+      timestamp: '2026-01-15T09:00:00Z',
       operatorId: 'SYSTEM',
       action: 'LOCK_TRIAL_CONFIGURATION',
       entityType: 'CONFIG',
@@ -259,7 +272,7 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
     {
       id: 'audit-7',
       trialId,
-      timestamp: '2026-08-30T12:00:00Z',
+      timestamp: '2026-01-15T12:00:00Z',
       operatorId: 'SM',
       action: 'VALIDATE_STAGE',
       entityType: 'STAGE',
@@ -269,7 +282,7 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
     {
       id: 'audit-8',
       trialId,
-      timestamp: '2026-09-06T17:00:00Z',
+      timestamp: '2026-01-22T17:00:00Z',
       operatorId: 'SM',
       action: 'VALIDATE_STAGE',
       entityType: 'STAGE',
@@ -281,8 +294,8 @@ export function createDemoTrial(ruleSet: ScientificRuleSet): Trial {
   const trial: Trial = {
     id: trialId,
     schemaVersion: '1.2.0',
-    createdAt: '2026-08-30T08:15:00Z',
-    updatedAt: '2026-09-13T10:30:00Z',
+    createdAt: '2026-01-15T08:15:00Z',
+    updatedAt: '2026-01-29T10:30:00Z',
     metadata,
     commonCharacteristics,
     status: 'IN_PROGRESS',
@@ -362,7 +375,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
         series: [
           {
             seriesIndex: 1,
-            orientation: 'Sens du fil',
+            orientation: 'GRAIN_DIRECTION',
             readings: [
               { pointIndex: 1, value: +(gBase + 0.3 * pIdx).toFixed(1) },
               { pointIndex: 2, value: +(gBase - 0.2 + 0.2 * pIdx).toFixed(1) }
@@ -370,7 +383,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
           },
           {
             seriesIndex: 2,
-            orientation: 'Perpendiculaire',
+            orientation: 'OPPOSITE_GRAIN_DIRECTION',
             readings: [
               { pointIndex: 1, value: +(gBase - 1.2 + 0.3 * pIdx).toFixed(1) },
               { pointIndex: 2, value: +(gBase - 0.8 + 0.1 * pIdx).toFixed(1) }
@@ -391,7 +404,10 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
         unit: 'SECONDS',
         instrumentMetadata: { instrumentId: 'PERSOZ-PENDULUM-02', temperatureCelsius: 21.5, relativeHumidityPercent: 50.2 }
       };
-      recordAcquisitionDirect(trial, stageT0.id, batch.id, panel.id, 'PERSOZ', persozRawT0, ruleSet);
+      // Persoz T0 — E1/E2/E3 uniquement, jamais sur le témoin T (S0 §14)
+      if (isPersozEligiblePanel(panel)) {
+        recordAcquisitionDirect(trial, stageT0.id, batch.id, panel.id, 'PERSOZ', persozRawT0, ruleSet);
+      }
 
       // Observations T0
       const obsRawT0: VisualObservationsRawData = {
@@ -403,7 +419,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
           { category: 'GENERAL_APPEARANCE', categoryLabel: 'Aspect général', rating: 0, status: 'CONFORME', comment: 'Revêtement uniforme et lisse' }
         ],
         assessedBy: 'SM',
-        assessedAt: '2026-08-30T11:45:00Z'
+        assessedAt: '2026-01-15T11:45:00Z'
       };
       recordAcquisitionDirect(trial, stageT0.id, batch.id, panel.id, 'OBSERVATIONS', obsRawT0, ruleSet);
 
@@ -414,9 +430,8 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
           adhesionClass: 0,
           gridSpacingMm: spacing,
           coatingThicknessMicrons: batch.dryFilmThicknessMicrons,
-          measurementDateTime: '2026-08-30T14:00:00Z',
+          measurementDateTime: '2026-01-15T14:00:00Z',
           applicationDateTime: batch.applicationDate,
-          requiredMinimumDelayHours: 168,
           normReference: 'NF EN ISO 2409:2020',
           observation: 'Quadrillage net 6×6, bords des incisions parfaitement lisses, aucun détachement (Classe 0).'
         };
@@ -441,7 +456,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
         series: [
           {
             seriesIndex: 1,
-            orientation: 'Sens du fil',
+            orientation: 'GRAIN_DIRECTION',
             readings: [
               { pointIndex: 1, value: +(gBase + dG168 + 0.2 * pIdx).toFixed(1) },
               { pointIndex: 2, value: +(gBase + dG168 - 0.1).toFixed(1) }
@@ -449,7 +464,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
           },
           {
             seriesIndex: 2,
-            orientation: 'Perpendiculaire',
+            orientation: 'OPPOSITE_GRAIN_DIRECTION',
             readings: [
               { pointIndex: 1, value: +(gBase + dG168 - 1.0).toFixed(1) },
               { pointIndex: 2, value: +(gBase + dG168 - 0.6).toFixed(1) }
@@ -468,7 +483,10 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
         ],
         unit: 'SECONDS'
       };
-      recordAcquisitionDirect(trial, stage168.id, batch.id, panel.id, 'PERSOZ', persozRaw168, ruleSet);
+      // Persoz 168 h — E1/E2/E3 uniquement, jamais sur le témoin T (S0 §14)
+      if (isPersozEligiblePanel(panel)) {
+        recordAcquisitionDirect(trial, stage168.id, batch.id, panel.id, 'PERSOZ', persozRaw168, ruleSet);
+      }
 
       const obsRaw168: VisualObservationsRawData = {
         observations: [
@@ -501,7 +519,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
           series: [
             {
               seriesIndex: 1,
-              orientation: 'Sens du fil',
+              orientation: 'GRAIN_DIRECTION',
               readings: [
                 { pointIndex: 1, value: +(gBase + dG336).toFixed(1) },
                 { pointIndex: 2, value: +(gBase + dG336 - 0.5).toFixed(1) }
@@ -509,7 +527,7 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
             },
             {
               seriesIndex: 2,
-              orientation: 'Perpendiculaire',
+              orientation: 'OPPOSITE_GRAIN_DIRECTION',
               readings: [
                 { pointIndex: 1, value: +(gBase + dG336 - 1.8).toFixed(1) },
                 { pointIndex: 2, value: +(gBase + dG336 - 1.2).toFixed(1) }
@@ -530,8 +548,23 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
   const stage2 = trial.stages[2]; // 336h
 
   if (panelSample && stage0 && stage1) {
-    const makeSvg = (label: string, hours: number, stageName: string, stateText: string, colorHue: string) =>
-      `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400"><defs><linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${colorHue}"/><stop offset="100%" stop-color="%2378350f"/></linearGradient><pattern id="wood" width="40" height="10" patternUnits="userSpaceOnUse"><path d="M 0 5 Q 20 0 40 5" stroke="%23ffffff" stroke-width="0.5" stroke-opacity="0.15" fill="none"/></pattern></defs><rect width="600" height="400" fill="url(%23bg)"/><rect width="600" height="400" fill="url(%23wood)"/><rect x="20" y="20" width="560" height="360" rx="16" fill="none" stroke="%23ffffff" stroke-width="1.5" stroke-opacity="0.3"/><circle cx="50" cy="50" r="14" fill="%23ffffff" fill-opacity="0.2"/><text x="50" y="55" font-family="sans-serif" font-size="12" font-weight="bold" fill="%23ffffff" text-anchor="middle">📷</text><text x="80" y="55" font-family="sans-serif" font-size="16" font-weight="bold" fill="%23ffffff">${label} — ${hours} h (${stageName})</text><rect x="40" y="290" width="520" height="70" rx="10" fill="%230f172a" fill-opacity="0.75"/><text x="60" y="318" font-family="sans-serif" font-size="13" font-weight="bold" fill="%23f8fafc">Suivi documentaire : ${stateText}</text><text x="60" y="342" font-family="monospace" font-size="11" fill="%2394a3b8">NF EN 927-6 • Éprouvette Pin sylvestre • QUV-Lab France</text></svg>`;
+    const makeSvg = (label: string, hours: number, stageName: string, stateText: string, colorHue: string) => {
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400">` +
+        `<defs><linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">` +
+        `<stop offset="0%" stop-color="${colorHue}"/><stop offset="100%" stop-color="#78350f"/></linearGradient>` +
+        `<pattern id="wood" width="40" height="10" patternUnits="userSpaceOnUse">` +
+        `<path d="M 0 5 Q 20 0 40 5" stroke="#ffffff" stroke-width="0.5" stroke-opacity="0.15" fill="none"/></pattern></defs>` +
+        `<rect width="600" height="400" fill="url(#bg)"/><rect width="600" height="400" fill="url(#wood)"/>` +
+        `<rect x="20" y="20" width="560" height="360" rx="16" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-opacity="0.3"/>` +
+        `<circle cx="50" cy="50" r="14" fill="#ffffff" fill-opacity="0.2"/>` +
+        `<text x="50" y="55" font-family="sans-serif" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">📷</text>` +
+        `<text x="80" y="55" font-family="sans-serif" font-size="16" font-weight="bold" fill="#ffffff">${label} — ${hours} h (${stageName})</text>` +
+        `<rect x="40" y="290" width="520" height="70" rx="10" fill="#0f172a" fill-opacity="0.75"/>` +
+        `<text x="60" y="318" font-family="sans-serif" font-size="13" font-weight="bold" fill="#f8fafc">Suivi documentaire : ${stateText}</text>` +
+        `<text x="60" y="342" font-family="monospace" font-size="11" fill="#94a3b8">NF EN 927-6 • Éprouvette Pin sylvestre • QUV-Lab France</text></svg>`;
+      return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+    };
 
     trial.mediaReferences.push({
       id: 'photo-demo-01',
@@ -540,11 +573,11 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
       stageId: stage0.id,
       type: 'PHOTO',
       status: 'ACTIVE',
-      storageKey: makeSvg('LOT XX1C - Éprouvette 1', 0, 'T0', 'État initial homogène, brillant intact, surface saine', '%23b45309'),
+      storageKey: makeSvg('LOT XX1C - Éprouvette 1', 0, 'T0', 'État initial homogène, brillant intact, surface saine', '#b45309'),
       filename: 'PHOTO_LOT_XX1C_1_T0_0h.jpg',
       mimeType: 'image/jpeg',
       sizeBytes: 245000,
-      capturedAt: '2026-09-01T08:30:00Z',
+      capturedAt: '2026-01-15T08:30:00Z',
       capturedBy: 'Simon Martin (Technicien)',
       caption: 'État initial avant exposition : film lasure satiné homogène, aucun défaut de surface.'
     });
@@ -556,11 +589,11 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
       stageId: stage1.id,
       type: 'PHOTO',
       status: 'ACTIVE',
-      storageKey: makeSvg('LOT XX1C - Éprouvette 1', 168, 'Cycle 1 (168 h)', 'Légère perte de brillance superficielle, couleur stable', '%2392400e'),
+      storageKey: makeSvg('LOT XX1C - Éprouvette 1', 168, 'Cycle 1 (168 h)', 'Légère perte de brillance superficielle, couleur stable', '#92400e'),
       filename: 'PHOTO_LOT_XX1C_1_C1_168h.jpg',
       mimeType: 'image/jpeg',
       sizeBytes: 252000,
-      capturedAt: '2026-09-08T09:15:00Z',
+      capturedAt: '2026-01-22T09:15:00Z',
       capturedBy: 'Simon Martin (Technicien)',
       caption: 'Après 1 cycle (168 h) : début de matification de la zone supérieure, absence de cloquage.'
     });
@@ -573,11 +606,11 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
         stageId: stage2.id,
         type: 'PHOTO',
         status: 'ACTIVE',
-        storageKey: makeSvg('LOT XX1C - Éprouvette 1', 336, 'Cycle 2 (336 h)', 'Matification accentuée, film adhérent, micro-relief visible', '%2378350f'),
+        storageKey: makeSvg('LOT XX1C - Éprouvette 1', 336, 'Cycle 2 (336 h)', 'Matification accentuée, film adhérent, micro-relief visible', '#78350f'),
         filename: 'PHOTO_LOT_XX1C_1_C2_336h.jpg',
         mimeType: 'image/jpeg',
         sizeBytes: 260000,
-        capturedAt: '2026-09-15T10:00:00Z',
+        capturedAt: '2026-01-29T10:00:00Z',
         capturedBy: 'Simon Martin (Technicien)',
         caption: 'Après 2 cycles (336 h) : évolution continue de l\'aspect de surface, conservation de l\'intégrité.'
       });
@@ -593,14 +626,53 @@ function seedDemoAcquisitions(trial: Trial, ruleSet: ScientificRuleSet): void {
         stageId: stage0.id,
         type: 'PHOTO',
         status: 'ACTIVE',
-        storageKey: makeSvg('LOT XX1C - Témoin T', 0, 'T0', 'Éprouvette témoin de référence non exposée', '%231e293b'),
+        storageKey: makeSvg('LOT XX1C - Témoin T', 0, 'T0', 'Éprouvette témoin de référence non exposée', '#1e293b'),
         filename: 'PHOTO_LOT_XX1C_T_T0.jpg',
         mimeType: 'image/jpeg',
         sizeBytes: 238000,
-        capturedAt: '2026-09-01T08:20:00Z',
+        capturedAt: '2026-01-19T08:20:00Z',
         capturedBy: 'Simon Martin (Technicien)',
         caption: 'Éprouvette témoin T conservée en chambre obscure conditionnée (20°C / 65% HR).'
       });
+    }
+  }
+}
+
+/**
+ * Applique les métadonnées de démonstration aux jalons d'UN ESSAI DE DÉMO
+ * après génération standard. Isolé dans le chemin seed : ne jamais utiliser
+ * dans createTrial() qui doit produire uniquement le calendrier/protocole,
+ * sans fabrication d'acquisition (G52-CAL / étape 06).
+ */
+function applyDemoStageMetadata(stages: ExposureStage[]): void {
+  const demoStageMeta: Array<Partial<ExposureStage> & { cycleIndex: number }> = [
+    {
+      cycleIndex: 0,
+      measuredAt: '2026-01-15T08:00:00Z',
+      status: 'VALIDATED',
+      validatedBy: 'SM',
+      validatedAt: '2026-01-15T12:00:00Z',
+      notes: 'Mesures initiales de référence réalisées avant toute exposition UV.'
+    },
+    {
+      cycleIndex: 1,
+      measuredAt: '2026-01-22T14:30:00Z',
+      status: 'VALIDATED',
+      validatedBy: 'SM',
+      validatedAt: '2026-01-22T17:00:00Z',
+      notes: 'Relevé intermédiaire 168h validé sans anomalie.'
+    },
+    {
+      cycleIndex: 2,
+      measuredAt: '2026-01-29T10:15:00Z',
+      status: 'IN_PROGRESS'
+    }
+  ];
+
+  for (const meta of demoStageMeta) {
+    const stage = stages.find((s) => s.cycleIndex === meta.cycleIndex);
+    if (stage) {
+      Object.assign(stage, meta);
     }
   }
 }
@@ -641,9 +713,9 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
     standardReference: 'NF EN 927-6',
     activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'OBSERVATIONS'],
     familyConfigs: {
-      COLOR: { familyId: 'COLOR', enabled: true },
-      GLOSS: { familyId: 'GLOSS', enabled: true },
-      PERSOZ: { familyId: 'PERSOZ', enabled: true },
+      COLOR: { familyId: 'COLOR', enabled: true, countConfig: createCountConfiguration('COLOR', 4, ruleSet) },
+      GLOSS: { familyId: 'GLOSS', enabled: true, seriesConfig: createSeriesConfiguration('GLOSS', 2, 2, ruleSet) },
+      PERSOZ: { familyId: 'PERSOZ', enabled: true, countConfig: createCountConfiguration('PERSOZ', 3, ruleSet) },
       OBSERVATIONS: { familyId: 'OBSERVATIONS', enabled: true }
     }
   };
@@ -760,7 +832,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
       series: [
         {
           seriesIndex: 1,
-          orientation: 'Sens du fil',
+          orientation: 'GRAIN_DIRECTION',
           readings: [
             { pointIndex: 1, value: +(44.3 + 0.1 * pIdx).toFixed(1) },
             { pointIndex: 2, value: +(44.1 - 0.1 * pIdx).toFixed(1) }
@@ -768,7 +840,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
         },
         {
           seriesIndex: 2,
-          orientation: 'Perpendiculaire',
+          orientation: 'OPPOSITE_GRAIN_DIRECTION',
           readings: [
             { pointIndex: 1, value: +(43.9 + 0.1 * pIdx).toFixed(1) },
             { pointIndex: 2, value: +(44.1).toFixed(1) }
@@ -787,7 +859,10 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
       ],
       unit: 'SECONDS'
     };
-    recordAcquisitionDirect(trial, stage0.id, batch.id, panel.id, 'PERSOZ', persozRaw0, ruleSet);
+    // Persoz T0 — E1/E2/E3 uniquement, jamais sur un panneau non identifié (S0 §14)
+    if (isPersozEligiblePanel(panel)) {
+      recordAcquisitionDirect(trial, stage0.id, batch.id, panel.id, 'PERSOZ', persozRaw0, ruleSet);
+    }
 
     const obsRaw0: VisualObservationsRawData = {
       observations: [
@@ -827,7 +902,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
         series: [
           {
             seriesIndex: 1,
-            orientation: 'Sens du fil',
+            orientation: 'GRAIN_DIRECTION',
             readings: [
               { pointIndex: 1, value: +(currentGloss + 0.2).toFixed(1) },
               { pointIndex: 2, value: +(currentGloss - 0.2).toFixed(1) }
@@ -835,7 +910,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
           },
           {
             seriesIndex: 2,
-            orientation: 'Perpendiculaire',
+            orientation: 'OPPOSITE_GRAIN_DIRECTION',
             readings: [
               { pointIndex: 1, value: +(currentGloss - 0.1).toFixed(1) },
               { pointIndex: 2, value: +(currentGloss + 0.1).toFixed(1) }
@@ -854,7 +929,10 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
         ],
         unit: 'SECONDS'
       };
-      recordAcquisitionDirect(trial, stage.id, batch.id, panel.id, 'PERSOZ', persozRaw, ruleSet);
+      // Persoz — E1/E2/E3 uniquement, jamais sur un panneau non identifié (S0 §14)
+      if (isPersozEligiblePanel(panel)) {
+        recordAcquisitionDirect(trial, stage.id, batch.id, panel.id, 'PERSOZ', persozRaw, ruleSet);
+      }
 
       const obsRaw: VisualObservationsRawData = {
         observations: [
@@ -886,7 +964,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
       series: [
         {
           seriesIndex: 1,
-          orientation: 'Sens du fil',
+          orientation: 'GRAIN_DIRECTION',
           readings: [
             { pointIndex: 1, value: 27.9 },
             { pointIndex: 2, value: 27.9 }
@@ -894,7 +972,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
         },
         {
           seriesIndex: 2,
-          orientation: 'Perpendiculaire',
+          orientation: 'OPPOSITE_GRAIN_DIRECTION',
           readings: [
             { pointIndex: 1, value: 27.9 },
             { pointIndex: 2, value: 27.9 }
@@ -913,7 +991,10 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
       ],
       unit: 'SECONDS'
     };
-    recordAcquisitionDirect(trial, stage2016.id, batch.id, panel.id, 'PERSOZ', persozRaw2016, ruleSet);
+    // Persoz 2016 h — E1/E2/E3 uniquement, jamais sur le témoin T (S0 §14)
+    if (isPersozEligiblePanel(panel)) {
+      recordAcquisitionDirect(trial, stage2016.id, batch.id, panel.id, 'PERSOZ', persozRaw2016, ruleSet);
+    }
 
     const obsRaw2016: VisualObservationsRawData = {
       observations: [
@@ -937,7 +1018,6 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
         coatingThicknessMicrons: batch.dryFilmThicknessMicrons,
         measurementDateTime: '2026-11-25T15:30:00Z',
         applicationDateTime: batch.applicationDate,
-        requiredMinimumDelayHours: 168,
         normReference: 'NF EN ISO 2409:2020',
         observation: adhClass === 0
           ? 'Bords des incisions lisses après 2016 h d\'exposition, aucun détachement.'
@@ -955,8 +1035,24 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
   const st9 = stages[9]; // C9 - 1512h
   const st12 = stages[12]; // C12 - 2016h
 
-  const makeValSvg = (hours: number, stageLabel: string, desc: string, gradStart: string) =>
-    `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400"><defs><linearGradient id="valbg${hours}" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${gradStart}"/><stop offset="100%" stop-color="%23451a03"/></linearGradient><pattern id="woodpat" width="50" height="12" patternUnits="userSpaceOnUse"><path d="M 0 6 Q 25 0 50 6" stroke="%23ffffff" stroke-width="0.6" stroke-opacity="0.18" fill="none"/></pattern></defs><rect width="600" height="400" fill="url(%23valbg${hours})"/><rect width="600" height="400" fill="url(%23woodpat)"/><rect x="20" y="20" width="560" height="360" rx="14" fill="none" stroke="%23ffffff" stroke-width="1.5" stroke-opacity="0.35"/><rect x="35" y="35" width="220" height="32" rx="8" fill="%230f172a" fill-opacity="0.85"/><text x="45" y="56" font-family="monospace" font-size="13" font-weight="bold" fill="%2338bdf8">LOT A - Échantillon 1</text><rect x="400" y="35" width="165" height="32" rx="8" fill="%231e293b" fill-opacity="0.85"/><text x="482" y="56" font-family="monospace" font-size="13" font-weight="bold" fill="%23fbbf24" text-anchor="middle">${stageLabel} — ${hours} h</text><rect x="35" y="295" width="530" height="70" rx="10" fill="%23020617" fill-opacity="0.8"/><text x="50" y="322" font-family="sans-serif" font-size="13" font-weight="bold" fill="%23f8fafc">${desc}</text><text x="50" y="346" font-family="monospace" font-size="11" fill="%2394a3b8">NF EN 927-6 (Cycle A) • Pinus sylvestris • QUV-Lab Métrologie</text></svg>`;
+  const makeValSvg = (hours: number, stageLabel: string, desc: string, gradStart: string) => {
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400">` +
+      `<defs><linearGradient id="valbg${hours}" x1="0%" y1="0%" x2="100%" y2="100%">` +
+      `<stop offset="0%" stop-color="${gradStart}"/><stop offset="100%" stop-color="#451a03"/></linearGradient>` +
+      `<pattern id="woodpat" width="50" height="12" patternUnits="userSpaceOnUse">` +
+      `<path d="M 0 6 Q 25 0 50 6" stroke="#ffffff" stroke-width="0.6" stroke-opacity="0.18" fill="none"/></pattern></defs>` +
+      `<rect width="600" height="400" fill="url(#valbg${hours})"/><rect width="600" height="400" fill="url(#woodpat)"/>` +
+      `<rect x="20" y="20" width="560" height="360" rx="14" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-opacity="0.35"/>` +
+      `<rect x="35" y="35" width="220" height="32" rx="8" fill="#0f172a" fill-opacity="0.85"/>` +
+      `<text x="45" y="56" font-family="monospace" font-size="13" font-weight="bold" fill="#38bdf8">LOT A - Échantillon 1</text>` +
+      `<rect x="400" y="35" width="165" height="32" rx="8" fill="#1e293b" fill-opacity="0.85"/>` +
+      `<text x="482" y="56" font-family="monospace" font-size="13" font-weight="bold" fill="#fbbf24" text-anchor="middle">${stageLabel} — ${hours} h</text>` +
+      `<rect x="35" y="295" width="530" height="70" rx="10" fill="#020617" fill-opacity="0.8"/>` +
+      `<text x="50" y="322" font-family="sans-serif" font-size="13" font-weight="bold" fill="#f8fafc">${desc}</text>` +
+      `<text x="50" y="346" font-family="monospace" font-size="11" fill="#94a3b8">NF EN 927-6 (Cycle A) • Pinus sylvestris • QUV-Lab Métrologie</text></svg>`;
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  };
 
   trial.mediaReferences.push(
     {
@@ -966,7 +1062,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
       stageId: st0.id,
       type: 'PHOTO',
       status: 'ACTIVE',
-      storageKey: makeValSvg(0, 'T0', 'État initial : film satiné translucide sans défaut', '%23d97706'),
+      storageKey: makeValSvg(0, 'T0', 'État initial : film satiné translucide sans défaut', '#d97706'),
       filename: 'PHOTO_LOTA_1_T0_0h.jpg',
       mimeType: 'image/jpeg',
       sizeBytes: 248000,
@@ -981,7 +1077,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
       stageId: st3.id,
       type: 'PHOTO',
       status: 'ACTIVE',
-      storageKey: makeValSvg(504, 'C3', 'Après 504 h : début de matification, teinte stable', '%23b45309'),
+      storageKey: makeValSvg(504, 'C3', 'Après 504 h : début de matification, teinte stable', '#b45309'),
       filename: 'PHOTO_LOTA_1_C3_504h.jpg',
       mimeType: 'image/jpeg',
       sizeBytes: 254000,
@@ -996,7 +1092,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
       stageId: st6.id,
       type: 'PHOTO',
       status: 'ACTIVE',
-      storageKey: makeValSvg(1008, 'C6', 'Après 1008 h : matification progressive, film continu', '%2392400e'),
+      storageKey: makeValSvg(1008, 'C6', 'Après 1008 h : matification progressive, film continu', '#92400e'),
       filename: 'PHOTO_LOTA_1_C6_1008h.jpg',
       mimeType: 'image/jpeg',
       sizeBytes: 259000,
@@ -1011,7 +1107,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
       stageId: st9.id,
       type: 'PHOTO',
       status: 'ACTIVE',
-      storageKey: makeValSvg(1512, 'C9', 'Après 1512 h : matification prononcée, intégrité préservée', '%2378350f'),
+      storageKey: makeValSvg(1512, 'C9', 'Après 1512 h : matification prononcée, intégrité préservée', '#78350f'),
       filename: 'PHOTO_LOTA_1_C9_1512h.jpg',
       mimeType: 'image/jpeg',
       sizeBytes: 263000,
@@ -1026,7 +1122,7 @@ export function createValidationTrial(ruleSet: ScientificRuleSet): Trial {
       stageId: st12.id,
       type: 'PHOTO',
       status: 'ACTIVE',
-      storageKey: makeValSvg(2016, 'C12', 'Après 2016 h : terme d\'exposition, aspect mat sans altération grave', '%23581c87'),
+      storageKey: makeValSvg(2016, 'C12', 'Après 2016 h : terme d\'exposition, aspect mat sans altération grave', '#581c87'),
       filename: 'PHOTO_LOTA_1_C12_2016h.jpg',
       mimeType: 'image/jpeg',
       sizeBytes: 271000,
@@ -1050,6 +1146,20 @@ function recordAcquisitionDirect(
 ): PanelAcquisitionRecord {
   // Garde-fou d'intégrité relationnelle (Gate 3.1 - Risque 1)
   validateAcquisitionTarget(trial, stageId, batchId, panelId);
+
+  // Verrou métier PERSOZ (règle stricte E1/E2/E3 — miroir de trialStoreService) :
+  // la dureté Persoz se mesure UNIQUEMENT sur éprouvettes exposées E1, E2, E3
+  // identifiées. T et tout panneau non identifiable sont refusés.
+  // Rejet AVANT toute écriture (ni trial.acquisitions, ni aucune fabrication).
+  if (familyId === 'PERSOZ') {
+    const targetPanel = trial.batches?.find((b) => b.id === batchId)?.panels?.find((p) => p.id === panelId);
+    if (!targetPanel || !isPersozEligiblePanel(targetPanel)) {
+      throw new IntegrityViolationError(
+        `PERSOZ interdit sur cette éprouvette : la dureté Persoz se mesure uniquement sur éprouvettes exposées E1, E2, E3 (témoin T et panneaux non identifiés refusés).`,
+        { trialId: trial.id, stageId, batchId, panelId, familyId: 'PERSOZ' }
+      );
+    }
+  }
 
   const key = `${stageId}__${panelId}__${familyId}`;
   const record: PanelAcquisitionRecord = {

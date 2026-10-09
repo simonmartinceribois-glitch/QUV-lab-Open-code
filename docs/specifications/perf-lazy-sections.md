@@ -6,7 +6,7 @@
 ## 1. Modifications (`src/App.tsx` seul)
 
 - `React.lazy` (+ adaptateur `{ default: m.X }`, exports nommés) pour :
-  `UXTestsSuite`, `ScientificTestsViewer`, `ScientificCalculatorSandbox`,
+  `UXTestsSuite`, `ScientificTestsViewer`,
   `ScientificRuleSetView`, `CreateTrialWizardModal`.
 - `TRIALS` (Dashboard + TrialDetailView) reste eager (section par défaut).
 - Un `<Suspense fallback={…}>` par point d'usage (sections + modal), fallback léger

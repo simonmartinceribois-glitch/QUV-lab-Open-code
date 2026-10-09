@@ -2,6 +2,8 @@
  * QUV-Lab — Assistant : étape 4 Panneaux / Référentiel Permanent (refactor/split-wizard).
  * JSX déplacé à l'identique depuis CreateTrialWizardModal.tsx (step === 4).
  * Aucun état ici : lots + total reçus en props depuis le parent.
+ * Configuration canonique : chaque lot comporte exactement 4 éprouvettes
+ * (T témoin, E1/E2/E3 exposées) — aucun nombre variable.
  */
 
 import { ShieldAlert } from 'lucide-react';
@@ -11,6 +13,14 @@ interface Props {
   batches: LotFormItem[];
   totalPanelsCount: number;
 }
+
+// Référentiel canonique affiché (miroir de createTrial : labels T/1/2/3).
+const CANONICAL_PANELS = [
+  { label: 'T', role: 'Témoin T' },
+  { label: '1', role: 'Exposée E1' },
+  { label: '2', role: 'Exposée E2' },
+  { label: '3', role: 'Exposée E3' }
+];
 
 export function WizardStep4Panels({ batches, totalPanelsCount }: Props) {
   return (
@@ -34,24 +44,22 @@ export function WizardStep4Panels({ batches, totalPanelsCount }: Props) {
                 <span className="text-xs text-slate-500">• {batch.coatingSystem}</span>
               </div>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700">
-                {batch.panelCount} éprouvettes
+                4 éprouvettes — T, E1, E2, E3
               </span>
             </div>
 
-            {/* Grille des panneaux générés */}
+            {/* Grille des panneaux canoniques */}
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
-              {Array.from({ length: batch.panelCount }).map((_, pIdx) => {
-                const pNum = pIdx + 1;
-                const label = `P0${pNum}`.slice(-3);
+              {CANONICAL_PANELS.map((p) => {
                 return (
                   <div
-                    key={pIdx}
+                    key={p.label}
                     className="p-3 rounded-lg border border-slate-200 bg-slate-50 flex flex-col items-center justify-center text-center hover:bg-blue-50/50 hover:border-blue-300 transition-colors"
                   >
                     <span className="text-xs font-mono font-bold text-slate-900">
-                      {batch.reference}-{label}
+                      {batch.reference}-{p.label === 'T' ? 'T' : `P0${p.label}`}
                     </span>
-                    <span className="text-[10px] text-slate-500 mt-0.5">Éprouvette #{pNum}</span>
+                    <span className="text-[10px] text-slate-500 mt-0.5">{p.role}</span>
                     <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-emerald-700 mt-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> ACTIVE
                     </span>

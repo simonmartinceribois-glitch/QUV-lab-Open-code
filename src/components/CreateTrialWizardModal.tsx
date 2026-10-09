@@ -10,6 +10,9 @@
  */
 
 import React, { useState } from 'react';
+import { getTodayLocalISODate } from '../utils/dateUtils';
+import { getPresetCycles } from './wizard/measurementApplicability';
+import { WIZARD_STEPS_LIST, NEXT_WIZARD_STEP, PREVIOUS_WIZARD_STEP } from './wizard/wizardSteps';
 import {
   TrialMetadata,
   CommonCharacteristics,
@@ -21,14 +24,14 @@ import {
   ScientificRuleSet
 } from '../types/scientific';
 import { globalTrialStore } from '../services/trialStore';
-import { createCountConfiguration, createSeriesConfiguration } from '../scientific/ruleSet';
+import { createCountConfiguration, createSeriesConfiguration, isAdaptationJustificationValid } from '../scientific/ruleSet';
 import { WizardStep1Identification } from './wizard/WizardStep1Identification';
 import { WizardStep2Characteristics } from './wizard/WizardStep2Characteristics';
 import { WizardStep3Batches } from './wizard/WizardStep3Batches';
-import { WizardStep4Panels } from './wizard/WizardStep4Panels';
 import { WizardStep5Families } from './wizard/WizardStep5Families';
 import { WizardStep6Calendar } from './wizard/WizardStep6Calendar';
 import { WizardStep7Review } from './wizard/WizardStep7Review';
+import type { LotFormItem, NumberSetter } from './wizard/wizardTypes';
 import {
   X,
   ChevronRight,
@@ -59,23 +62,6 @@ interface Props {
   onCreated?: (trialId: string) => void;
 }
 
-export interface LotFormItem {
-  id: string;
-  reference: string;
-  woodSpecies: string;
-  productReference: string;
-  manufacturerOrSupplier: string;
-  coatingSystem: string;
-  coatCount: number;
-  substratePreparation: string;
-  applicationMethod: string;
-  applicationConditions: string;
-  applicationDate: string;
-  dryingOrConditioningTime: string;
-  batchNotes: string;
-  panelCount: number;
-}
-
 export function CreateTrialWizardModal({
   ruleSet: propRuleSet,
   isOpen = true,
@@ -83,6 +69,15 @@ export function CreateTrialWizardModal({
   onCreated
 }: Props) {
   const ruleSet = propRuleSet || globalTrialStore['ruleSet'];
+  const stdColor = ruleSet.measurementConfigurations.COLOR?.standardRecommendedCount;
+  const stdGlossSeries = ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration?.seriesCount;
+  const stdGlossReadings = ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration?.readingsPerSeries;
+  const stdPersoz = ruleSet.measurementConfigurations.PERSOZ?.standardRecommendedCount;
+  const stdAdhesion = ruleSet.measurementConfigurations.ADHESION?.standardRecommendedCount;
+  if (stdColor === undefined || stdGlossSeries === undefined || stdGlossReadings === undefined || stdPersoz === undefined || stdAdhesion === undefined) {
+    throw new Error('Référentiel scientifique incomplet : impossible de créer le plan de mesure.');
+  }
+
   if (!isOpen) return null;
 
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7>(1);
@@ -90,7 +85,7 @@ export function CreateTrialWizardModal({
   // ==========================================
   // ÉTAPE 1 : Identification & Métadonnées
   // ==========================================
-  const [reference, setReference] = useState(`QUV-2026-0${Math.floor(Math.random() * 80 + 20)}`);
+  const [reference, setReference] = useState(`QUV-${new Date().getFullYear()}-0${Math.floor(Math.random() * 80 + 20)}`);
   const [title, setTitle] = useState('');
   const [projectOrClient, setProjectOrClient] = useState('');
   const [createdBy, setCreatedBy] = useState('Simon Martin (Technicien Labo)');
@@ -104,10 +99,10 @@ export function CreateTrialWizardModal({
   const [thicknessMm, setThicknessMm] = useState<number>(15);
   const [dimUnit, setDimUnit] = useState<'mm' | 'cm'>('mm');
   const [substrateNature, setSubstrateNature] = useState<string>('Bois massif');
-  const [materialType, setMaterialType] = useState<string>('Pin sylvestre standardisé (NF EN 927-6)');
+  const [materialType, setMaterialType] = useState<string>('');
   const [woodGrainOrientation, setWoodGrainOrientation] = useState<string>('Sur quartier (NF EN 927-6 §5)');
-  const [preparationNotes, setPreparationNotes] = useState<string>('Ponçage mécanique P120, dépoussiérage soigné');
-  const [conditioningNotes, setConditioningNotes] = useState<string>('Conditionnement 7 jours à 20±2°C et 65±5% HR jusqu\'à masse constante');
+  const [preparationNotes, setPreparationNotes] = useState<string>('');
+  const [conditioningNotes, setConditioningNotes] = useState<string>('');
   const [commonProtocolNotes, setCommonProtocolNotes] = useState<string>('Éprouvettes usinées sans nœud ni défaut selon prescriptions de la norme.');
 
   // ==========================================
@@ -117,6 +112,11 @@ export function CreateTrialWizardModal({
     0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
   ]);
 
+  // Date de début de l'exposition (jalon T0) — saisie explicite par le technicien.
+  // Défaut : date du jour (dynamique), modifiable à l'étape 6 Calendrier (G52-DATE).
+  // Date civile locale (fuseau du poste, non-UTC) — R9-DATE : aucune dérive UTC/DST.
+  const [startDate, setStartDate] = useState<string>(getTodayLocalISODate());
+
   const toggleCycleMeasurement = (cycleIndex: number) => {
     if (cycleIndex === 0 || cycleIndex === 12) return; // T0 et C12 obligatoires
     setSelectedMeasurementCycles((prev) =>
@@ -125,62 +125,53 @@ export function CreateTrialWizardModal({
   };
 
   const setPlanPreset = (preset: 'FULL' | 'QUARTERLY' | 'LIGHT') => {
-    if (preset === 'FULL') {
-      setSelectedMeasurementCycles([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
-    } else if (preset === 'QUARTERLY') {
-      setSelectedMeasurementCycles([0, 3, 6, 9, 12]);
-    } else if (preset === 'LIGHT') {
-      setSelectedMeasurementCycles([0, 6, 12]);
-    }
+    setSelectedMeasurementCycles(getPresetCycles(preset));
   };
   const [batches, setBatches] = useState<LotFormItem[]>([
     {
       id: '1',
       reference: 'LOT XX1C',
-      woodSpecies: 'Pin sylvestre standardisé',
+      woodSpecies: 'Pin sylvestre',
       productReference: 'LAS-STD-01',
       manufacturerOrSupplier: 'Fournisseur Alpha',
       coatingSystem: 'Système Témoin Standard (3 couches)',
       coatCount: 3,
       substratePreparation: 'Ponçage grain P120',
-      applicationMethod: 'Pinceau',
+      applicationMethod: 'Airmix',
       applicationConditions: '21°C, 55% HR',
-      applicationDate: new Date().toISOString().slice(0, 10),
+      applicationDate: getTodayLocalISODate(),
       dryingOrConditioningTime: '7 jours à 20°C/65% HR',
-      batchNotes: 'Lot témoin sans stabilisant UV renforcé',
-      panelCount: 4
+      batchNotes: 'Lot témoin sans stabilisant UV renforcé'
     },
     {
       id: '2',
       reference: 'LOT XX2C',
-      woodSpecies: 'Pin sylvestre standardisé',
+      woodSpecies: 'Pin sylvestre',
       productReference: 'LAS-UV15-02',
       manufacturerOrSupplier: 'Fournisseur Alpha',
       coatingSystem: 'Système Anti-UV HALS 1.5%',
       coatCount: 3,
       substratePreparation: 'Ponçage grain P120',
-      applicationMethod: 'Pinceau',
+      applicationMethod: 'Airmix',
       applicationConditions: '21°C, 55% HR',
-      applicationDate: new Date().toISOString().slice(0, 10),
+      applicationDate: getTodayLocalISODate(),
       dryingOrConditioningTime: '7 jours à 20°C/65% HR',
-      batchNotes: 'Formulation avec absorbeurs UV organiques',
-      panelCount: 4
+      batchNotes: 'Formulation avec absorbeurs UV organiques'
     },
     {
       id: '3',
       reference: 'LOT XX3C',
-      woodSpecies: 'Pin sylvestre standardisé',
+      woodSpecies: 'Pin sylvestre',
       productReference: 'LAS-NANO-03',
       manufacturerOrSupplier: 'Fournisseur Bêta',
       coatingSystem: 'Système Hybride Nano-TiO2',
       coatCount: 3,
       substratePreparation: 'Ponçage grain P120',
-      applicationMethod: 'Pinceau',
+      applicationMethod: 'Airmix',
       applicationConditions: '21°C, 55% HR',
-      applicationDate: new Date().toISOString().slice(0, 10),
+      applicationDate: getTodayLocalISODate(),
       dryingOrConditioningTime: '7 jours à 20°C/65% HR',
-      batchNotes: 'Formulation avec nano-charges minérales',
-      panelCount: 4
+      batchNotes: 'Formulation avec nano-charges minérales'
     }
   ]);
 
@@ -195,15 +186,19 @@ export function CreateTrialWizardModal({
     'OBSERVATIONS'
   ]);
 
-  const [colorPoints, setColorPoints] = useState<number>(4);
+  const [colorPoints, setColorPoints] = useState<number>(stdColor);
   const [colorJustification, setColorJustification] = useState<string>('');
 
-  const [glossSeriesCount, setGlossSeriesCount] = useState<number>(2);
-  const [glossReadingsPerSeries, setGlossReadingsPerSeries] = useState<number>(2);
+  const [glossSeriesCount, setGlossSeriesCount] = useState<number>(stdGlossSeries);
+  const [glossReadingsPerSeries, setGlossReadingsPerSeries] = useState<number>(stdGlossReadings);
   const [glossJustification, setGlossJustification] = useState<string>('');
 
-  const [persozReps, setPersozReps] = useState<number>(3);
+  const [persozReps, setPersozReps] = useState<number>(stdPersoz);
   const [persozJustification, setPersozJustification] = useState<string>('');
+
+  // Adhérence : la référence est portée par le RuleSet ; toute adaptation positive entière est possible et doit être justifiée.
+  const [adhCount, setAdhCount] = useState<number>(stdAdhesion);
+  const [adhJustification, setAdhJustification] = useState<string>('');
 
   // Gestion des familles
   const toggleFamily = (fam: MeasurementFamilyId) => {
@@ -221,18 +216,17 @@ export function CreateTrialWizardModal({
       {
         id: Date.now().toString(),
         reference: `LOT XX${nextIdx}C`,
-        woodSpecies: materialType || 'Pin sylvestre standardisé',
+        woodSpecies: materialType || 'Pin sylvestre',
         productReference: `PROD-0${nextIdx}`,
-        manufacturerOrSupplier: 'Laboratoire / Fabricant',
+        manufacturerOrSupplier: 'fabricant',
         coatingSystem: `Système Expérimental #${nextIdx}`,
         coatCount: 3,
         substratePreparation: 'Ponçage P120',
-        applicationMethod: 'Pinceau',
+        applicationMethod: 'Airmix',
         applicationConditions: '20°C, 60% HR',
-        applicationDate: new Date().toISOString().slice(0, 10),
+        applicationDate: getTodayLocalISODate(),
         dryingOrConditioningTime: '7 jours à 20°C/65% HR',
         batchNotes: '',
-        panelCount: 4
       }
     ]);
   };
@@ -246,22 +240,46 @@ export function CreateTrialWizardModal({
     setBatches(batches.filter((b) => b.id !== id));
   };
 
-  // Validations adaptations
-  const isColorAdapted = colorPoints !== 4;
-  const isColorAdaptationInvalid = isColorAdapted && colorJustification.trim().length === 0;
+  // Validations adaptations (P5) : références issues du référentiel scientifique,
+  // jamais codées en dur dans le composant.
+  const isColorAdapted = colorPoints !== stdColor;
+  const isColorAdaptationInvalid = isColorAdapted && !isAdaptationJustificationValid(colorJustification);
 
-  const isGlossAdapted = glossSeriesCount !== 2 || glossReadingsPerSeries !== 2;
-  const isGlossAdaptationInvalid = isGlossAdapted && glossJustification.trim().length === 0;
+  const isGlossAdapted = glossSeriesCount !== stdGlossSeries || glossReadingsPerSeries !== stdGlossReadings;
+  const isGlossAdaptationInvalid = isGlossAdapted && !isAdaptationJustificationValid(glossJustification);
 
-  const isPersozAdapted = persozReps !== 3;
-  const isPersozAdaptationInvalid = isPersozAdapted && persozJustification.trim().length === 0;
+  const isPersozAdapted = persozReps !== stdPersoz;
+  const isPersozAdaptationInvalid = isPersozAdapted && !isAdaptationJustificationValid(persozJustification);
+
+  const isAdhAdapted = adhCount !== stdAdhesion;
+  const isAdhAdaptationInvalid = isAdhAdapted && !isAdaptationJustificationValid(adhJustification);
+
+  // Gardes de saisie (P5) : les configurations de mesure sont des entiers finis ≥ 1.
+  // 0, valeurs décimales et NaN sont ramenés à l'entier valide le plus proche.
+  const clampIntState = (
+    raw: number | ((prev: number) => number),
+    prev: number,
+    fallback: number
+  ): number => {
+    const candidate = typeof raw === 'function' ? raw(prev) : raw;
+    const n = Number(candidate);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.max(1, Math.floor(n));
+  };
+  const handleColorPointsChange: NumberSetter = (v) => setColorPoints(clampIntState(v, colorPoints, stdColor));
+  const handleGlossSeriesCountChange: NumberSetter = (v) => setGlossSeriesCount(clampIntState(v, glossSeriesCount, stdGlossSeries));
+  const handleGlossReadingsPerSeriesChange: NumberSetter = (v) => setGlossReadingsPerSeries(clampIntState(v, glossReadingsPerSeries, stdGlossReadings));
+  const handlePersozRepsChange: NumberSetter = (v) => setPersozReps(clampIntState(v, persozReps, stdPersoz));
+  const handleAdhCountChange: NumberSetter = (v) => setAdhCount(clampIntState(v, adhCount, stdAdhesion));
 
   const isStep1Valid = Boolean(reference.trim() && createdBy.trim());
-  const isStep5Valid = !isColorAdaptationInvalid && !isGlossAdaptationInvalid && !isPersozAdaptationInvalid;
+  const isStep3Valid = batches.length > 0 && batches.every((b) => b.reference.trim().length > 0);
+  const isStep5Valid = !isColorAdaptationInvalid && !isGlossAdaptationInvalid && !isPersozAdaptationInvalid && !isAdhAdaptationInvalid;
   const isFinalStepValid = Boolean(createdBy.trim());
 
-  // Calcul du nombre total de panneaux
-  const totalPanelsCount = batches.reduce((sum, b) => sum + (Number(b.panelCount) || 1), 0);
+  // Calcul du nombre total de panneaux : configuration canonique,
+  // 4 panneaux par lot (T, E1, E2, E3).
+  const totalPanelsCount = batches.length * 4;
 
   // Soumission finale
   const handleFinalCreate = () => {
@@ -305,20 +323,34 @@ export function CreateTrialWizardModal({
       generalProtocolNotes: commonProtocolNotes
     };
 
+    try {
+    if (
+      (isColorAdapted && !isAdaptationJustificationValid(colorJustification)) ||
+      (isGlossAdapted && !isAdaptationJustificationValid(glossJustification)) ||
+      (isPersozAdapted && !isAdaptationJustificationValid(persozJustification)) ||
+      (isAdhAdapted && !isAdaptationJustificationValid(adhJustification))
+    ) {
+      window.alert('Justification obligatoire : 8 caractères minimum pour toute adaptation.');
+      return;
+    }
     const colorConfig = isColorAdapted
       ? createCountConfiguration('COLOR', colorPoints, ruleSet, { justification: colorJustification, operatorId: trimmedCreatedBy })
-      : createCountConfiguration('COLOR', 4, ruleSet);
+      : createCountConfiguration('COLOR', stdColor, ruleSet);
 
     const glossConfig = isGlossAdapted
       ? createSeriesConfiguration('GLOSS', glossSeriesCount, glossReadingsPerSeries, ruleSet, {
           justification: glossJustification,
           operatorId: trimmedCreatedBy
         })
-      : createSeriesConfiguration('GLOSS', 2, 2, ruleSet);
+      : createSeriesConfiguration('GLOSS', stdGlossSeries, stdGlossReadings, ruleSet);
 
     const persozConfig = isPersozAdapted
       ? createCountConfiguration('PERSOZ', persozReps, ruleSet, { justification: persozJustification, operatorId: trimmedCreatedBy })
-      : createCountConfiguration('PERSOZ', 3, ruleSet);
+      : createCountConfiguration('PERSOZ', stdPersoz, ruleSet);
+
+    const adhConfig = isAdhAdapted
+      ? createCountConfiguration('ADHESION', adhCount, ruleSet, { justification: adhJustification, operatorId: trimmedCreatedBy })
+      : createCountConfiguration('ADHESION', stdAdhesion, ruleSet);
 
     const createdTrial = globalTrialStore.createTrial({
       metadata,
@@ -335,33 +367,40 @@ export function CreateTrialWizardModal({
         applicationConditions: b.applicationConditions.trim(),
         applicationDate: b.applicationDate,
         dryingOrConditioningTime: b.dryingOrConditioningTime.trim(),
-        batchNotes: b.batchNotes.trim(),
-        panelCount: Number(b.panelCount) || 4
+        batchNotes: b.batchNotes.trim()
       })),
       activeFamilies,
       familyConfigs: {
         COLOR: { familyId: 'COLOR', enabled: activeFamilies.includes('COLOR'), countConfig: colorConfig },
         GLOSS: { familyId: 'GLOSS', enabled: activeFamilies.includes('GLOSS'), seriesConfig: glossConfig },
         PERSOZ: { familyId: 'PERSOZ', enabled: activeFamilies.includes('PERSOZ'), countConfig: persozConfig },
-        ADHESION: { familyId: 'ADHESION', enabled: activeFamilies.includes('ADHESION') },
+        ADHESION: { familyId: 'ADHESION', enabled: activeFamilies.includes('ADHESION'), countConfig: adhConfig },
         OBSERVATIONS: { familyId: 'OBSERVATIONS', enabled: activeFamilies.includes('OBSERVATIONS') }
       },
-      selectedMeasurementCycles
+      selectedMeasurementCycles,
+      startDate
     });
 
     if (onCreated) onCreated(createdTrial.id);
     onClose();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      window.alert(`Création de l'essai refusée : ${message}`);
+    }
   };
 
-  const stepsList = [
-    { num: 1, label: '01 Identification' },
-    { num: 2, label: '02 Caractéristiques' },
-    { num: 3, label: '03 Lots' },
-    { num: 4, label: '04 Panneaux' },
-    { num: 5, label: '05 Plan de Mesure' },
-    { num: 6, label: '06 Calendrier' },
-    { num: 7, label: '07 Validation' }
-  ];
+  // Étape 04 Panneaux masquée (demande utilisateur) : le flux saute de 03 à 05.
+  // Le composant WizardStep4Panels est conservé (réactivation possible).
+  const stepsList = WIZARD_STEPS_LIST;
+  const goNextStep = () => {
+    if (step === 1 && !isStep1Valid) return;
+    if (step === 3 && !isStep3Valid) return;
+    if (step === 5 && !isStep5Valid) return;
+    setStep(NEXT_WIZARD_STEP[step]);
+  };
+  const goPrevStep = () => {
+    setStep(PREVIOUS_WIZARD_STEP[step]);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
@@ -374,7 +413,6 @@ export function CreateTrialWizardModal({
             </div>
             <div>
               <h2 className="text-base font-bold">Assistant de Création d'un Nouvel Essai</h2>
-              <p className="text-xs text-slate-400">Flux Métier Laboratoire • NF EN 927-6 • Référentiel Permanent</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors">
@@ -389,7 +427,7 @@ export function CreateTrialWizardModal({
               key={s.num}
               onClick={() => {
                 // Navigation vers étapes antérieures toujours permise
-                if (s.num < step) setStep(s.num as any);
+                if (s.num < step) setStep(s.num);
               }}
               className={`flex items-center gap-2 font-medium shrink-0 ${
                 s.num < step ? 'cursor-pointer hover:opacity-80' : ''
@@ -446,10 +484,6 @@ export function CreateTrialWizardModal({
               onDimUnitChange={setDimUnit}
               substrateNature={substrateNature}
               onSubstrateNatureChange={setSubstrateNature}
-              materialType={materialType}
-              onMaterialTypeChange={setMaterialType}
-              woodGrainOrientation={woodGrainOrientation}
-              onWoodGrainOrientationChange={setWoodGrainOrientation}
               preparationNotes={preparationNotes}
               onPreparationNotesChange={setPreparationNotes}
               conditioningNotes={conditioningNotes}
@@ -467,31 +501,37 @@ export function CreateTrialWizardModal({
             />
           )}
 
-          {step === 4 && (
-            <WizardStep4Panels batches={batches} totalPanelsCount={totalPanelsCount} />
-          )}
-
           {step === 5 && (
             <WizardStep5Families
               activeFamilies={activeFamilies}
               onToggleFamily={toggleFamily}
               colorPoints={colorPoints}
-              onColorPointsChange={setColorPoints}
+              onColorPointsChange={handleColorPointsChange}
+              standardColorPoints={stdColor}
               colorJustification={colorJustification}
               onColorJustificationChange={setColorJustification}
               isColorAdapted={isColorAdapted}
               glossSeriesCount={glossSeriesCount}
-              onGlossSeriesCountChange={setGlossSeriesCount}
+              onGlossSeriesCountChange={handleGlossSeriesCountChange}
+              standardGlossSeriesCount={stdGlossSeries}
               glossReadingsPerSeries={glossReadingsPerSeries}
-              onGlossReadingsPerSeriesChange={setGlossReadingsPerSeries}
+              onGlossReadingsPerSeriesChange={handleGlossReadingsPerSeriesChange}
+              standardGlossReadingsPerSeries={stdGlossReadings}
               glossJustification={glossJustification}
               onGlossJustificationChange={setGlossJustification}
               isGlossAdapted={isGlossAdapted}
               persozReps={persozReps}
-              onPersozRepsChange={setPersozReps}
+              onPersozRepsChange={handlePersozRepsChange}
+              standardPersozReps={stdPersoz}
               persozJustification={persozJustification}
               onPersozJustificationChange={setPersozJustification}
               isPersozAdapted={isPersozAdapted}
+              adhCount={adhCount}
+              onAdhCountChange={handleAdhCountChange}
+              standardAdhesionCount={stdAdhesion}
+              adhJustification={adhJustification}
+              onAdhJustificationChange={setAdhJustification}
+              isAdhAdapted={isAdhAdapted}
             />
           )}
 
@@ -499,6 +539,8 @@ export function CreateTrialWizardModal({
             <WizardStep6Calendar
               activeFamilies={activeFamilies}
               selectedMeasurementCycles={selectedMeasurementCycles}
+              startDate={startDate}
+              onStartDateChange={setStartDate}
               onPreset={setPlanPreset}
               onToggleCycle={toggleCycleMeasurement}
             />
@@ -524,7 +566,10 @@ export function CreateTrialWizardModal({
               glossSeriesCount={glossSeriesCount}
               glossReadingsPerSeries={glossReadingsPerSeries}
               persozReps={persozReps}
+              adhCount={adhCount}
+              isAdhAdapted={isAdhAdapted}
               selectedMeasurementCycles={selectedMeasurementCycles}
+              startDate={startDate}
             />
           )}
         </div>
@@ -534,7 +579,7 @@ export function CreateTrialWizardModal({
           <div>
             {step > 1 && (
               <button
-                onClick={() => setStep((step - 1) as any)}
+                onClick={goPrevStep}
                 className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 hover:bg-white text-slate-700 rounded-xl text-xs font-bold transition-colors shadow-xs"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -553,12 +598,8 @@ export function CreateTrialWizardModal({
 
             {step < 7 ? (
               <button
-                onClick={() => {
-                  if (step === 1 && !isStep1Valid) return;
-                  if (step === 5 && !isStep5Valid) return;
-                  setStep((step + 1) as any);
-                }}
-                disabled={(step === 1 && !isStep1Valid) || (step === 5 && !isStep5Valid)}
+                onClick={goNextStep}
+                disabled={(step === 1 && !isStep1Valid) || (step === 3 && !isStep3Valid) || (step === 5 && !isStep5Valid)}
                 className="flex items-center gap-1.5 px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs disabled:opacity-50"
               >
                 Suivant

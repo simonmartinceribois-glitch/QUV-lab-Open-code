@@ -41,10 +41,6 @@ export function PhotoModeSwitcher({
                   NF EN 927-6
                 </span>
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Module documentaire transversal • Rattachement strict :{' '}
-                <span className="font-semibold text-slate-800">Essai → Lot → Échantillon → Jalon</span>
-              </p>
             </div>
           </div>
         </div>

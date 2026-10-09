@@ -5,8 +5,17 @@
 
 import React, { useState } from 'react';
 import { Trial, PanelDefinition, BatchDefinition } from '../../types/trial';
-import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
-import { isFamilyScheduledForStage } from '../../scientific/panelUtils';
+import {
+  ScientificRuleSet,
+  MeasurementFamilyId,
+  ColorComputedData,
+  GlossComputedData,
+  PersozComputedData,
+  AdhesionComputedData,
+  VisualObservationsComputedData
+} from '../../types/scientific';
+import { getQualityStatus } from '../../scientific/validity';
+import { isFamilyScheduledForStage, formatStageOption, formatStageShort } from '../../scientific/panelUtils';
 import {
   Square,
   Sparkles,
@@ -193,7 +202,7 @@ export function ResultsPanelAnalysisView({
               <thead>
                 <tr className="bg-slate-100 text-slate-700 border-b border-slate-200 font-bold">
                   <th className="p-2.5">Étape d'Exposition</th>
-                  <th className="p-2.5">Heures Réelles</th>
+                  <th className="p-2.5">Jalon (h)</th>
                   {selectedFamily === 'COLOR' && (
                     <>
                       <th className="p-2.5">Moyenne L*</th>
@@ -244,19 +253,29 @@ export function ResultsPanelAnalysisView({
                 {trial.stages
                   .filter(
                     (stage) =>
-                      isFamilyScheduledForStage(selectedFamily, stage) ||
-                      Boolean(trial.acquisitions[`${stage.id}__${activePanel.id}__${selectedFamily}`]?.raw)
+                      // Plan de mesurage : jalons INACTIVE exclus (fix/results-active-stages).
+                      stage.status !== 'INACTIVE' &&
+                      (isFamilyScheduledForStage(selectedFamily, stage) ||
+                        Boolean(trial.acquisitions[`${stage.id}__${activePanel.id}__${selectedFamily}`]?.raw))
                   )
                   .map((stage) => {
                   const key = `${stage.id}__${activePanel.id}__${selectedFamily}`;
                   const acq = trial.acquisitions[key];
-                  const comp = acq?.computed as any;
+                  // Union pour les accès communs (qualityAssessment, computation) présents sur les 5 types ;
+                  // chaque branche ci-dessous affine avec le type de sa famille (narrowing local).
+                  const compMeta = acq?.computed as
+                    | ColorComputedData
+                    | GlossComputedData
+                    | PersozComputedData
+                    | AdhesionComputedData
+                    | VisualObservationsComputedData
+                    | undefined;
 
                   if (!acq || !acq.raw) {
                     return (
                       <tr key={stage.id} className="text-slate-400">
                         <td className="p-2.5 font-bold font-mono text-slate-600">
-                          {stage.scheduledExposureHours} h ({stage.name})
+                          {formatStageOption(stage)}
                         </td>
                         <td className="p-2.5">—</td>
                         <td colSpan={8} className="p-2.5 text-slate-400 italic">
@@ -270,108 +289,165 @@ export function ResultsPanelAnalysisView({
                     <tr key={stage.id} className="hover:bg-slate-50">
                       <td className="p-2.5 font-bold text-slate-900">
                         <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-[10px] text-slate-700 mr-2">
-                          {stage.scheduledExposureHours} h
+                          {formatStageShort(stage)}
                         </span>
                         {stage.cycleIndex === 0 ? 'T0 (Initiale)' : stage.cycleIndex === 12 ? '2016 h (Finale)' : `Cycle ${stage.cycleIndex}`}
                       </td>
                       <td className="p-2.5 font-mono text-slate-600">
-                        {stage.actualExposureHours !== undefined ? `${stage.actualExposureHours} h` : '—'}
+                        {stage.scheduledExposureHours} h
                       </td>
 
-                      {selectedFamily === 'COLOR' && (
+                      {selectedFamily === 'COLOR' && (() => {
+                        const compColor = acq?.computed as ColorComputedData | undefined;
+                        return (
                         <>
-                          <td className="p-2.5 font-mono text-slate-800">{comp?.meanL?.toFixed(2) ?? '—'}</td>
-                          <td className="p-2.5 font-mono text-slate-800">{comp?.meanA?.toFixed(2) ?? '—'}</td>
-                          <td className="p-2.5 font-mono text-slate-800">{comp?.meanB?.toFixed(2) ?? '—'}</td>
+                          <td className="p-2.5 font-mono text-slate-800">{compColor?.meanL?.toFixed(2) ?? '—'}</td>
+                          <td className="p-2.5 font-mono text-slate-800">{compColor?.meanA?.toFixed(2) ?? '—'}</td>
+                          <td className="p-2.5 font-mono text-slate-800">{compColor?.meanB?.toFixed(2) ?? '—'}</td>
                           <td className="p-2.5 font-mono text-amber-950 font-bold bg-amber-50/40">
-                            {comp?.deltaL !== null && comp?.deltaL !== undefined
-                              ? (comp.deltaL > 0 ? `+${comp.deltaL.toFixed(2)}` : comp.deltaL.toFixed(2))
+                            {compColor?.deltaL !== null && compColor?.deltaL !== undefined
+                              ? (compColor.deltaL > 0 ? `+${compColor.deltaL.toFixed(2)}` : compColor.deltaL.toFixed(2))
                               : '—'}
                           </td>
                           <td className="p-2.5 font-mono text-amber-950 font-bold bg-amber-50/40">
-                            {comp?.deltaA !== null && comp?.deltaA !== undefined
-                              ? (comp.deltaA > 0 ? `+${comp.deltaA.toFixed(2)}` : comp.deltaA.toFixed(2))
+                            {compColor?.deltaA !== null && compColor?.deltaA !== undefined
+                              ? (compColor.deltaA > 0 ? `+${compColor.deltaA.toFixed(2)}` : compColor.deltaA.toFixed(2))
                               : '—'}
                           </td>
                           <td className="p-2.5 font-mono text-amber-950 font-bold bg-amber-50/40">
-                            {comp?.deltaB !== null && comp?.deltaB !== undefined
-                              ? (comp.deltaB > 0 ? `+${comp.deltaB.toFixed(2)}` : comp.deltaB.toFixed(2))
+                            {compColor?.deltaB !== null && compColor?.deltaB !== undefined
+                              ? (compColor.deltaB > 0 ? `+${compColor.deltaB.toFixed(2)}` : compColor.deltaB.toFixed(2))
                               : '—'}
                           </td>
                           <td className="p-2.5 font-mono bg-purple-50 text-purple-900 font-black text-right">
-                            {comp?.deltaE !== null && comp?.deltaE !== undefined ? comp.deltaE.toFixed(2) : 'RÉF'}
+                            {compColor?.deltaE !== null && compColor?.deltaE !== undefined ? compColor.deltaE.toFixed(2) : 'RÉF'}
                           </td>
                         </>
-                      )}
+                        );
+                      })()}
 
-                      {selectedFamily === 'GLOSS' && (
+                      {selectedFamily === 'GLOSS' && (() => {
+                        const compGloss = acq?.computed as GlossComputedData | undefined;
+                        return (
                         <>
                           <td className="p-2.5 font-mono text-slate-900 font-bold">
-                            {comp?.meanGloss !== null ? `${comp?.meanGloss.toFixed(1)} GU` : '—'}
+                            {compGloss?.meanGloss !== null ? `${compGloss?.meanGloss.toFixed(1)} GU` : '—'}
                           </td>
-                          <td className="p-2.5 font-mono text-slate-600">{comp?.stdDevGloss?.toFixed(2) ?? '—'}</td>
+                          <td className="p-2.5 font-mono text-slate-600">{compGloss?.stdDevGloss?.toFixed(2) ?? '—'}</td>
                           <td className="p-2.5 font-mono text-amber-950 font-bold bg-amber-50/40">
-                            {comp?.deltaGloss !== null && comp?.deltaGloss !== undefined
-                              ? `${comp.deltaGloss > 0 ? '+' : ''}${comp.deltaGloss.toFixed(1)} GU`
+                            {compGloss?.deltaGloss !== null && compGloss?.deltaGloss !== undefined
+                              ? `${compGloss.deltaGloss > 0 ? '+' : ''}${compGloss.deltaGloss.toFixed(1)} GU`
                               : 'RÉF'}
                           </td>
                           <td className="p-2.5 font-mono bg-emerald-50 text-emerald-950 font-black text-right">
-                            {stage.cycleIndex === 0 && comp?.meanGloss !== null && comp?.meanGloss !== undefined
+                            {stage.cycleIndex === 0 && compGloss?.meanGloss !== null && compGloss?.meanGloss !== undefined
                               ? '100.0 %'
-                              : comp?.retentionRatePercent !== null && comp?.retentionRatePercent !== undefined
-                              ? `${comp.retentionRatePercent.toFixed(1)} %`
+                              : compGloss?.retentionRatePercent !== null && compGloss?.retentionRatePercent !== undefined
+                              ? `${compGloss.retentionRatePercent.toFixed(1)} %`
                               : '—'}
                           </td>
                         </>
-                      )}
+                        );
+                      })()}
 
-                      {selectedFamily === 'PERSOZ' && (
+                      {selectedFamily === 'PERSOZ' && (() => {
+                        const compPersoz = acq?.computed as PersozComputedData | undefined;
+                        return (
                         <>
                           <td className="p-2.5 font-mono text-slate-900 font-bold">
-                            {comp?.meanDampingTime !== null ? `${comp?.meanDampingTime.toFixed(1)} s` : '—'}
+                            {compPersoz?.meanDampingTime !== null && compPersoz?.meanDampingTime !== undefined ? `${compPersoz.meanDampingTime.toFixed(1)} s` : '—'}
                           </td>
-                          <td className="p-2.5 font-mono text-slate-600">{comp?.stdDevDampingTime?.toFixed(2) ?? '—'}</td>
-                          <td className="p-2.5 font-mono text-slate-600">{comp?.coefficientOfVariationPercent?.toFixed(1) ?? '—'} %</td>
+                          <td className="p-2.5 font-mono text-slate-600">{compPersoz?.stdDevDampingTime?.toFixed(2) ?? '—'}</td>
+                          <td className="p-2.5 font-mono text-slate-600">{compPersoz?.coefficientOfVariationPercent?.toFixed(1) ?? '—'} %</td>
                           <td className="p-2.5 font-mono text-amber-950 font-bold bg-amber-50/40">
-                            {comp?.deltaDampingTime !== null && comp?.deltaDampingTime !== undefined
-                              ? `${comp.deltaDampingTime > 0 ? '+' : ''}${comp.deltaDampingTime.toFixed(1)} s`
+                            {compPersoz?.deltaDampingTime !== null && compPersoz?.deltaDampingTime !== undefined
+                              ? `${compPersoz.deltaDampingTime > 0 ? '+' : ''}${compPersoz.deltaDampingTime.toFixed(1)} s`
                               : 'RÉF'}
                           </td>
                         </>
-                      )}
+                        );
+                      })()}
 
-                      {selectedFamily === 'ADHESION' && (
+                      {selectedFamily === 'ADHESION' && (() => {
+                        const compAdh = acq?.computed as AdhesionComputedData | undefined;
+                        const indiv = compAdh && Array.isArray(compAdh.individualResults) ? compAdh.individualResults : [];
+                        const isMulti = indiv.length > 1;
+                        return (
                         <>
                           <td className="p-2.5 font-mono text-slate-900 font-bold">
                             <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded font-bold">
-                              Classe {comp?.adhesionClass ?? '—'}
+                              {isMulti
+                                ? (compAdh?.panelMean !== null && compAdh?.panelMean !== undefined ? `Moy. ${compAdh.panelMean}` : '—')
+                                : `Classe ${compAdh?.adhesionClass ?? '—'}`}
                             </span>
+                            {isMulti && (
+                              <span className="block text-[10px] font-normal text-slate-500 mt-0.5">
+                                {indiv.map((m) => `M${m.measurementIndex}=${m.adhesionClass ?? '—'}`).join(' · ')}
+                              </span>
+                            )}
                           </td>
-                          <td className="p-2.5 font-mono text-slate-600">{comp?.gridSpacingUsedMm ? `${comp.gridSpacingUsedMm} mm` : '—'}</td>
-                          <td className="p-2.5 font-mono text-slate-600">{comp?.elapsedTimeHours ? `${comp.elapsedTimeHours} h` : '—'}</td>
-                          <td className="p-2.5 font-mono text-indigo-950 font-bold bg-indigo-50/40">
-                            {comp?.deltaAdhesionClass !== null && comp?.deltaAdhesionClass !== undefined
-                              ? `${comp.deltaAdhesionClass > 0 ? '+' : ''}${comp.deltaAdhesionClass}`
+                          <td className="p-2.5 font-mono text-slate-600">{compAdh?.gridSpacingUsedMm ? `${compAdh.gridSpacingUsedMm} mm` : '—'}</td>
+                          <td className="p-2.5 font-mono text-slate-600">{compAdh?.elapsedTimeHours ? `${compAdh.elapsedTimeHours} h` : '—'}</td>
+                          <td className="p-2.5 font-mono text-indigo-950 font-bold bg-indigo-50/40" title={isMulti ? 'Δ classement moyen — indicateur complémentaire (non normatif ISO 2409)' : undefined}>
+                            {compAdh?.deltaAdhesionClass !== null && compAdh?.deltaAdhesionClass !== undefined
+                              ? `${compAdh.deltaAdhesionClass > 0 ? '+' : ''}${compAdh.deltaAdhesionClass}${isMulti ? ' (compl.)' : ''}`
                               : 'RÉF'}
                           </td>
-                          <td className="p-2.5 text-xs text-slate-700">{comp?.classDescription || '—'}</td>
+                          <td className="p-2.5 text-xs text-slate-700">{compAdh?.classDescription || '—'}</td>
                         </>
-                      )}
+                        );
+                      })()}
 
-                      {selectedFamily === 'OBSERVATIONS' && (
+                      {selectedFamily === 'OBSERVATIONS' && (() => {
+                        const compObs = acq?.computed as VisualObservationsComputedData | undefined;
+                        const obsStatus = getQualityStatus(acq?.computed);
+                        return (
                         <>
-                          <td className="p-2.5 text-slate-800">{comp?.summary || 'Aspect normal'}</td>
-                          <td className="p-2.5 font-mono text-slate-600">ISO 4628 : Conforme</td>
+                          <td className="p-2.5 text-slate-800">{compObs?.summary ?? 'Non évalué'}</td>
+                          <td className="p-2.5 font-mono text-slate-600">
+                            {compObs
+                              ? (compObs.defectsCount > 0
+                                  ? `${compObs.defectsCount} défaut(s) relevé(s)`
+                                  : 'Aucun défaut coté')
+                              : 'Non évalué'}
+                          </td>
+                          <td className="p-2.5 text-center">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              obsStatus === 'GOOD'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : obsStatus === 'WARNING'
+                                ? 'bg-amber-100 text-amber-800'
+                                : obsStatus === 'INVALID'
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              {obsStatus ?? 'EN_ATTENTE'}
+                            </span>
+                          </td>
                         </>
-                      )}
+                        );
+                      })()}
 
-                      <td className="p-2.5 text-center">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                          {comp?.qualityAssessment?.status || 'GOOD'}
-                        </span>
-                      </td>
+                      {selectedFamily !== 'OBSERVATIONS' && (() => {
+                        const qualityStatus = getQualityStatus(acq?.computed);
+                        return (
+                        <td className="p-2.5 text-center">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            qualityStatus === 'GOOD'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : qualityStatus === 'WARNING'
+                              ? 'bg-amber-100 text-amber-800'
+                              : qualityStatus === 'INVALID'
+                              ? 'bg-rose-100 text-rose-800'
+                              : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            {qualityStatus ?? 'EN_ATTENTE'}
+                          </span>
+                        </td>
+                        );
+                      })()}
                       <td className="p-2.5 text-center font-mono text-[10px] text-slate-500">
-                        v{comp?.computation?.calculationVersion || ruleSet.version}
+                        v{compMeta?.computation?.calculationVersion || ruleSet.version}
                       </td>
                     </tr>
                   );
@@ -411,7 +487,7 @@ export function ResultsPanelAnalysisView({
                 <div key={stage.id} className="p-4 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-900 font-mono">
-                      Étape {stage.scheduledExposureHours} h — {stage.name}
+                      Étape {formatStageOption(stage)}
                     </span>
                     <span className="text-[10px] text-slate-500">
                       Saisie par {acq.trace.createdBy} le {new Date(acq.trace.createdAt).toLocaleString('fr-FR')} (Source: {acq.trace.source})

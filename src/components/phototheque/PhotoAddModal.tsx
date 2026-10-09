@@ -7,7 +7,7 @@
 import type { ChangeEvent, Dispatch, SetStateAction } from 'react';
 import { useMemo } from 'react';
 import { Camera, X, AlertCircle, AlertTriangle } from 'lucide-react';
-import { getActiveStages } from '../../scientific/panelUtils';
+import { getActiveStages, formatStageOption } from '../../scientific/panelUtils';
 import type { MediaReference, PanelDefinition, Trial } from '../../types/trial';
 
 interface Props {
@@ -20,13 +20,11 @@ interface Props {
   onPanelIdChange: Dispatch<SetStateAction<string>>;
   newPhotoStageId: string;
   onStageIdChange: Dispatch<SetStateAction<string>>;
-  newPhotoFace: string;
-  onFaceChange: Dispatch<SetStateAction<string>>;
   newPhotoCaption: string;
   onCaptionChange: Dispatch<SetStateAction<string>>;
   newPhotoOperator: string;
   onOperatorChange: Dispatch<SetStateAction<string>>;
-  newPhotoDataUrl: string;
+  newPhotoPreviewUrl: string;
   modalBatchPanels: PanelDefinition[];
   onFileSelected: (e: ChangeEvent<HTMLInputElement>) => void;
   onSavePhoto: () => void;
@@ -43,13 +41,11 @@ export function PhotoAddModal({
   onPanelIdChange,
   newPhotoStageId,
   onStageIdChange,
-  newPhotoFace,
-  onFaceChange,
   newPhotoCaption,
   onCaptionChange,
   newPhotoOperator,
   onOperatorChange,
-  newPhotoDataUrl,
+  newPhotoPreviewUrl,
   modalBatchPanels,
   onFileSelected,
   onSavePhoto,
@@ -137,24 +133,9 @@ export function PhotoAddModal({
             >
               {activeStages.map((st) => (
                 <option key={st.id} value={st.id}>
-                  {st.name} ({st.scheduledExposureHours}h)
+                  {formatStageOption(st)}
                 </option>
               ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-              4. Face photographiée
-            </label>
-            <select
-              value={newPhotoFace}
-              onChange={(e) => onFaceChange(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg font-medium"
-            >
-              <option value="Face externe">Face externe (exposée UV)</option>
-              <option value="Face interne">Face interne (non exposée)</option>
-              <option value="Tranche / Rive">Tranche / Rive</option>
             </select>
           </div>
 
@@ -169,10 +150,10 @@ export function PhotoAddModal({
                 onChange={onFileSelected}
                 className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
               />
-              {newPhotoDataUrl && (
+              {newPhotoPreviewUrl && (
                 <div className="mt-3 aspect-16/9 max-h-36 rounded-lg overflow-hidden border border-slate-200 mx-auto">
                   <img
-                    src={newPhotoDataUrl}
+                    src={newPhotoPreviewUrl}
                     alt="Aperçu"
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"

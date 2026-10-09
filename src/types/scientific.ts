@@ -26,8 +26,8 @@ export type QualityStatus =
 
 /** Niveau 4 : Statut de conformité du protocole de mesure */
 export type ProtocolComplianceStatus =
-  | 'STANDARD'            // Conforme aux paramètres par défaut de la référence normative
-  | 'ADAPTED_JUSTIFIED'   // Diffère du standard avec justification technique enregistrée
+  | 'STANDARD'            // Référence normative/scientifique retenue
+  | 'ADAPTED_JUSTIFIED'   // Configuration adaptée, explicitement justifiée
   | 'ADAPTED_UNJUSTIFIED' // Diffère du standard SANS justification (bloquant)
   | 'INCOMPLETE'          // Paramétrage incomplet
   | 'INVALID';            // Valeurs incohérentes
@@ -43,7 +43,7 @@ export type ScientificRuleOrigin =
   | 'NORMATIVE_REQUIREMENT' // Exigence stricte issue d'une norme officielle (ex: NF EN 927-6 clauses 6.3.2, 6.3.3)
   | 'LAB_RECOMMENDATION'    // Recommandation ou procédure interne du laboratoire (ex: Dureté Persoz ISO 1522)
   | 'METROLOGICAL_CHOICE'   // Choix méthodologique métrologique (ex: Écart-type échantillon n-1, seuils de dispersion)
-  | 'PROTOCOL_ADAPTATION';  // Dérogation / adaptation locale configurée par l'opérateur avec justification
+  | 'PROTOCOL_ADAPTATION';  // Configuration adaptée du cadre retenu pour l'essai
 
 /** Alias de compatibilité avec v1.1 */
 export type RuleSource = ScientificRuleOrigin | 'NORMATIVE' | 'LABORATORY' | 'PROJECT' | 'USER_CUSTOM';
@@ -97,6 +97,26 @@ export interface MeasurementAlert {
 export interface ComputationMetadata {
   calculationVersion: string;
   calculatedAt: ISODateString;
+}
+
+/**
+ * Règle de sélection de la référence scientifique d'un calcul :
+ * - SAME_PANEL_T0 : T0 du même panneau (COLOR, GLOSS, PERSOZ hors T0).
+ * - T0_WITNESS_REFERENCE : T0 du panneau témoin T (ADHÉSION C12, Gate 5.6).
+ * - NONE : aucune référence utilisée (mesure initiale, OBSERVATIONS, référence absente).
+ */
+export type ReferenceRule = 'SAME_PANEL_T0' | 'T0_WITNESS_REFERENCE' | 'NONE';
+
+/**
+ * Traçabilité explicite de la référence scientifique : identifie l'étape,
+ * le panneau et l'acquisition source effectivement utilisés, plus la règle.
+ * Champs d'identifiants à null quand aucune référence n'est utilisée (NONE).
+ */
+export interface ReferenceTrace {
+  referenceStageId: UUID | null;
+  referencePanelId: UUID | null;
+  referenceAcquisitionId: UUID | null;
+  referenceRule: ReferenceRule;
 }
 
 // ============================================================================
@@ -189,14 +209,55 @@ export interface ScientificRuleSet {
   };
   statisticalRules: {
     stdDevMethod: StandardDeviationMethod;
-    glossGeometryDefault: '60' | '20' | '85' | string;
+    /** Géométrie optique de brillance configurée (ex: 60°). Optionnelle : si
+     *  absente du RuleSet ET absente des métadonnées RAW, le calcul est INVALID
+     *  (aucun repli silencieux). */
+    glossGeometryDefault?: '60' | '20' | '85' | string;
     maxGlossDispersionPercent?: number;
     maxColorStdDev?: number;
+    /** Seuil de rétention de brillance — CRITÈRE COMPLÉMENTAIRE d'étude (origine
+     *  INFIPERF / FCBA). N'est JAMAIS une exigence de conformité NF EN 927-6.
+     *  Source de vérité unique : la couche CRITÈRE (S3) le lit ici, jamais en dur. */
+    retentionThresholdPercent: number;
+  };
+  preExposureConditioning: {
+    requiredHours: number;
+    standardReference: string;
+    clause: string;
+    rationale: string;
   };
   sourceReference: string;
   status: 'VERIFIED' | 'TO_BE_CONFIRMED';
   validatedBy?: string;
   validatedAt?: ISODateString;
+}
+
+// ============================================================================
+// 3bis. CONTEXTE SCIENTIFIQUE HISTORIQUE (ÉTAPE 1 — CONTRAT DE TYPE UNIQUEMENT)
+// ============================================================================
+// Contrat de type préparant le futur gel du contexte scientifique d'un essai.
+// À cette étape, AUCUN comportement ne consomme encore ce type : il est ajouté
+// de manière strictement additive et rétrocompatible (champ optionnel sur Trial).
+// La capture (snapshot par valeur) et le figeage seront traités dans les étapes
+// ultérieures de l'architecture validée.
+
+export type ScientificContextStatus =
+  | 'FROZEN'
+  | 'NOT_FROZEN';
+
+export interface ScientificContext {
+  scientificRuleSetId: string;
+  scientificRuleSetVersion: string;
+  /** Copie PAR VALEUR du référentiel scientifique au moment du gel (jamais une référence live). */
+  scientificRuleSetSnapshot: ScientificRuleSet;
+  /** Étiquette de version du moteur — information de traçabilité, jamais un mécanisme de restauration. */
+  calculationEngineVersion: string;
+  /** Versions moteur par famille, lorsqu'elles ont été tracées au gel. Optionnel. */
+  engineVersionsByFamily?: Record<MeasurementFamilyId, string>;
+  frozenAt: ISODateString;
+  frozenBy: string;
+  frozenTrigger: 'FIRST_ACQUISITION';
+  status: ScientificContextStatus;
 }
 
 // ============================================================================
@@ -253,11 +314,9 @@ export interface ColorComputedData {
   deltaA: number | null;
   deltaB: number | null;
   deltaE: number | null;
-  deltaC?: number | null;
-  deltaH?: number | null;
-  criterionCategory?: string;
   qualityAssessment: QualityAssessment;
   protocolStatus: ProtocolComplianceStatus;
+  referenceTrace?: ReferenceTrace;
   computation: ComputationMetadata;
 }
 
@@ -269,7 +328,7 @@ export interface GlossRawPoint {
 
 export interface GlossMeasurementSeries {
   seriesIndex: number;
-  orientation: 'GRAIN_DIRECTION' | 'PERPENDICULAR_DIRECTION' | string;
+  orientation: 'GRAIN_DIRECTION' | 'OPPOSITE_GRAIN_DIRECTION' | string;
   readings: GlossRawPoint[];
 }
 
@@ -301,10 +360,9 @@ export interface GlossComputedData {
   deltaGloss: number | null;
   deltaGlossStdDev?: number | null;
   retentionRatePercent: number | null;
-  infiperfAlert?: { active: boolean; message: string; source: 'INFIPERF / FCBA'; severity: 'WARNING' };
-  criterionCategory?: string;
   qualityAssessment: QualityAssessment;
   protocolStatus: ProtocolComplianceStatus;
+  referenceTrace?: ReferenceTrace;
   computation: ComputationMetadata;
 }
 
@@ -334,44 +392,82 @@ export interface PersozComputedData {
   referenceStageId?: UUID | null;
   deltaDampingTime: number | null;
   relativeHardnessVariationPercent: number | null;
-  criterionCategory?: string;
   qualityAssessment: QualityAssessment;
   protocolStatus: ProtocolComplianceStatus;
+  referenceTrace?: ReferenceTrace;
   computation: ComputationMetadata;
 }
 
 // --- ADHÉRENCE — QUADRILLAGE (NF EN ISO 2409:2020) ---
 export type AdhesionClassRating = 0 | 1 | 2 | 3 | 4 | 5;
 
+/**
+ * Mesure individuelle d'adhérence (Gate 57) : le RAW conserve uniquement les observations
+ * individuelles réellement saisies — jamais de moyenne (voir D-07/GO : une seule source de vérité).
+ */
+export interface AdhesionMeasurement {
+  measurementIndex: number; // 1..N dans l'ordre de saisie
+  adhesionClass: AdhesionClassRating | number | null; // 0 à 5, entier ISO 2409
+  observation?: string;
+}
+
+/**
+ * Résultat individuel calculé (Gate 57) : recopie tracée d'une mesure RAW,
+ * enrichie du delta vs la mesure T0 témoin de même index (null si non comparable).
+ */
+export interface AdhesionIndividualResult {
+  measurementIndex: number;
+  adhesionClass: number | null;
+  deltaAdhesionClass?: number | null;
+}
+
 export interface AdhesionRawData {
-  adhesionClass: AdhesionClassRating | number | null; // 0 à 5
+  // Forme historique (scalaire) : conservée pour compatibilité de lecture des acquisitions
+  // existantes. Les nouvelles saisies utilisent `measurements` (scalaire omis).
+  adhesionClass?: AdhesionClassRating | number | null; // 0 à 5
+  // Forme standard (Gate 57) : 2 mesures indépendantes/panneau (1 si adaptation justifiée).
+  measurements?: AdhesionMeasurement[];
   observation?: string;
   measurementDateTime: ISODateString;
   applicationDateTime?: string; // Récupéré de batch.applicationDate
   coatingThicknessMicrons?: number | null;
-  gridSpacingMm: number; // 1, 2, 3 mm selon NF EN ISO 2409
+  gridSpacingMm: number | null; // 1, 2, 3 mm selon NF EN ISO 2409 ; null si non déterminable
   bladeType?: string; // 'SINGLE_BLADE_6_CUTS' | 'MULTI_BLADE' | string
   tapeType?: string; // 'IEC 60454-2' | string
   conditioning?: string; // ex: "23°C / 50% HR"
-  requiredMinimumDelayHours: number; // ex: 168 h (7 jours)
-  elapsedTimeHours?: number | null;
-  delayStatus?: 'CONFORME' | 'INSUFFICIENT_DELAY' | 'INVALID_DATE' | 'MISSING_APPLICATION_DATE';
+  /** Compatibilité historique : le délai T0 est désormais porté par le protocole général, pas par ADHESION. */
+  /** Deprecated persisted field; ignored by ADHESION calculation. */
+  requiredMinimumDelayHours?: number;
+  /** Deprecated persisted field; ignored by ADHESION calculation. */
+  elapsedTimeHours?: number;
+  /** Deprecated persisted field; ignored by ADHESION calculation. */
+  delayStatus?: string;
   mediaId?: UUID | null;
   operatorId?: string;
   normReference: string; // "NF EN ISO 2409:2020"
 }
 
 export interface AdhesionComputedData {
+  // En mono-mesure (ou RAW historique scalaire), la classe unique. En multi-mesures,
+  // null : la moyenne fait foi via `panelMean` (une classe ISO reste un entier).
   adhesionClass: number | null;
+  // Résultats individuels recopiés du RAW (traçabilité), dans l'ordre de saisie.
+  // `deltaAdhesionClass` = écart de la mesure vs la mesure T0 témoin de même
+  // `measurementIndex` ; null quand non comparable (jamais de mesure inventée).
+  individualResults?: AdhesionIndividualResult[];
+  // Moyenne du panneau (moyenne arithmétique des classes valides), affichée à 1 décimale.
+  panelMean?: number | null;
   classDescription: string;
   initialAdhesionClass?: number | null;
+  // Moyenne T0 du panneau témoin (Gate 5.6) : référence des deltas.
+  initialPanelMean?: number | null;
   deltaAdhesionClass?: number | null; // Variation d'adhérence vs T0
-  elapsedTimeHours: number | null;
-  delayCompliance: 'CONFORME' | 'NON_CONFORME' | 'NON_EVALUE';
-  gridSpacingUsedMm: number;
-  criterionCategory?: string;
+  /** Deprecated compatibility field retained for persisted historical computed records. */
+  elapsedTimeHours?: number | null;
+  gridSpacingUsedMm: number | null;
   qualityAssessment: QualityAssessment;
   protocolStatus: ProtocolComplianceStatus;
+  referenceTrace?: ReferenceTrace;
   computation: ComputationMetadata;
 }
 
@@ -404,10 +500,18 @@ export interface VisualObservationsRawData {
 export interface VisualObservationsComputedData {
   totalEvaluated: number;
   defectsCount: number;
-  maxRating: number;
+  /** Cotation maximale relevée : null lorsque aucune cotation valide n'est enregistrée (jamais 0). */
+  maxRating: number | null;
+  /** Cotation maximale par catégorie (0..5), calculée uniquement sur les cotations valides
+   *  (parseObservationRating). Une catégorie non évaluée (absente ou invalide) est absente
+   *  du tableau — jamais 0 ; un zéro réel enregistré reste 0 et compte comme donnée.
+   *  Établi depuis OBSERVATIONS_CALCULATION_VERSION 1.3.0 (optionnel pour la rétro-lisibilité
+   *  de calculs antérieurs persistés), fourni systématiquement par le moteur de calcul. */
+  perCategoryMaxRating?: Partial<Record<VisualObservationCategory, number>>;
   summary: string;
   qualityAssessment: QualityAssessment;
   protocolStatus: ProtocolComplianceStatus;
+  referenceTrace?: ReferenceTrace;
   computation: ComputationMetadata;
 }
 
@@ -465,6 +569,24 @@ export interface BatchAggregationStats {
   meanDeltaE?: number | null;
   meanDeltaGloss?: number | null;
   meanGlossRetentionPercent?: number | null;
+  // Consolidation COLOR (inter-panneaux E1/E2/E3) : moyennes et écarts-types
+  // échantillon (n-1) des moyennes panneau L*/a*/b*, à 3 décimales comme ΔE.
+  // Complète (ne remplace pas) la consolidation ΔE*ab existante.
+  color?: {
+    meanL?: number | null;
+    stdDevL?: number | null;
+    meanA?: number | null;
+    stdDevA?: number | null;
+    meanB?: number | null;
+    stdDevB?: number | null;
+  };
+  // Agrégation ADHESION (Gate 57) : moyennes des panneaux exposés uniquement (témoin exclu
+  // par l'appelant, conformément au contrat Gate 55 D-8). Champ optionnel dédié.
+  adhesion?: {
+    panelMeans: (number | null)[];
+    overallMean: number | null;
+    standardDeviation?: number | null;
+  };
   computation: ComputationMetadata;
 }
 
@@ -487,6 +609,13 @@ export interface ScientificReportMetadata {
   schemaVersion: string;
   calculationVersion: string;
   scientificRuleSetId: string;
+  /**
+   * Version du référentiel scientifique gelé (ÉTAPE 1 — contrat de type uniquement).
+   * Optionnel : rempli par les étapes ultérieures, jamais dérivé d'un faux historique.
+   */
+  scientificRuleSetVersion?: string;
+  /** Statut du contexte scientifique de l'essai au moment du rapport (optionnel). */
+  scientificContextStatus?: ScientificContextStatus;
 }
 
 export interface ScientificReportReviewComment {
@@ -507,6 +636,7 @@ export interface ScientificReport {
   normativeReference: string;
   protocolStatus: ProtocolComplianceStatus;
   isComplete: boolean;
+  completenessStatus?: string;
   missingCriticalElements: string[];
   sections: {
     identification: string;
@@ -528,6 +658,10 @@ export interface ScientificReport {
     calculationTraceability: string;
     scientificSynthesis: string;
     factualConclusion: string;
+    /** NF EN 927-2:2014 (HISTORICAL_TRANSITIONAL) — évaluation complémentaire (Optionnel). */
+    nf9272CriteriaEvaluation?: string;
+    /** INFIPERF / FCBA — évaluation complémentaire (Optionnel). */
+    infiperfCriteriaEvaluation?: string;
   };
   annexes: {
     annexA_RawDataSummary: string;

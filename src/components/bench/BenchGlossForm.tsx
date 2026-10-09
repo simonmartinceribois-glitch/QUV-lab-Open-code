@@ -5,6 +5,8 @@
  */
 
 import type { Dispatch, SetStateAction } from 'react';
+import { ProtocolStatusHeader } from './ProtocolStatusHeader';
+import { getGlossOrientationLabel } from '../../scientific/glossEngine';
 
 export interface GlossSeriesInput {
   orientation: string;
@@ -12,13 +14,35 @@ export interface GlossSeriesInput {
 }
 
 interface Props {
+  glossSeriesCount: number;
+  glossReadingsPerSeries: number;
+  standardSeriesCount: number;
+  standardReadingsPerSeries: number;
+  protocolJustification?: string;
   glossSeriesData: GlossSeriesInput[];
   onGlossSeriesChange: Dispatch<SetStateAction<GlossSeriesInput[]>>;
 }
 
-export function BenchGlossForm({ glossSeriesData, onGlossSeriesChange }: Props) {
+export function BenchGlossForm({
+  glossSeriesCount,
+  glossReadingsPerSeries,
+  standardSeriesCount,
+  standardReadingsPerSeries,
+  protocolJustification,
+  glossSeriesData,
+  onGlossSeriesChange
+}: Props) {
   return (
     <div className="space-y-4">
+      <ProtocolStatusHeader
+        isAdapted={
+          glossSeriesCount !== standardSeriesCount ||
+          glossReadingsPerSeries !== standardReadingsPerSeries
+        }
+        reference={`${standardSeriesCount} séries × ${standardReadingsPerSeries} relevés`}
+        realized={`${glossSeriesCount} séries × ${glossReadingsPerSeries} relevés`}
+        justification={protocolJustification}
+      />
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
           Saisie Brillance 60° par Séries & Orientations
@@ -31,7 +55,7 @@ export function BenchGlossForm({ glossSeriesData, onGlossSeriesChange }: Props) 
           <div key={sIdx} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-800 font-mono">
-                Série #{sIdx + 1} : {series.orientation}
+                Série #{sIdx + 1} : {getGlossOrientationLabel(series.orientation) || series.orientation}
               </span>
             </div>
 

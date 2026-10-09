@@ -27,7 +27,7 @@ import {
   exportReportToCsv,
   exportRawDataToCsv
 } from '../../services/reportGenerator';
-import { getDefaultScientificRuleSet, createCountConfiguration } from '../ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../ruleSet';
 import { evaluateCountProtocolCompliance } from '../protocolEngine';
 import { assessTrialQuality } from '../qualityEngine';
 import { extractTemporalKinetics } from '../analysis/TrendAnalyzer';
@@ -122,6 +122,7 @@ export function runGate40SystemValidationTests(): {
       trialId,
       orderIndex: 0,
       reference: 'LOT-A-ACRYLIQUE',
+      applicationDate: '2026-08-01T00:00:00Z',
       coatingSystem: 'Système Acrylique Hydrodiluable 3 Couches',
       productReference: 'Peinture ACRY-PERF 3000',
       woodSpecies: 'Épicéa (Picea abies)',
@@ -132,6 +133,7 @@ export function runGate40SystemValidationTests(): {
       trialId,
       orderIndex: 1,
       reference: 'LOT-B-ALKYDE',
+      applicationDate: '2026-08-01T00:00:00Z',
       coatingSystem: 'Système Alkyde Solvanté Haute Extrait Sec',
       productReference: 'Lasure ALKY-DUR 100',
       woodSpecies: 'Pin Sylvestre (Pinus sylvestris)',
@@ -156,9 +158,26 @@ export function runGate40SystemValidationTests(): {
       standardReference: 'NF EN 927-6',
       activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'OBSERVATIONS'],
       familyConfigs: {
-        COLOR: { familyId: 'COLOR', enabled: true },
-        GLOSS: { familyId: 'GLOSS', enabled: true },
-        PERSOZ: { familyId: 'PERSOZ', enabled: true },
+        COLOR: {
+          familyId: 'COLOR',
+          enabled: true,
+          countConfig: createCountConfiguration('COLOR', ruleSet.measurementConfigurations.COLOR.standardRecommendedCount, ruleSet)
+        },
+        GLOSS: {
+          familyId: 'GLOSS',
+          enabled: true,
+          seriesConfig: createSeriesConfiguration(
+            'GLOSS',
+            ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration.seriesCount ?? 0,
+            ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration.readingsPerSeries ?? 0,
+            ruleSet
+          )
+        },
+        PERSOZ: {
+          familyId: 'PERSOZ',
+          enabled: true,
+          countConfig: createCountConfiguration('PERSOZ', ruleSet.measurementConfigurations.PERSOZ.standardRecommendedCount, ruleSet)
+        },
         OBSERVATIONS: { familyId: 'OBSERVATIONS', enabled: true }
       }
     },
@@ -235,29 +254,32 @@ export function runGate40SystemValidationTests(): {
         raw: {
           series: [
             { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: baseGloss }, { pointIndex: 2, value: baseGloss }] },
-            { seriesIndex: 2, orientation: 'PERPENDICULAR_DIRECTION', readings: [{ pointIndex: 1, value: baseGloss }, { pointIndex: 2, value: baseGloss }] }
+            { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: baseGloss }, { pointIndex: 2, value: baseGloss }] }
           ]
         } as GlossRawData,
         operatorId: 'Tech Paillasse T0'
       });
 
-      // 3. Persoz T0 (3 mesures de temps en secondes)
-      globalTrialStore.recordAcquisition({
-        trialId,
-        stageId: stageT0.id,
-        batchId: b.id,
-        panelId: p.id,
-        familyId: 'PERSOZ',
-        raw: {
-          unit: 'SECONDS',
-          readings: [
-            { pointIndex: 1, dampingTimeSeconds: basePersoz },
-            { pointIndex: 2, dampingTimeSeconds: basePersoz },
-            { pointIndex: 3, dampingTimeSeconds: basePersoz }
-          ]
-        } as PersozRawData,
-        operatorId: 'Tech Paillasse T0'
-      });
+      // 3. Persoz T0 (3 mesures de temps en secondes) — verrou PERSOZ/Témoin
+      // (PERSOZ interdit sur T, exposés uniquement).
+      if (p.role !== 'WITNESS') {
+        globalTrialStore.recordAcquisition({
+          trialId,
+          stageId: stageT0.id,
+          batchId: b.id,
+          panelId: p.id,
+          familyId: 'PERSOZ',
+          raw: {
+            unit: 'SECONDS',
+            readings: [
+              { pointIndex: 1, dampingTimeSeconds: basePersoz },
+              { pointIndex: 2, dampingTimeSeconds: basePersoz },
+              { pointIndex: 3, dampingTimeSeconds: basePersoz }
+            ]
+          } as PersozRawData,
+          operatorId: 'Tech Paillasse T0'
+        });
+      }
 
       // 4. Observations T0 (4 catégories ISO 4628 cotées 0)
       globalTrialStore.recordAcquisition({
@@ -287,15 +309,16 @@ export function runGate40SystemValidationTests(): {
     const stageT0Status = saved.stages.find((s) => s.id === stageT0.id)?.status;
     const acqCountT0 = Object.keys(saved.acquisitions).filter((k) => k.startsWith(`${stageT0.id}__`)).length;
 
-    // 8 éprouvettes x 4 familles = 32 acquisitions initiales
-    const isT0Valid = stageT0Status === 'VALIDATED' && acqCountT0 === 32;
+    // 8 éprouvettes x COLOR/GLOSS/OBS + 6 exposées x PERSOZ = 30 acquisitions
+    // initiales (PERSOZ interdit sur les 2 témoins T — verrou PERSOZ/Témoin).
+    const isT0Valid = stageT0Status === 'VALIDATED' && acqCountT0 === 30;
 
     record(
       'G40-T0-01',
-      'Référence Initiale T0 : Complétude des 32 acquisitions (8 éprouvettes x 4 familles) et validation formelle de l\'étape',
+      'Référence Initiale T0 : Complétude des 30 acquisitions (8 éprouvettes x 3 familles + 6 exposées x PERSOZ) et validation formelle de l\'étape',
       'T0_REFERENCE_ACQUISITION',
       isT0Valid,
-      '32 acquisitions T0 enregistrées, stageT0.status = VALIDATED',
+      '30 acquisitions T0 enregistrées, stageT0.status = VALIDATED',
       `Acquisitions T0=${acqCountT0}, Statut=${stageT0Status}`
     );
   }
@@ -349,29 +372,31 @@ export function runGate40SystemValidationTests(): {
           raw: {
             series: [
               { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: baseGloss * glossRet }, { pointIndex: 2, value: baseGloss * glossRet }] },
-              { seriesIndex: 2, orientation: 'PERPENDICULAR_DIRECTION', readings: [{ pointIndex: 1, value: baseGloss * glossRet }, { pointIndex: 2, value: baseGloss * glossRet }] }
+              { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: baseGloss * glossRet }, { pointIndex: 2, value: baseGloss * glossRet }] }
             ]
           } as GlossRawData,
           operatorId: `Opérateur ${stage.name}`
         });
 
-        // Persoz
-        globalTrialStore.recordAcquisition({
-          trialId,
-          stageId: stage.id,
-          batchId: b.id,
-          panelId: p.id,
-          familyId: 'PERSOZ',
-          raw: {
-            unit: 'SECONDS',
-            readings: [
-              { pointIndex: 1, dampingTimeSeconds: basePersoz + persozDelta },
-              { pointIndex: 2, dampingTimeSeconds: basePersoz + persozDelta },
-              { pointIndex: 3, dampingTimeSeconds: basePersoz + persozDelta }
-            ]
-          } as PersozRawData,
-          operatorId: `Opérateur ${stage.name}`
-        });
+        // Persoz — verrou PERSOZ/Témoin (PERSOZ interdit sur T, exposés uniquement).
+        if (!isWitness) {
+          globalTrialStore.recordAcquisition({
+            trialId,
+            stageId: stage.id,
+            batchId: b.id,
+            panelId: p.id,
+            familyId: 'PERSOZ',
+            raw: {
+              unit: 'SECONDS',
+              readings: [
+                { pointIndex: 1, dampingTimeSeconds: basePersoz + persozDelta },
+                { pointIndex: 2, dampingTimeSeconds: basePersoz + persozDelta },
+                { pointIndex: 3, dampingTimeSeconds: basePersoz + persozDelta }
+              ]
+            } as PersozRawData,
+            operatorId: `Opérateur ${stage.name}`
+          });
+        }
 
         // Observations
         globalTrialStore.recordAcquisition({
@@ -511,8 +536,8 @@ export function runGate40SystemValidationTests(): {
   // ==========================================================================
 
   {
-    // Simulation d'une adaptation motivée du plan de mesure : 2 points couleur au lieu de 4
-    const justifiedConfig = createCountConfiguration('COLOR', 2, ruleSet, {
+    // Simulation d'une adaptation motivée du plan de mesure : 5 points couleur au lieu de 4
+    const justifiedConfig = createCountConfiguration('COLOR', 5, ruleSet, {
       justification: 'Éprouvettes à surface restreinte 50x50 mm dédiées au criblage formulatoire',
       operatorId: 'Responsable Laboratoire'
     });
@@ -542,9 +567,11 @@ export function runGate40SystemValidationTests(): {
     const qualityReport = assessTrialQuality(saved, ruleSet);
     const totalAcquisitions = Object.keys(saved.acquisitions).length;
 
-    // Toutes les étapes T0, C1, C2, C6, C12 ont été saisies et validées
+    // Toutes les étapes T0, C1, C2, C6, C12 ont été saisies et validées.
+    // Seuil ajusté : 10 acquisitions PERSOZ/T en moins — 2 à T0 + 2×4 jalons
+    // (C1, C2, C6, C12) — verrou PERSOZ/Témoin. Qualité et alertes inchangées.
     const passed =
-      totalAcquisitions >= 160 &&
+      totalAcquisitions >= 150 &&
       qualityReport.blockingAlertsCount === 0 &&
       qualityReport.globalQuality === 'GOOD';
 
@@ -553,7 +580,7 @@ export function runGate40SystemValidationTests(): {
       'Contrôle Qualité : Évaluation globale du dossier d\'essai (zéro anomalie bloquante sur les étapes actives)',
       'QUALITY_ASSESSMENT_COMPLETENESS',
       passed,
-      'blockingAlertsCount = 0, acquisitions >= 160, globalQuality = GOOD',
+      'blockingAlertsCount = 0, acquisitions >= 150, globalQuality = GOOD',
       `Acquisitions=${totalAcquisitions}, Alertes Bloquantes=${qualityReport.blockingAlertsCount}, Qualité=${qualityReport.globalQuality}`
     );
   }

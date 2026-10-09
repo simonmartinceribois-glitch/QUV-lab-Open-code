@@ -6,7 +6,8 @@
 
 import React, { useState } from 'react';
 import { Trial, ExposureStage } from '../../types/trial';
-import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
+import { ScientificRuleSet, MeasurementFamilyId, ColorComputedData, GlossComputedData, PersozComputedData } from '../../types/scientific';
+import { getActiveStages, formatStageOption, formatStageShort } from '../../scientific/panelUtils';
 import {
   GitCompare,
   Layers,
@@ -20,6 +21,13 @@ import {
   ChevronRight,
   Code
 } from 'lucide-react';
+
+function qualityBadgeClass(status: string | null | undefined): string {
+  if (status === 'GOOD') return 'bg-emerald-100 text-emerald-800';
+  if (status === 'WARNING') return 'bg-amber-100 text-amber-800';
+  if (status === 'INVALID') return 'bg-rose-100 text-rose-800';
+  return 'bg-slate-100 text-slate-500';
+}
 
 interface Props {
   trial: Trial;
@@ -40,8 +48,17 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
   const [showCalculationDetailsModal, setShowCalculationDetailsModal] = useState<boolean>(false);
   const [calculationModalData, setCalculationModalData] = useState<any>(null);
 
-  const refStage = trial.stages.find((s) => s.id === selectedReferenceStageId) || stageT0;
-  const targetStage = trial.stages.find((s) => s.id === selectedTargetStageId) || trial.stages[1];
+  // Plan de mesurage : sélecteurs limités aux jalons actifs (fix/results-active-stages).
+  // T0 est toujours actif (jalo obligatoire) ; repli d'affichage si la sélection est hors plan.
+  const planStages = getActiveStages(trial.stages);
+  const refStage = planStages.find((s) => s.id === selectedReferenceStageId) || stageT0;
+  const targetStage = planStages.find((s) => s.id === selectedTargetStageId) || planStages[1] || stageT0;
+  const refSelectValue = planStages.some((s) => s.id === selectedReferenceStageId)
+    ? selectedReferenceStageId
+    : stageT0?.id || '';
+  const targetSelectValue = planStages.some((s) => s.id === selectedTargetStageId)
+    ? selectedTargetStageId
+    : (planStages[1] || stageT0)?.id || '';
 
   const filteredBatches = selectedBatchId === 'ALL'
     ? trial.batches
@@ -100,13 +117,13 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
               1. Étape de Référence (T0 obligatoire)
             </label>
             <select
-              value={selectedReferenceStageId}
+              value={refSelectValue}
               onChange={(e) => setSelectedReferenceStageId(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
             >
-              {trial.stages.map((st) => (
+              {planStages.map((st) => (
                 <option key={st.id} value={st.id}>
-                  {st.name} ({st.scheduledExposureHours} h)
+                  {formatStageOption(st)}
                 </option>
               ))}
             </select>
@@ -118,15 +135,15 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
               2. Étape Comparée (En cours / Finale 2016 h)
             </label>
             <select
-              value={selectedTargetStageId}
+              value={targetSelectValue}
               onChange={(e) => setSelectedTargetStageId(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
             >
-              {trial.stages
-                .filter((st) => st.id !== selectedReferenceStageId)
+              {planStages
+                .filter((st) => st.id !== refSelectValue)
                 .map((st) => (
                   <option key={st.id} value={st.id}>
-                    {st.name} ({st.scheduledExposureHours} h) — {st.status}
+                    {formatStageOption(st)} — {st.status}
                   </option>
                 ))}
             </select>
@@ -215,15 +232,15 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
                       const refAcq = trial.acquisitions[refKey];
                       const targetAcq = trial.acquisitions[targetKey];
 
-                      const refComp = refAcq?.computed as any;
-                      const targetComp = targetAcq?.computed as any;
+                      const refComp = refAcq?.computed as ColorComputedData | undefined;
+                      const targetComp = targetAcq?.computed as ColorComputedData | undefined;
 
                       if (!targetAcq || !targetAcq.raw) {
                         return (
                           <tr key={panel.id} className="text-slate-400">
                             <td className="p-2.5 font-bold font-mono text-slate-600">{panel.label}</td>
                             <td colSpan={12} className="p-2.5 text-slate-400 italic">
-                              Mesure non réalisée à l'étape {targetStage.scheduledExposureHours} h.
+                              Mesure non réalisée à l'étape {formatStageShort(targetStage)}.
                             </td>
                           </tr>
                         );
@@ -259,8 +276,8 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
                               : 'RÉF'}
                           </td>
                           <td className="p-2.5 text-center">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                              {targetComp?.qualityAssessment?.status || 'GOOD'}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${qualityBadgeClass(targetComp?.qualityAssessment?.status)}`}>
+                              {targetComp?.qualityAssessment?.status ?? 'EN_ATTENTE'}
                             </span>
                           </td>
                           <td className="p-2.5 text-center">
@@ -319,15 +336,15 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
                       const refAcq = trial.acquisitions[refKey];
                       const targetAcq = trial.acquisitions[targetKey];
 
-                      const refComp = refAcq?.computed as any;
-                      const targetComp = targetAcq?.computed as any;
+                      const refComp = refAcq?.computed as GlossComputedData | undefined;
+                      const targetComp = targetAcq?.computed as GlossComputedData | undefined;
 
                       if (!targetAcq || !targetAcq.raw) {
                         return (
                           <tr key={panel.id} className="text-slate-400">
                             <td className="p-2.5 font-bold font-mono text-slate-600">{panel.label}</td>
                             <td colSpan={7} className="p-2.5 text-slate-400 italic">
-                              Mesure non réalisée à l'étape {targetStage.scheduledExposureHours} h.
+                              Mesure non réalisée à l'étape {formatStageShort(targetStage)}.
                             </td>
                           </tr>
                         );
@@ -356,8 +373,8 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
                               : '100.0 % (RÉF)'}
                           </td>
                           <td className="p-2.5 text-center">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                              {targetComp?.qualityAssessment?.status || 'GOOD'}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${qualityBadgeClass(targetComp?.qualityAssessment?.status)}`}>
+                              {targetComp?.qualityAssessment?.status ?? 'EN_ATTENTE'}
                             </span>
                           </td>
                           <td className="p-2.5 text-center">
@@ -414,15 +431,15 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
                       const refAcq = trial.acquisitions[refKey];
                       const targetAcq = trial.acquisitions[targetKey];
 
-                      const refComp = refAcq?.computed as any;
-                      const targetComp = targetAcq?.computed as any;
+                      const refComp = refAcq?.computed as PersozComputedData | undefined;
+                      const targetComp = targetAcq?.computed as PersozComputedData | undefined;
 
                       if (!targetAcq || !targetAcq.raw) {
                         return (
                           <tr key={panel.id} className="text-slate-400">
                             <td className="p-2.5 font-bold font-mono text-slate-600">{panel.label}</td>
                             <td colSpan={7} className="p-2.5 text-slate-400 italic">
-                              Mesure non réalisée à l'étape {targetStage.scheduledExposureHours} h.
+                              Mesure non réalisée à l'étape {formatStageShort(targetStage)}.
                             </td>
                           </tr>
                         );
@@ -449,8 +466,8 @@ export function ResultsTemporalComparisonView({ trial, ruleSet }: Props) {
                               : 'RÉF'}
                           </td>
                           <td className="p-2.5 text-center">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                              {targetComp?.qualityAssessment?.status || 'GOOD'}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${qualityBadgeClass(targetComp?.qualityAssessment?.status)}`}>
+                              {targetComp?.qualityAssessment?.status ?? 'EN_ATTENTE'}
                             </span>
                           </td>
                           <td className="p-2.5 text-center">

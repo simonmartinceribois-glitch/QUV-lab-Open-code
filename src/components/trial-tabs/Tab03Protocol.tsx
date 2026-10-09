@@ -8,9 +8,7 @@ import { Trial } from '../../types/trial';
 import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
 import { globalTrialStore } from '../../services/trialStore';
 import {
-  ShieldCheck,
   AlertTriangle,
-  Lock,
   Edit3,
   CheckCircle2,
   X,
@@ -27,7 +25,7 @@ interface Props {
 
 export function Tab03Protocol({ trial, ruleSet, onTrialUpdated }: Props) {
   const [selectedFamilyForAdapt, setSelectedFamilyForAdapt] = useState<MeasurementFamilyId | null>(null);
-  const [newCount, setNewCount] = useState<number>(4);
+  const [newCount, setNewCount] = useState<number>(0);
   const [justification, setJustification] = useState<string>('');
   const [operatorId, setOperatorId] = useState<string>('Simon Martin (Technicien)');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -40,9 +38,9 @@ export function Tab03Protocol({ trial, ruleSet, onTrialUpdated }: Props) {
     setErrorMsg(null);
     setJustification('');
     if (famId === 'COLOR') {
-      setNewCount(trial.config.familyConfigs.COLOR?.countConfig?.configuredCount || 4);
+      setNewCount(trial.config.familyConfigs.COLOR?.countConfig?.configuredCount ?? ruleSet.measurementConfigurations.COLOR?.standardRecommendedCount ?? 0);
     } else if (famId === 'PERSOZ') {
-      setNewCount(trial.config.familyConfigs.PERSOZ?.countConfig?.configuredCount || 3);
+      setNewCount(trial.config.familyConfigs.PERSOZ?.countConfig?.configuredCount ?? ruleSet.measurementConfigurations.PERSOZ?.standardRecommendedCount ?? 0);
     }
   };
 
@@ -80,133 +78,8 @@ export function Tab03Protocol({ trial, ruleSet, onTrialUpdated }: Props) {
           </p>
         </div>
 
-        <div>
-          {isLocked ? (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold">
-              <Lock className="w-4 h-4 text-amber-600" />
-              <span>Protocole <strong>VERROUILLÉ</strong> (Acquisitions en cours)</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Protocole <strong>MODIFIABLE</strong></span>
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* RÉFÉRENTIEL NORMATIF DU MODULE QUV */}
-      <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-md space-y-4 border border-slate-800">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-600/30 border border-blue-500/40 flex items-center justify-center text-blue-400">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-wider text-blue-400">
-                RÉFÉRENTIEL NORMATIF DU MODULE QUV
-              </h3>
-              <p className="text-xs text-slate-300">
-                Le module QUV concerne <strong>exclusivement le vieillissement artificiel</strong>.
-              </p>
-            </div>
-          </div>
-          <span className="px-3 py-1 text-xs font-black rounded-lg bg-blue-500/20 text-blue-300 border border-blue-500/40">
-            NORMATIF : NF EN 927-6:2018
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-          {/* Référentiel Principal */}
-          <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-white uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                RÉFÉRENTIEL PRINCIPAL
-              </span>
-              <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
-                NORMATIF QUV
-              </span>
-            </div>
-            <p className="font-bold text-slate-100 text-sm">NF EN 927-6:2018</p>
-            <p className="text-slate-300 leading-relaxed">
-              Exposition des revêtements pour bois au vieillissement artificiel par des lampes UV fluorescentes et de l'eau (Cycles de 168 h / 2016 h). Base exclusive de conformité du module.
-            </p>
-          </div>
-
-          {/* NF EN 927-3 - Hors périmètre */}
-          <div className="p-3.5 bg-slate-800/80 rounded-xl border border-rose-900/60 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-rose-300 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-rose-400"></span>
-                NF EN 927-3:2019
-              </span>
-              <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-[10px] font-bold">
-                HORS PÉRIMÈTRE QUV
-              </span>
-            </div>
-            <p className="font-bold text-rose-200 text-sm">Vieillissement naturel (VN)</p>
-            <ul className="text-slate-300 space-y-1 list-disc list-inside">
-              <li><strong className="text-rose-300">NE PAS utiliser</strong> pour le moteur de conformité QUV.</li>
-              <li><strong className="text-rose-300">NE PAS utiliser</strong> pour définir les calculs ou seuils QUV.</li>
-              <li>Sera traitée ultérieurement dans le <em>module de vieillissement naturel (VN)</em>.</li>
-            </ul>
-          </div>
-
-          {/* NF P 23-305:2026 */}
-          <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-sky-300 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-sky-400"></span>
-                NF P 23-305:2026
-              </span>
-              <span className="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 text-[10px] font-bold">
-                MENUISERIE (SI APPLICABLE)
-              </span>
-            </div>
-            <p className="font-semibold text-slate-100">Exigences menuiseries extérieures</p>
-            <ul className="text-slate-300 space-y-1 list-disc list-inside">
-              <li>Uniquement lorsque ses exigences sont pertinentes pour le périmètre de l'essai QUV.</li>
-              <li>Ne pas remplacer les exigences spécifiques de NF EN 927-6.</li>
-            </ul>
-          </div>
-
-          {/* INFIPERF / FCBA */}
-          <div className="p-3.5 bg-slate-800/80 rounded-xl border border-purple-900/60 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-purple-300 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-purple-400"></span>
-                INFIPERF / FCBA
-              </span>
-              <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[10px] font-bold">
-                CRITÈRES COMPLÉMENTAIRES
-              </span>
-            </div>
-            <p className="font-semibold text-purple-200">Recommandations & indicateurs laboratoire</p>
-            <ul className="text-slate-300 space-y-1 list-disc list-inside">
-              <li>Critères complémentaires (ex. dureté Persoz ISO 1522, seuil indicatif 50% brillance).</li>
-              <li>Toujours identifier clairement qu'il s'agit d'un référentiel complémentaire et non d'une exigence NF EN 927-6.</li>
-            </ul>
-          </div>
-        </div>
-
-        {/* Synthèse des Principes */}
-        <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center gap-2 text-xs">
-          <span className="font-bold text-slate-400 uppercase tracking-wider text-[10px]">PRINCIPE DIRECTEUR :</span>
-          <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
-            NF EN 927-6 = NORMATIF QUV
-          </span>
-          <span className="px-2.5 py-1 rounded-lg bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30">
-            INFIPERF / FCBA = COMPLÉMENTAIRE
-          </span>
-          <span className="px-2.5 py-1 rounded-lg bg-sky-500/20 text-sky-300 font-bold border border-sky-500/30">
-            NF P 23-305 = EXIGENCES PERTINENTES MENUISERIE
-          </span>
-          <span className="px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30">
-            NF EN 927-3 = HORS PÉRIMÈTRE QUV
-          </span>
-        </div>
-      </div>
 
       {/* Cards per Family */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -239,7 +112,7 @@ export function Tab03Protocol({ trial, ruleSet, onTrialUpdated }: Props) {
               </div>
               <div className="flex justify-between">
                 <span>Nombre standard recommandé :</span>
-                <strong className="text-slate-900">4 points / panneau</strong>
+                <strong className="text-slate-900">{ruleSet.measurementConfigurations.COLOR?.standardRecommendedCount ?? 'Non défini'} points / panneau</strong>
               </div>
               <div className="flex justify-between">
                 <span>Nombre configuré actif :</span>
@@ -250,7 +123,7 @@ export function Tab03Protocol({ trial, ruleSet, onTrialUpdated }: Props) {
                       : 'text-emerald-700'
                   }
                 >
-                  {trial.config.familyConfigs.COLOR?.countConfig?.configuredCount || 4} points / panneau
+                  {trial.config.familyConfigs.COLOR?.countConfig?.configuredCount ?? 'Non défini'} points / panneau
                 </strong>
               </div>
               <div className="flex justify-between">
@@ -286,11 +159,11 @@ export function Tab03Protocol({ trial, ruleSet, onTrialUpdated }: Props) {
               </div>
               <div className="flex justify-between">
                 <span>Séries configurées :</span>
-                <strong className="text-slate-900">2 séries (Sens du fil + Perpendiculaire)</strong>
+                <strong className="text-slate-900">{ruleSet.seriesConfigurations?.GLOSS?.configuredConfiguration.seriesCount ?? 'Non défini'} séries</strong>
               </div>
               <div className="flex justify-between">
                 <span>Relevés totaux :</span>
-                <strong className="text-emerald-700">4 relevés / panneau</strong>
+                <strong className="text-emerald-700">{ruleSet.seriesConfigurations?.GLOSS?.configuredConfiguration.totalReadings ?? 'Non défini'} relevés / panneau</strong>
               </div>
               <div className="flex justify-between">
                 <span>Grandeur dérivée :</span>
@@ -334,7 +207,7 @@ export function Tab03Protocol({ trial, ruleSet, onTrialUpdated }: Props) {
               <div className="flex justify-between">
                 <span>Répétitions configurées :</span>
                 <strong className="text-purple-900">
-                  {trial.config.familyConfigs.PERSOZ?.countConfig?.configuredCount || 3} répétitions / panneau
+                  {trial.config.familyConfigs.PERSOZ?.countConfig?.configuredCount ?? 'Non défini'} répétitions / panneau
                 </strong>
               </div>
             </div>
@@ -424,15 +297,18 @@ export function Tab03Protocol({ trial, ruleSet, onTrialUpdated }: Props) {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Justification Métrologique Obligatoire *
+                Justification Métrologique Obligatoire * — 8 caractères minimum
               </label>
               <textarea
                 rows={3}
                 value={justification}
                 onChange={(e) => setJustification(e.target.value)}
-                placeholder="Indiquez la raison technique ou expérimentale imposant cet écart..."
-                className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="Indiquez la raison technique ou expérimentale imposant cet écart (8 caractères minimum)..."
+                className={`w-full text-xs px-3 py-2 bg-white border rounded-lg focus:ring-2 focus:ring-blue-500 ${justification.trim().length > 0 && justification.trim().length < 8 ? 'border-rose-400 bg-rose-50/30' : 'border-slate-300'}`}
               />
+              {justification.trim().length > 0 && justification.trim().length < 8 && (
+                <p className="text-[11px] text-rose-600 font-semibold mt-1">Justification obligatoire : 8 caractères minimum.</p>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">

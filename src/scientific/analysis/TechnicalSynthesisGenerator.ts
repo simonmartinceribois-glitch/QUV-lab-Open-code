@@ -5,15 +5,16 @@
  */
 
 import { Trial, BatchDefinition, ExposureStage } from '../../types/trial';
-import { ScientificRuleSet } from '../../types/scientific';
+import { ScientificRuleSet, VisualObservationsComputedData } from '../../types/scientific';
 import { extractTemporalKinetics } from './TrendAnalyzer';
 import { getActiveExposedPanels } from '../panelUtils';
+import { getGlossRetentionThreshold } from '../criteria/criteriaGloss';
 
 export interface TechnicalSynthesisOptions {
   batchId?: string;
   referenceStageId?: string;
   targetStageId?: string;
-  studyCriteriaGlossRetentionPercent?: number; // ex: 50
+  studyCriteriaGlossRetentionPercent?: number | null; // null = critère absent
   maxSentences?: number;
 }
 
@@ -55,7 +56,12 @@ export function generateTechnicalSynthesis(
     throw new Error(`Jalon cible introuvable pour la synthèse (targetStageId=${options?.targetStageId || 'non défini'}).`);
   }
 
-  const targetExposureHours = targetStage.scheduledExposureHours || (targetStage.cycleIndex * 168);
+  // Durée scientifique du jalon cible : déterminée exclusivement par son cycle
+  // QUV (scientificExposureHours = cycleIndex × 168 ; T0 = 0 h valide, jamais
+  // 0 → null). scheduledExposureHours EST la durée scientifique. Une éventuelle
+  // durée machine (actualExposureHours) est une traçabilité distincte qui ne
+  // remplace jamais la durée scientifique.
+  const targetExposureHours = targetStage.scheduledExposureHours ?? targetStage.cycleIndex * 168;
   const kinetics = extractTemporalKinetics(trial, targetBatch.id);
   const finalKinetics = kinetics.find((k) => k.exposureHours === targetExposureHours) || kinetics[kinetics.length - 1];
 
@@ -120,7 +126,7 @@ export function generateTechnicalSynthesis(
       );
     } else {
       const retention = finalKinetics.meanGlossRetentionPercent ?? +( (gf / g0) * 100 ).toFixed(1);
-      const studyCriteria = options?.studyCriteriaGlossRetentionPercent ?? 50;
+      const studyCriteria = options?.studyCriteriaGlossRetentionPercent ?? getGlossRetentionThreshold(ruleSet);
 
       if (studyCriteria && studyCriteria > 0) {
         const criteriaText = retention >= studyCriteria
@@ -143,37 +149,48 @@ export function generateTechnicalSynthesis(
   // --------------------------------------------------------------------------
   // PHRASE 5 — OBSERVATIONS VISUELLES
   // --------------------------------------------------------------------------
+  // Consommation EXCLUSIVE du COMPUTED du moteur observationsEngine (source de
+  // vérité). Aucune lecture de cotation RAW, aucun Math.max/parseFloat/`|| 0`
+  // ici : la validation valid/missing/invalid, maxRating, defectsCount et le
+  // statut de qualité sont déjà calculés par le moteur.
+  // maxRating === null → non évalué ; maxRating === 0 → cotation réelle zéro.
   const activePanels = getActiveExposedPanels(targetBatch.panels);
   let hasRecordedObs = false;
-  let maxBlister = 0;
-  let maxFlake = 0;
+  let hasMissingObs = false;
+  let overallMaxRating: number | null = null;
 
   for (const p of activePanels) {
     const obsAcq = trial.acquisitions[`${targetStage.id}__${p.id}__OBSERVATIONS`];
-    if (obsAcq && obsAcq.raw) {
-      hasRecordedObs = true;
-      const rawObs = obsAcq.raw as { observations?: Array<{ category: string; rating: number }> };
-      if (rawObs.observations) {
-        for (const o of rawObs.observations) {
-          if (o.category === 'BLISTERING') maxBlister = Math.max(maxBlister, o.rating);
-          if (o.category === 'FLAKING') maxFlake = Math.max(maxFlake, o.rating);
-        }
-      }
+    const comp = obsAcq?.computed as VisualObservationsComputedData | null | undefined;
+    if (!comp) {
+      hasMissingObs = true;
+      continue;
+    }
+    if (comp.maxRating === null) {
+      hasMissingObs = true;
+      continue;
+    }
+    hasRecordedObs = true;
+    if (overallMaxRating === null || comp.maxRating > overallMaxRating) {
+      overallMaxRating = comp.maxRating;
     }
   }
 
-  if (hasRecordedObs) {
-    if (maxBlister === 0 && maxFlake === 0) {
+  if (!hasRecordedObs) {
+    limitations.push('Aucune observation visuelle valide n\'a été enregistrée pour cette étape.');
+  } else {
+    if (hasMissingObs) {
+      limitations.push('Les observations visuelles sont partiellement disponibles pour cette étape.');
+    }
+    if (overallMaxRating === 0) {
       sentences.push(
-        'L\'examen visuel des éprouvettes ne met en évidence aucun cloquage ni écaillage (cotations 0 selon ISO 4628).'
+        'L\'examen visuel des éprouvettes ne met en évidence aucun défaut coté pour les catégories évaluées.'
       );
-    } else {
+    } else if (overallMaxRating !== null) {
       sentences.push(
-        `L'examen visuel révèle des altérations avec une cotation maximale de ${maxBlister} pour le cloquage et ${maxFlake} pour l'écaillage.`
+        `L'examen visuel révèle des altérations, avec une cotation maximale de ${overallMaxRating} pour les observations disponibles.`
       );
     }
-  } else {
-    limitations.push('Aucune observation visuelle n\'a été enregistrée pour cette étape.');
   }
 
   // --------------------------------------------------------------------------
@@ -187,16 +204,36 @@ export function generateTechnicalSynthesis(
   // ADAPTATIONS DU PROTOCOLE (Section 23)
   // --------------------------------------------------------------------------
   const colorCfg = trial.config.familyConfigs.COLOR?.countConfig;
-  if (colorCfg && colorCfg.configuredCount !== 4 && colorCfg.justification) {
+  if (colorCfg && colorCfg.deviationFromStandard && colorCfg.justification) {
     protocolAdaptations.push(
-      `Les mesures colorimétriques ont été réalisées selon un plan adapté de ${colorCfg.configuredCount} points (au lieu de 4 standard) ; cette adaptation est documentée dans le protocole de l'essai ("${colorCfg.justification}").`
+      `Les mesures colorimétriques ont été réalisées selon un plan adapté de ${colorCfg.configuredCount} points (par rapport à la configuration de référence retenue) ; cette adaptation est documentée dans le protocole de l'essai ("${colorCfg.justification}").`
     );
   }
 
   const glossCfg = trial.config.familyConfigs.GLOSS?.seriesConfig;
-  if (glossCfg && (glossCfg.configuredConfiguration.seriesCount !== 2 || glossCfg.configuredConfiguration.readingsPerSeries !== 2) && glossCfg.justification) {
+  const glossReference = ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration;
+  if (
+    glossCfg &&
+    glossReference &&
+    glossCfg.deviationFromStandard &&
+    glossCfg.justification
+  ) {
     protocolAdaptations.push(
-      `La configuration de mesure de la brillance a été adaptée (${glossCfg.configuredConfiguration.seriesCount}×${glossCfg.configuredConfiguration.readingsPerSeries}) avec justification enregistrée ("${glossCfg.justification}").`
+      `La configuration de mesure de la brillance a été adaptée (${glossCfg.configuredConfiguration.seriesCount}×${glossCfg.configuredConfiguration.readingsPerSeries}) par rapport à la configuration de référence (${glossReference.seriesCount}×${glossReference.readingsPerSeries}) ; cette adaptation du cadre appliqué à l'essai est documentée dans le protocole ("${glossCfg.justification}").`
+    );
+  }
+
+  const persozCfg = trial.config.familyConfigs.PERSOZ?.countConfig;
+  if (persozCfg && persozCfg.deviationFromStandard && persozCfg.justification) {
+    protocolAdaptations.push(
+      `Le nombre de répétitions de dureté Persoz a été adapté à ${persozCfg.configuredCount} mesure(s) par rapport à la configuration de référence (${persozCfg.standardRecommendedCount}) ; cette adaptation du cadre appliqué à l'essai est documentée dans le protocole ("${persozCfg.justification}").`
+    );
+  }
+
+  const adhesionCfg = trial.config.familyConfigs.ADHESION?.countConfig;
+  if (adhesionCfg && adhesionCfg.deviationFromStandard && adhesionCfg.justification) {
+    protocolAdaptations.push(
+      `Le nombre de mesures d'adhérence par panneau a été adapté à ${adhesionCfg.configuredCount} mesure(s) par rapport à la configuration de référence (${adhesionCfg.standardRecommendedCount}) ; cette adaptation du cadre appliqué à l'essai est documentée dans le protocole ("${adhesionCfg.justification}").`
     );
   }
 

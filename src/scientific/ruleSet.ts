@@ -18,7 +18,7 @@ import {
  * - NORMATIVE_REQUIREMENT : NF EN 927-6:2018 (Couleur 4 pts cl. 6.3.2, Brillance 2x2 60° cl. 6.3.3)
  * - LAB_RECOMMENDATION : Dureté Persoz 3 reps (ISO 1522 / procédure labo, non-normative pour 927-6)
  * - METROLOGICAL_CHOICE : Écart-type échantillon n-1, seuils d'alerte dispersion
- * - PROTOCOL_ADAPTATION : Toute configuration s'écartant du standard (avec justification obligatoire)
+ * - PROTOCOL_ADAPTATION : Toute configuration s'écartant de la référence, avec justification obligatoire.
  */
 export function getDefaultScientificRuleSet(): ScientificRuleSet {
   return {
@@ -50,7 +50,17 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
       stdDevMethod: 'SAMPLE', // s = sqrt(sum(x - mean)^2 / (n - 1))
       glossGeometryDefault: '60',
       maxGlossDispersionPercent: 15,
-      maxColorStdDev: 2.0
+      maxColorStdDev: 2.0,
+      // Critère COMPLÉMENTAIRE d'étude INFIPERF / FCBA — jamais une exigence
+      // de conformité NF EN 927-6. Lu par la couche CRITÈRE (S3) et l'analyse.
+      retentionThresholdPercent: 50
+    },
+
+    preExposureConditioning: {
+      requiredHours: 168,
+      standardReference: 'NF EN 927-6:2018',
+      clause: '§6.3.3',
+      rationale: 'Après application du système de peinture, vieillissement des panneaux pendant environ 7 jours à (20 ± 2) °C et (65 ± 5) % HR avant les examens initiaux.'
     },
 
     measurementConfigurations: {
@@ -88,9 +98,9 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
         origin: 'NORMATIVE_REQUIREMENT',
         standardReference: 'NF EN ISO 2409:2020',
         clause: '§5 & §6 (Essai de quadrillage)',
-        rationale: 'Évaluation de la résistance du revêtement à la séparation par quadrillage (6×6 incisions, espacement selon épaisseur sèche)',
-        standardRecommendedCount: 1,
-        configuredCount: 1,
+        rationale: 'Méthode d’essai d’adhérence selon NF EN ISO 2409:2020. Le nombre de mesures relève du protocole retenu pour l’essai : 2 mesures/panneau en configuration de référence. Toute autre configuration entière ≥ 1 constitue une adaptation du cadre appliqué à l’essai et doit être explicitement justifiée ; cette adaptation ne modifie pas le texte de la norme.',
+        standardRecommendedCount: 2,
+        configuredCount: 2,
         deviationFromStandard: false,
         configuredBy: 'SYSTEM',
         configuredAt: '2026-08-30T00:00:00Z',
@@ -105,20 +115,20 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
         origin: 'NORMATIVE_REQUIREMENT',
         standardReference: 'NF EN 927-6',
         clause: '6.3.3',
-        rationale: 'Mesure de brillance spéculaire sous géométrie 60° (2 séries sens du fil + 2 perpendiculaires)',
+        rationale: 'Mesure de brillance spéculaire sous géométrie 60° (2 séries : sens du fil + sens opposé au fil par rotation de 180°)',
         standardConfiguration: {
           seriesCount: 2,
           readingsPerSeries: 2,
           totalReadings: 4,
-          orientations: ['GRAIN_DIRECTION', 'PERPENDICULAR_DIRECTION'],
-          description: '2 mesures sens du fil + 2 mesures perpendiculaire au fil'
+          orientations: ['GRAIN_DIRECTION', 'OPPOSITE_GRAIN_DIRECTION'],
+          description: '2 mesures sens du fil + 2 mesures en sens opposé au fil (rotation 180°)'
         },
         configuredConfiguration: {
           seriesCount: 2,
           readingsPerSeries: 2,
           totalReadings: 4,
-          orientations: ['GRAIN_DIRECTION', 'PERPENDICULAR_DIRECTION'],
-          description: '2 mesures sens du fil + 2 mesures perpendiculaire au fil'
+          orientations: ['GRAIN_DIRECTION', 'OPPOSITE_GRAIN_DIRECTION'],
+          description: '2 mesures sens du fil + 2 mesures en sens opposé au fil (rotation 180°)'
         },
         deviationFromStandard: false,
         configuredBy: 'SYSTEM',
@@ -127,6 +137,19 @@ export function getDefaultScientificRuleSet(): ScientificRuleSet {
       }
     }
   };
+}
+
+/**
+ * Règle métier P5 (CORRECTIF) : longueur minimale d'une justification d'adaptation,
+ * après suppression des espaces en début et fin. Une justification plus courte
+ * n'est pas considérée comme « formellement renseignée » : la configuration est
+ * alors qualifiée NON JUSTIFIÉE. Le logiciel ne juge jamais la pertinence
+ * scientifique du motif — uniquement sa présence exploitable.
+ */
+export const MIN_ADAPTATION_JUSTIFICATION_LENGTH = 8;
+
+export function isAdaptationJustificationValid(justification?: string | null): boolean {
+  return Boolean(justification && justification.trim().length >= MIN_ADAPTATION_JUSTIFICATION_LENGTH);
 }
 
 /**
@@ -141,14 +164,24 @@ export function createCountConfiguration(
     operatorId?: string;
   }
 ): MeasurementCountConfiguration {
-  const ref = ruleSet.measurementConfigurations[familyId] || {
-    standardRecommendedCount: 4,
-    origin: 'NORMATIVE_REQUIREMENT' as ScientificRuleOrigin,
-    ruleSource: 'NORMATIVE_REQUIREMENT' as RuleSource,
-    standardReference: ruleSet.standardReference,
-    clause: 'N/A',
-    rationale: 'Configuration de mesure'
-  };
+  if (
+    typeof configuredCount !== 'number' ||
+    !Number.isFinite(configuredCount) ||
+    !Number.isInteger(configuredCount) ||
+    configuredCount < 1
+  ) {
+    throw new Error(
+      `Configuration ${familyId} invalide : le nombre de mesures doit être un entier fini supérieur ou égal à 1 (reçu : ${String(configuredCount)}).`
+    );
+  }
+  if (familyId === 'ADHESION' && configuredCount > 3) {
+    throw new Error('Configuration ADHESION invalide : au maximum 3 mesures sont autorisées ; 1 et 3 sont des adaptations, 2 est la configuration de référence.');
+  }
+
+  const ref = ruleSet.measurementConfigurations[familyId];
+  if (!ref) {
+    throw new Error(`Référentiel scientifique manquant pour la famille ${familyId} : configuration standard obligatoire.`);
+  }
 
   const isStandard = configuredCount === ref.standardRecommendedCount;
   const justification = options?.justification?.trim() || '';
@@ -193,20 +226,31 @@ export function createSeriesConfiguration(
     operatorId?: string;
   }
 ): MeasurementSeriesConfiguration {
-  const ref = ruleSet.seriesConfigurations?.[familyId] || {
-    origin: 'NORMATIVE_REQUIREMENT' as ScientificRuleOrigin,
-    standardReference: ruleSet.standardReference,
-    clause: '6.3.3',
-    rationale: 'Mesure de brillance spéculaire sous 60°',
-    standardConfiguration: {
-      seriesCount: 2,
-      readingsPerSeries: 2,
-      totalReadings: 4,
-      orientations: ['GRAIN_DIRECTION', 'PERPENDICULAR_DIRECTION'],
-      description: '2 mesures sens du fil + 2 mesures perpendiculaire'
-    },
-    ruleSource: 'NORMATIVE_REQUIREMENT' as RuleSource
-  };
+  if (
+    typeof seriesCount !== 'number' ||
+    !Number.isFinite(seriesCount) ||
+    !Number.isInteger(seriesCount) ||
+    seriesCount < 1
+  ) {
+    throw new Error(
+      `Configuration ${familyId} invalide : le nombre de séries doit être un entier fini supérieur ou égal à 1 (reçu : ${String(seriesCount)}).`
+    );
+  }
+  if (
+    typeof readingsPerSeries !== 'number' ||
+    !Number.isFinite(readingsPerSeries) ||
+    !Number.isInteger(readingsPerSeries) ||
+    readingsPerSeries < 1
+  ) {
+    throw new Error(
+      `Configuration ${familyId} invalide : le nombre de relevés par série doit être un entier fini supérieur ou égal à 1 (reçu : ${String(readingsPerSeries)}).`
+    );
+  }
+
+  const ref = ruleSet.seriesConfigurations?.[familyId];
+  if (!ref) {
+    throw new Error(`Référentiel scientifique manquant pour la famille de séries ${familyId} : configuration standard obligatoire.`);
+  }
 
   const total = seriesCount * readingsPerSeries;
   const isStandard =

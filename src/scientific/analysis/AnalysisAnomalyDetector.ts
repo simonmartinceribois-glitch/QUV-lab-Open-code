@@ -8,6 +8,8 @@ import { Trial, ExposureStage, BatchDefinition } from '../../types/trial';
 import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
 import { AnalysisAnomaly } from '../../types/analysis';
 import { getActiveFamiliesForStage } from '../panelUtils';
+import { parseObservationRating } from '../observationsEngine';
+import { evaluateCountProtocolCompliance, evaluateSeriesProtocolCompliance } from '../protocolEngine';
 
 export function detectTrialAnomalies(
   trial: Trial,
@@ -94,49 +96,80 @@ export function detectTrialAnomalies(
     const famConfig = trial.config.familyConfigs[familyId];
     if (!famConfig || !famConfig.enabled) continue;
 
-    if (familyId === 'COLOR' && famConfig.countConfig) {
-      const stdPoints = ruleSet.measurementConfigurations.COLOR?.standardRecommendedCount ?? 4;
-      const configuredPoints = famConfig.countConfig.configuredCount;
-      if (configuredPoints !== stdPoints) {
-        if (famConfig.countConfig.deviationFromStandard && !famConfig.countConfig.justification) {
+    if (familyId !== 'GLOSS' && famConfig.countConfig) {
+      // Source de vérité unique : le moteur de conformité protocolaire.
+      // Aucune logique d'adaptation n'est réimplémentée ici afin de garantir une
+      // stricte cohérence (STANDARD, ADAPTED_JUSTIFIED, ADAPTED_UNJUSTIFIED,
+      // INCOMPLETE, INVALID) avec evaluateCountProtocolCompliance().
+      const result = evaluateCountProtocolCompliance(famConfig.countConfig, ruleSet);
+      const label = familyId === 'COLOR' ? 'colorimétrique' : familyId === 'PERSOZ' ? 'Persoz' : familyId === 'ADHESION' ? "d'adhérence" : familyId;
+      const sourceReference = ruleSet.measurementConfigurations[familyId]?.standardReference || ruleSet.standardReference;
+
+      switch (result.status) {
+        case 'INCOMPLETE':
           addAnomaly(
             'CRITICAL',
             'PROTOCOL',
-            'COLOR_ADAPTATION_UNJUSTIFIED',
-            'Adaptation du plan colorimétrique non justifiée',
-            `Le plan de mesure de la couleur est configuré à ${configuredPoints} points au lieu des ${stdPoints} points standard sans justification technique enregistrée.`,
+            'MEASUREMENT_REFERENCE_MISSING',
+            `Référentiel de mesure manquant pour ${familyId}`,
+            `Aucune configuration standard n'est disponible pour la famille ${familyId} ; l'évaluation de l'adaptation ne peut pas être référencée.`,
             true,
-            { sourceReference: 'NF EN 927-6 §6.3.2' }
+            { sourceReference }
           );
-        } else {
+          break;
+        case 'INVALID':
+          addAnomaly(
+            'CRITICAL',
+            'PROTOCOL',
+            'MEASUREMENT_INVALID',
+            `Configuration de mesures ${label} invalide`,
+            `La configuration du plan de mesure de ${label} est invalide (${famConfig.countConfig.configuredCount} relevé(s)).`,
+            true,
+            { sourceReference }
+          );
+          break;
+        case 'ADAPTED_JUSTIFIED':
           addAnomaly(
             'INFO',
             'PROTOCOL',
-            'COLOR_ADAPTATION_JUSTIFIED',
-            'Plan de mesure colorimétrique adapté et justifié',
-            `Le plan de mesure de la couleur a été adapté à ${configuredPoints} points au lieu de ${stdPoints} points standard. Motif enregistré : "${famConfig.countConfig.justification}".`,
+            `${familyId}_ADAPTATION_JUSTIFIED`,
+            `Plan de mesure ${label} adapté et justifié`,
+            result.deviationMessage || `Le plan de mesure de ${label} a été adapté à ${famConfig.countConfig.configuredCount} relevé(s).`,
             false,
-            { sourceReference: 'NF EN 927-6 §6.3.2' }
+            { sourceReference }
           );
-        }
-      }
-    }
-
-    if (familyId === 'GLOSS' && famConfig.seriesConfig) {
-      const std = ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration;
-      const cfg = famConfig.seriesConfig.configuredConfiguration;
-      if (std && (cfg.seriesCount !== std.seriesCount || cfg.readingsPerSeries !== std.readingsPerSeries)) {
-        if (famConfig.seriesConfig.deviationFromStandard && !famConfig.seriesConfig.justification) {
+          break;
+        case 'ADAPTED_UNJUSTIFIED':
           addAnomaly(
             'CRITICAL',
             'PROTOCOL',
-            'GLOSS_SERIES_ADAPTATION_UNJUSTIFIED',
-            'Adaptation de la grille de brillance non justifiée',
-            `La configuration brillance (${cfg.seriesCount} séries × ${cfg.readingsPerSeries} points) diffère de la norme (${std.seriesCount} × ${std.readingsPerSeries}) sans justification enregistrée.`,
+            `${familyId}_ADAPTATION_UNJUSTIFIED`,
+            `Adaptation du plan ${label} non justifiée`,
+            `${result.deviationMessage || `Le plan de mesure de ${label} est configuré à ${famConfig.countConfig.configuredCount} relevé(s).`} Une justification obligatoire (8 caractères minimum) doit être enregistrée.`,
+            true,
+            { sourceReference }
+          );
+          break;
+      }
+    }
+    if (familyId === 'GLOSS' && famConfig.seriesConfig) {
+      // Source de vérité unique : evaluateSeriesProtocolCompliance().
+      const result = evaluateSeriesProtocolCompliance(famConfig.seriesConfig, ruleSet);
+      const cfg = famConfig.seriesConfig.configuredConfiguration;
+
+      switch (result.status) {
+        case 'INCOMPLETE':
+          addAnomaly(
+            'CRITICAL',
+            'PROTOCOL',
+            'GLOSS_SERIES_REFERENCE_MISSING',
+            'Référentiel de brillance manquant',
+            `Aucune configuration standard de brillance n'est disponible ; l'évaluation de l'adaptation ne peut pas être référencée.`,
             true,
             { sourceReference: 'NF EN 927-6 §6.3.3' }
           );
-        } else {
+          break;
+        case 'ADAPTED_JUSTIFIED':
           addAnomaly(
             'INFO',
             'PROTOCOL',
@@ -146,7 +179,18 @@ export function detectTrialAnomalies(
             false,
             { sourceReference: 'NF EN 927-6 §6.3.3' }
           );
-        }
+          break;
+        case 'ADAPTED_UNJUSTIFIED':
+          addAnomaly(
+            'CRITICAL',
+            'PROTOCOL',
+            'GLOSS_SERIES_ADAPTATION_UNJUSTIFIED',
+            'Adaptation de la grille de brillance non justifiée',
+            `La configuration brillance (${cfg.seriesCount} séries × ${cfg.readingsPerSeries} points) diffère de la norme sans justification technique enregistrée (8 caractères minimum).`,
+            true,
+            { sourceReference: 'NF EN 927-6 §6.3.3' }
+          );
+          break;
       }
     }
   }
@@ -249,10 +293,15 @@ export function detectTrialAnomalies(
         const obsKey = `${stage.id}__${panel.id}__OBSERVATIONS`;
         const obsAcq = trial.acquisitions[obsKey];
         if (obsAcq && obsAcq.raw) {
-          const rawObs = obsAcq.raw as { observations?: Array<{ category: string; rating: number; comment?: string }> };
+          const rawObs = obsAcq.raw as { observations?: Array<{ category: string; rating: string | number | null | undefined; comment?: string }> };
           if (rawObs.observations) {
             for (const item of rawObs.observations) {
-              if (item.rating === 0 && item.comment && /(important|sévère|marqué|fort|décollement)/i.test(item.comment)) {
+              // Validation par la source de vérité commune parseObservationRating :
+              // seules les cotations réellement VALID et égales à 0 déclenchent le
+              // contrôle de cohérence. Une cotation MISSING ou INVALID n'est jamais
+              // transformée en 0 (pas de contradiction fabriquée par absence).
+              const { validity, value } = parseObservationRating(item.rating);
+              if (validity === 'VALID' && value === 0 && item.comment && /(important|sévère|marqué|fort|décollement)/i.test(item.comment)) {
                 addAnomaly(
                   'CRITICAL',
                   'DATA',

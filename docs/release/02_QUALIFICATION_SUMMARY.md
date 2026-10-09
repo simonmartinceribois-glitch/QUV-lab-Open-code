@@ -1,3 +1,18 @@
+# QUV-LAB v1.6.0 — SYNTHÈSE DE QUALIFICATION
+
+| Contrôle | Commande | Résultat |
+| :--- | :--- | :--- |
+| Suites de tests scientifiques (61 suites, dont Gates 2.2 → 6.0, critères NF EN 927-2 / INFIPERF, persistance R-STORAGE, export R-CSV) | `npm test` | **1051 / 1051** |
+| Compilation TypeScript (strict) | `npm run lint` | 0 erreur |
+| Build de production | `npm run build` | OK (tous les chunks < 500 kB) |
+| Audit des dépendances | `npm audit` | 0 vulnérabilité |
+| CI GitHub Actions `verify` | obligatoire sur `develop` et `main` | verte |
+
+La CI fait foi : le total est calculé par `run_tests.ts`, aucun résultat n'est figé dans le dépôt.
+Le détail ci-dessous est la qualification historique v1.2.0, conservée pour traçabilité.
+
+---
+
 # QUV-LAB v1.2.0 — SYNTHÈSE DE QUALIFICATION (GATES 2.2-5.4)
 
 ## 1. Bilan Global des Validations Techniques

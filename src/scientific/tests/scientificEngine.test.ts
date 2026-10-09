@@ -203,8 +203,8 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     const config = createSeriesConfiguration('GLOSS', 2, 2, ruleSet);
     const raw: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: 45 }, { pointIndex: 2, value: 46 }] },
-        { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: 44 }, { pointIndex: 2, value: 45 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 45 }, { pointIndex: 2, value: 46 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 44 }, { pointIndex: 2, value: 45 }] }
       ],
       instrumentMetadata: { geometry: '20' } // Doit être 60° par défaut
     };
@@ -218,8 +218,8 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     const config = createSeriesConfiguration('GLOSS', 2, 2, ruleSet);
     const raw: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: 40 }, { pointIndex: 2, value: 42 }] },
-        { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: 38 }, { pointIndex: 2, value: 39 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 40 }, { pointIndex: 2, value: 42 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 38 }, { pointIndex: 2, value: 39 }] }
       ]
     };
     const res = calculateGloss(raw, config, ruleSet);
@@ -227,18 +227,18 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     record(13, 'Brillance 2 × 2 -> STANDARD', 'Protocole Brillance', passed, 'STANDARD (4/4 valides)', `${res.computed.protocolStatus} (${res.computed.validCount}/4)`);
   }
 
-  // --- TEST 14 : Brillance 2 x 1 -> adaptation détectée ---
+  // --- TEST 14 : Brillance 2 x 3 -> adaptation détectée ---
   {
-    const config = createSeriesConfiguration('GLOSS', 2, 1, ruleSet, { justification: 'Allègement plan de mesure' });
+    const config = createSeriesConfiguration('GLOSS', 2, 3, ruleSet, { justification: 'Renforcement du plan de mesure' });
     const raw: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: 40 }] },
-        { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: 38 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 40 }, { pointIndex: 2, value: 41 }, { pointIndex: 3, value: 42 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 38 }, { pointIndex: 2, value: 39 }, { pointIndex: 3, value: 40 }] }
       ]
     };
     const res = calculateGloss(raw, config, ruleSet);
-    const passed = res.computed.protocolStatus === 'ADAPTED_JUSTIFIED' && res.computed.totalReadings === 2;
-    record(14, 'Brillance 2 × 1 -> ADAPTED_JUSTIFIED', 'Protocole Brillance', passed, 'ADAPTED_JUSTIFIED (2 mesures)', `${res.computed.protocolStatus} (${res.computed.totalReadings} mesures)`);
+    const passed = res.computed.protocolStatus === 'ADAPTED_JUSTIFIED' && res.computed.totalReadings === 6;
+    record(14, 'Brillance 2 × 3 -> ADAPTED_JUSTIFIED', 'Protocole Brillance', passed, 'ADAPTED_JUSTIFIED (6 mesures)', `${res.computed.protocolStatus} (${res.computed.totalReadings} mesures)`);
   }
 
   // --- TEST 15 : Persoz avec répétitions personnalisées -> adaptation selon référentiel laboratoire ---
@@ -383,14 +383,14 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     const config = createSeriesConfiguration('GLOSS', 2, 2, ruleSet);
     const rawT0: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: 0 }, { pointIndex: 2, value: 0 }] },
-        { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: 0 }, { pointIndex: 2, value: 0 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 0 }, { pointIndex: 2, value: 0 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 0 }, { pointIndex: 2, value: 0 }] }
       ]
     };
     const rawTt: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: 10 }, { pointIndex: 2, value: 12 }] },
-        { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: 11 }, { pointIndex: 2, value: 11 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 10 }, { pointIndex: 2, value: 12 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 11 }, { pointIndex: 2, value: 11 }] }
       ]
     };
     const res = calculateGloss(rawTt, config, ruleSet, { referenceRaw: rawT0 });
@@ -592,8 +592,8 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     // 4 valeurs avec moyenne 20 et écart-type 3.5 => CV = 17.5% > 10%
     const rawData: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: 16 }, { pointIndex: 2, value: 24 }] },
-        { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: 17 }, { pointIndex: 2, value: 23 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 16 }, { pointIndex: 2, value: 24 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 17 }, { pointIndex: 2, value: 23 }] }
       ]
     };
     const res = calculateGloss(rawData, seriesConfig, customRuleSet);
@@ -724,7 +724,7 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
           GLOSS: {
             familyId: 'GLOSS',
             enabled: true,
-            seriesConfig: createSeriesConfiguration('GLOSS', 1, 2, ruleSet, { justification: 'Mesure unidirectionnelle' })
+            seriesConfig: createSeriesConfiguration('GLOSS', 2, 1, ruleSet, { justification: 'Mesure unidirectionnelle' })
           }
         }
       },
@@ -844,7 +844,7 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
   // --- TEST 34 : Traçabilité opérateur et horodatage sur chaque adaptation ---
   {
     const timestampBefore = new Date().toISOString();
-    const configAdapted = createCountConfiguration('COLOR', 3, ruleSet, {
+    const configAdapted = createCountConfiguration('COLOR', 2, ruleSet, {
       justification: 'Panneau court',
       operatorId: 'Ingénieur Qualité M. Dupont'
     });
@@ -1154,8 +1154,76 @@ export function runAllScientificTests(): { results: TestResult[]; summary: { tot
     );
   }
 
+  // --- TEST 45 : maxColorStdDev absent du RuleSet → aucun WARNING de dispersion ---
+  {
+    const noColorStdRuleSet = {
+      ...ruleSet,
+      statisticalRules: {
+        ...ruleSet.statisticalRules,
+        maxColorStdDev: undefined
+      }
+    };
+    const colorConfig = createCountConfiguration('COLOR', 4, noColorStdRuleSet);
+    // Dispersion volontairement élevée (stdDevL ≈ 5,77 > 2.0) : si le repli 2.0
+    // subsistait, un STATISTICAL_WARNING serait émis. Il doit rester silencieux.
+    const rawData: ColorRawData = {
+      readings: [
+        { pointIndex: 1, L: 45.0, a: 0.0, b: 0.0 },
+        { pointIndex: 2, L: 55.0, a: 0.0, b: 0.0 },
+        { pointIndex: 3, L: 45.0, a: 0.0, b: 0.0 },
+        { pointIndex: 4, L: 55.0, a: 0.0, b: 0.0 }
+      ]
+    };
+    const res = calculateColor(rawData, colorConfig, noColorStdRuleSet);
+    const hasColorStdDevWarning = res.alerts.some(
+      (a) => a.code === 'STATISTICAL_WARNING' && a.message.includes('Dispersion L* élevée')
+    );
+    const passed =
+      hasColorStdDevWarning === false && res.computed.stdDevL !== null && res.computed.stdDevL > 2.0;
+
+    record(
+      45,
+      'maxColorStdDev absent du RuleSet → stdDevL calculé mais AUCUN WARNING de dispersion (pas de repli 2.0)',
+      'Règles Métrologiques',
+      passed,
+      'stdDevL > 2.0 calculé, aucun STATISTICAL_WARNING',
+      `stdDevL=${String(res.computed.stdDevL)}, warning=${hasColorStdDevWarning}`
+    );
+  }
+
+  // --- TEST 46 : Géométrie de brillance absente (RuleSet + RAW) → calcul INVALID ---
+  {
+    const noGeomRuleSet = {
+      ...ruleSet,
+      statisticalRules: {
+        ...ruleSet.statisticalRules,
+        glossGeometryDefault: undefined
+      }
+    };
+    const seriesConfig = ruleSet.seriesConfigurations!.GLOSS;
+    const rawNoGeom: GlossRawData = {
+      series: [
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 40 }, { pointIndex: 2, value: 41 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 39 }, { pointIndex: 2, value: 40 }] }
+      ]
+    };
+    const res = calculateGloss(rawNoGeom, seriesConfig, noGeomRuleSet);
+    const invalidStatus = res.computed.qualityAssessment.status === 'INVALID';
+    const blockAlert = res.alerts.some((a) => a.id === 'alert-gloss-geom-undef');
+
+    record(
+      46,
+      'Géométrie absente (RuleSet + métadonnées RAW) → alerte bloquante + statut INVALID',
+      'Contrôle Instrument',
+      invalidStatus && blockAlert,
+      'qualityAssessment.status === INVALID et alerte BLOCKING alert-gloss-geom-undef',
+      `status=${res.computed.qualityAssessment.status}, alert=${blockAlert}`
+    );
+  }
+
   const passedCount = results.filter((r) => r.passed).length;
   const failedCount = results.length - passedCount;
+
 
   return {
     results,

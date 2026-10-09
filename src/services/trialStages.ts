@@ -1,19 +1,40 @@
 /**
  * QUV-Lab — Calendrier d'exposition standard NF EN 927-6 (T0 + 12x168h)
  * Issu du decoupage de trialStore.ts (refactor/split-trialstore). Code deplace a l'identique.
+ * Le générateur produit UNIQUEMENT le calendrier/protocole : aucune acquisition fictive.
+ * Les métadonnées d'acquisition (measuredAt, validatedBy, validatedAt, notes) restent
+ * undefined tant qu'une opération métier réelle ne les renseigne (G52-CAL / étape 06).
+ * Le calendrier est CALÉ sur la date de début de l'essai (T0) — G52-DATE :
+ * aucun contexte de campagne historique n'est câblé ici (G52-CLEAN).
  */
 import { ExposureStage } from '../types/trial';
 import { UUID } from '../types/scientific';
 
 /**
  * Génère les 13 étapes d'exposition standard NF EN 927-6 (T0 + 12 cycles de 168h)
+ * à partir de la date de début de l'essai (date T0). Si startDate est omis,
+ * le jalon T0 est calé sur "maintenant" (valeur par défaut dynamique).
  * Si un plan de mesurage restreint est fourni, les cycles non mesurés restent présents
  * dans le modèle physique en tant que cycles d'exposition, avec le statut 'INACTIVE' (masqués de la paillasse).
  * T0 et C12 sont obligatoires et ne peuvent jamais être inactifs.
+ * La durée scientifique reste déterministe : Ck = startDate + k × 168 h
+ * (scheduledExposureHours = cycleIndex × 168), indépendante de la date choisie.
+ *
+ * À la création d'un essai réel, chaque jalon planifié démarre en 'NOT_STARTED' sans
+ * aucune donnée d'acquisition fabriquée (status n'est jamais 'VALIDATED'/'IN_PROGRESS'
+ * et measuredAt/validatedBy/validatedAt/notes restent undefined). Les données de
+ * démonstration ne vivent que dans trialSeed.ts, jamais ici.
  */
-export function generateStandardExposureStages(trialId: UUID, selectedMeasurementCycles?: number[]): ExposureStage[] {
+export function generateStandardExposureStages(
+  trialId: UUID,
+  startDate?: Date | string,
+  selectedMeasurementCycles?: number[]
+): ExposureStage[] {
   const stages: ExposureStage[] = [];
-  const baseDate = new Date('2026-08-30T08:00:00Z');
+  const baseDate = (startDate instanceof Date ? startDate : startDate ? new Date(startDate) : new Date());
+  if (isNaN(baseDate.getTime())) {
+    baseDate.setTime(Date.now());
+  }
 
   // Étape initiale T0 (0 h) — MESURES INITIALES AVANT EXPOSITION (Obligatoire)
   stages.push({
@@ -23,19 +44,16 @@ export function generateStandardExposureStages(trialId: UUID, selectedMeasuremen
     stageType: 'INITIAL_PRE_EXPOSURE',
     name: 'T0 — MESURES INITIALES AVANT EXPOSITION',
     scheduledExposureHours: 0,
-    actualExposureHours: 0,
     scheduledAt: baseDate.toISOString(),
-    measuredAt: baseDate.toISOString(),
-    status: 'VALIDATED',
-    validatedBy: 'SM',
-    validatedAt: '2026-08-30T12:00:00Z',
-    notes: 'Mesures initiales de référence réalisées avant toute exposition UV.'
+    status: 'NOT_STARTED'
   });
 
   // 12 Cycles de 168h (168h à 2016h)
   for (let i = 1; i <= 12; i++) {
     const cycleHours = i * 168;
-    const scheduledDate = new Date(baseDate.getTime() + i * 7 * 24 * 3600 * 1000);
+    // Jalon calé sur T0 par incrément physique exact de 168 h (et non par jours calendaires),
+    // afin d'éviter toute dérive liée aux changements d'heure saisonniers.
+    const scheduledDate = new Date(baseDate.getTime() + cycleHours * 3600 * 1000);
     const isFinal = i === 12;
 
     // Détermination de l'inclusion dans le plan de mesurage
@@ -52,13 +70,8 @@ export function generateStandardExposureStages(trialId: UUID, selectedMeasuremen
         ? '2016 h — MESURES FINALES APRÈS EXPOSITION'
         : `${cycleHours} h — MESURES EN COURS D'EXPOSITION`,
       scheduledExposureHours: cycleHours,
-      actualExposureHours: i === 1 && isPlannedForMeasurement ? 168 : (i === 2 && isPlannedForMeasurement ? 335.8 : undefined),
       scheduledAt: scheduledDate.toISOString(),
-      measuredAt: i === 1 && isPlannedForMeasurement ? '2026-09-06T14:30:00Z' : (i === 2 && isPlannedForMeasurement ? '2026-09-13T10:15:00Z' : undefined),
-      status: !isPlannedForMeasurement ? 'INACTIVE' : (i === 1 ? 'VALIDATED' : i === 2 ? 'IN_PROGRESS' : 'NOT_STARTED'),
-      validatedBy: i === 1 && isPlannedForMeasurement ? 'SM' : undefined,
-      validatedAt: i === 1 && isPlannedForMeasurement ? '2026-09-06T17:00:00Z' : undefined,
-      notes: i === 1 && isPlannedForMeasurement ? 'Relevé intermédiaire 168h validé sans anomalie.' : undefined
+      status: !isPlannedForMeasurement ? 'INACTIVE' : 'NOT_STARTED'
     });
   }
 

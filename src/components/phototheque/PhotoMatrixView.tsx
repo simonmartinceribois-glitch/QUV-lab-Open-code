@@ -5,9 +5,10 @@
  */
 
 import { useMemo } from 'react';
-import { getActiveStages } from '../../scientific/panelUtils';
+import { getActiveStages, cycleTag } from '../../scientific/panelUtils';
 import type { Trial } from '../../types/trial';
 import type { MediaReference } from '../../types/trial';
+import { PhotoStorageImage } from './PhotoStorageImage';
 
 interface Props {
   trial: Trial;
@@ -45,7 +46,7 @@ export function PhotoMatrixView({
             {activeStages.map((st) => (
               <th key={st.id} className="p-2.5 font-bold text-slate-700 text-center font-mono">
                 {st.name}
-                <span className="block text-[10px] text-slate-400 font-normal">({st.scheduledExposureHours}h)</span>
+                <span className="block text-[10px] text-slate-400 font-normal">{cycleTag(st)}</span>
               </th>
             ))}
           </tr>
@@ -93,11 +94,10 @@ export function PhotoMatrixView({
                             className="inline-block relative group"
                             title={`${code} - ${st.name} : ${photo.caption}`}
                           >
-                            <img
-                              src={photo.storageKey}
+                            <PhotoStorageImage
+                              storageKey={photo.storageKey}
                               alt="Cliché"
-                              className="w-12 h-10 object-cover rounded border border-slate-300 group-hover:scale-110 transition-transform shadow-2xs"
-                              referrerPolicy="no-referrer"
+                              imgClassName="w-12 h-10 object-cover rounded border border-slate-300 group-hover:scale-110 transition-transform shadow-2xs"
                             />
                           </button>
                         ) : (

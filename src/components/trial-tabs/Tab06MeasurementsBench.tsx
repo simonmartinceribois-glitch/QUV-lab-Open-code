@@ -24,18 +24,18 @@ import {
 } from '../../types/scientific';
 import { globalTrialStore, generateUUID } from '../../services/trialStore';
 import {
-  ISO2409_CLASSES,
   getApplicableGridSpacing,
-  calculateDelayCompliance
+  normalizeAdhesionMeasurements
 } from '../../scientific/adhesionEngine';
-import { isFamilyScheduledForStage, getActiveFamiliesForStage } from '../../scientific/panelUtils';
+import { isFamilyScheduledForStage, getActiveFamiliesForStage, isPersozEligiblePanel, isAdhesionEligiblePanel
+} from '../../scientific/panelUtils';
 import { BenchTopBar } from '../bench/BenchTopBar';
 import { BenchPanelGrid } from '../bench/BenchPanelGrid';
 import { BenchComputedPanel } from '../bench/BenchComputedPanel';
 import { BenchColorForm } from '../bench/BenchColorForm';
 import { BenchGlossForm } from '../bench/BenchGlossForm';
 import { BenchPersozForm } from '../bench/BenchPersozForm';
-import { BenchAdhesionForm } from '../bench/BenchAdhesionForm';
+import { BenchAdhesionForm, AdhesionBenchEntry } from '../bench/BenchAdhesionForm';
 import { BenchObservationsForm } from '../bench/BenchObservationsForm';
 import {
   PlayCircle,
@@ -48,7 +48,6 @@ import {
   Save,
   Check,
   RotateCcw,
-  Zap,
   Info,
   Sliders,
   ShieldCheck,
@@ -109,8 +108,14 @@ export function Tab06MeasurementsBench({
     b.panels.filter((p) => p.status === 'ACTIVE').map((p) => ({ batch: b, panel: p }))
   );
 
+  // Verrou UI ADHÉSION (matrice T0/T, C1-C11 aucun, C12/E1-E3) : les cibles
+  // interdites restent AFFICHÉES mais désactivées dans la grille (pattern
+  // PERSOZ, voir BenchPanelGrid) — JAMAIS filtrées hors de la liste.
+  // Le runtime (garde avant recordAcquisition) reste l'autorité finale.
+  const benchPanelsList = activePanelsList;
+
   const [selectedPanelId, setSelectedPanelId] = useState<string>(
-    activePanelsList.length > 0 ? activePanelsList[0].panel.id : ''
+    benchPanelsList.length > 0 ? benchPanelsList[0].panel.id : ''
   );
 
   const [operatorId, setOperatorId] = useState<string>('Simon Martin (Technicien)');
@@ -118,16 +123,25 @@ export function Tab06MeasurementsBench({
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
 
   // Panneau actif sélectionné
-  const currentPanelItem = activePanelsList.find((item) => item.panel.id === selectedPanelId) || activePanelsList[0];
+  const currentPanelItem = benchPanelsList.find((item) => item.panel.id === selectedPanelId) || benchPanelsList[0];
   const currentBatch = currentPanelItem?.batch;
   const currentPanel = currentPanelItem?.panel;
 
   // Configuration de la famille active
   const famConfig = trial.config.familyConfigs[selectedFamilyId];
-  const colorCount = famConfig?.countConfig?.configuredCount || 4;
-  const persozCount = famConfig?.countConfig?.configuredCount || 3;
-  const glossSeries = famConfig?.seriesConfig?.configuredConfiguration.seriesCount || 2;
-  const glossReadingsPerSeries = famConfig?.seriesConfig?.configuredConfiguration.readingsPerSeries || 2;
+  const colorCount = famConfig?.countConfig?.configuredCount ?? 0;
+  const persozCount = famConfig?.countConfig?.configuredCount ?? 0;
+  const glossSeries = famConfig?.seriesConfig?.configuredConfiguration.seriesCount ?? 0;
+  const glossReadingsPerSeries = famConfig?.seriesConfig?.configuredConfiguration.readingsPerSeries ?? 0;
+
+  // Références standard issues du référentiel (P5) : jamais codées en dur,
+  // source de vérité unique pour le statut PROTOCOLE STANDARD / ADAPTÉ.
+  const colorStandard = ruleSet.measurementConfigurations.COLOR?.standardRecommendedCount;
+  const glossStandard = ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration;
+  const persozStandard = ruleSet.measurementConfigurations.PERSOZ?.standardRecommendedCount;
+  const adhesionStandard = ruleSet.measurementConfigurations.ADHESION?.standardRecommendedCount;
+  const protocolJustification =
+    famConfig?.countConfig?.justification ?? famConfig?.seriesConfig?.justification ?? undefined;
 
   // Acquisition en cours
   const acqKey = `${currentStage.id}__${currentPanel?.id}__${selectedFamilyId}`;
@@ -142,8 +156,8 @@ export function Tab06MeasurementsBench({
   // Brillance : séries de points
   const [glossSeriesData, setGlossSeriesData] = useState<{ orientation: string; values: string[] }[]>(() => {
     return [
-      { orientation: 'Sens du fil', values: Array.from({ length: glossReadingsPerSeries }, () => '') },
-      { orientation: 'Perpendiculaire', values: Array.from({ length: glossReadingsPerSeries }, () => '') }
+      { orientation: 'GRAIN_DIRECTION', values: Array.from({ length: glossReadingsPerSeries }, () => '') },
+      { orientation: 'OPPOSITE_GRAIN_DIRECTION', values: Array.from({ length: glossReadingsPerSeries }, () => '') }
     ];
   });
 
@@ -161,9 +175,14 @@ export function Tab06MeasurementsBench({
     { category: 'GENERAL_APPEARANCE', categoryLabel: 'Aspect général', rating: 0, status: 'CONFORME', comment: 'Aspect uniforme' }
   ]);
 
-  // Adhérence au quadrillage : classe (0 à 5) et observation
-  const [adhesionClass, setAdhesionClass] = useState<number | null>(0);
-  const [adhesionObservation, setAdhesionObservation] = useState<string>('');
+  // Adhérence au quadrillage (Gate 57) : N mesures indépendantes selon le protocole.
+  // Le protocole configuré est la source de vérité (standard 2 ; historique 1/1
+  // via resolveAdhesionCountConfig quand aucun countConfig n'est enregistré).
+  const adhExpectedCount =
+    selectedFamilyId === 'ADHESION'
+      ? famConfig?.countConfig?.configuredCount ?? 0
+      : 0;
+  const [adhEntries, setAdhEntries] = useState<AdhesionBenchEntry[]>([]);
 
   // Synchronisation lors du changement de panneau ou famille
   useEffect(() => {
@@ -195,8 +214,8 @@ export function Tab06MeasurementsBench({
         setGlossSeriesData(arr);
       } else {
         setGlossSeriesData([
-          { orientation: 'Sens du fil', values: Array.from({ length: glossReadingsPerSeries }, () => '') },
-          { orientation: 'Perpendiculaire', values: Array.from({ length: glossReadingsPerSeries }, () => '') }
+          { orientation: 'GRAIN_DIRECTION', values: Array.from({ length: glossReadingsPerSeries }, () => '') },
+          { orientation: 'OPPOSITE_GRAIN_DIRECTION', values: Array.from({ length: glossReadingsPerSeries }, () => '') }
         ]);
       }
     } else if (selectedFamilyId === 'PERSOZ') {
@@ -210,14 +229,20 @@ export function Tab06MeasurementsBench({
         setPersozValues(Array.from({ length: persozCount }, () => ''));
       }
     } else if (selectedFamilyId === 'ADHESION') {
-      const raw = rec?.raw as AdhesionRawData;
-      if (raw && raw.adhesionClass !== undefined && raw.adhesionClass !== null) {
-        setAdhesionClass(raw.adhesionClass);
-        setAdhesionObservation(raw.observation || '');
-      } else {
-        setAdhesionClass(0);
-        setAdhesionObservation('');
-      }
+      const raw = rec?.raw as AdhesionRawData | undefined;
+      const norm = raw ? normalizeAdhesionMeasurements(raw) : [];
+      // Anti-perte Gate 57 : on ne tronque JAMAIS les mesures existantes au
+      // nombre attendu. Si le RAW contient plus de mesures (ex. réduction 2→1
+      // ultérieure), elles restent affichées et seront ré-enregistrées telles quelles.
+      const entryCount = Math.max(adhExpectedCount, norm.length, 1);
+      const sized: AdhesionBenchEntry[] = Array.from({ length: entryCount }, (_, i) => {
+        const m = norm[i];
+        return {
+          cls: typeof m?.adhesionClass === 'number' ? m.adhesionClass : null,
+          obs: typeof m?.observation === 'string' ? m.observation : ''
+        };
+      });
+      setAdhEntries(sized);
     } else if (selectedFamilyId === 'OBSERVATIONS') {
       const raw = rec?.raw as VisualObservationsRawData;
       if (raw && Array.isArray(raw.observations)) {
@@ -232,13 +257,25 @@ export function Tab06MeasurementsBench({
         ]);
       }
     }
-  }, [selectedPanelId, selectedFamilyId, currentStage.id]);
+  }, [selectedPanelId, selectedFamilyId, currentStage.id, adhExpectedCount]);
 
   // Fonction d'enregistrement du panneau courant
   const handleSaveCurrentPanel = (autoAdvance = true) => {
     if (!currentPanel || !currentBatch) return;
     if (currentStage.status === 'INACTIVE') {
       alert("Ce jalon a été exclu du plan de mesurage ; aucune acquisition n'est autorisée.");
+      return;
+    }
+    // Verrou UI PERSOZ (E1/E2/E3 strict) : aucun RAW créé, aucun appel recordAcquisition.
+    // Le verrou runtime (recordAcquisition) rejette de toute façon en dernier rempart.
+    if (selectedFamilyId === 'PERSOZ' && !isPersozEligiblePanel(currentPanel)) {
+      alert("PERSOZ interdit sur cette éprouvette : mesure réservée aux éprouvettes exposées E1, E2, E3.");
+      return;
+    }
+    // Verrou UI ADHÉSION (matrice T0/T, C12/E1-E3) : aucun RAW créé, aucun appel
+    // recordAcquisition sur cible interdite. Le runtime reste l'autorité finale.
+    if (selectedFamilyId === 'ADHESION' && !isAdhesionEligiblePanel(currentPanel, currentStage)) {
+      alert("ADHÉSION interdite sur cette cible : T0 autorisé uniquement sur le témoin T, C12 uniquement sur E1/E2/E3.");
       return;
     }
 
@@ -279,16 +316,36 @@ export function Tab06MeasurementsBench({
       if (currentBatch.dryFilmThicknessMicrons === undefined || currentBatch.dryFilmThicknessMicrons === null || currentBatch.dryFilmThicknessMicrons > 250) {
         return;
       }
-      rawPayload = {
-        adhesionClass: adhesionClass !== null ? adhesionClass : 0,
-        gridSpacingMm: spacingInfo.gridSpacingMm || 2,
-        coatingThicknessMicrons: currentBatch.dryFilmThicknessMicrons,
-        measurementDateTime: new Date().toISOString(),
-        applicationDateTime: currentBatch.applicationDate,
-        requiredMinimumDelayHours: 168,
-        normReference: 'NF EN ISO 2409:2020',
-        observation: adhesionObservation.trim() || undefined
-      } as AdhesionRawData;
+      // Gate 57 : une seule acquisition par stage/panneau/famille ; les mesures
+      // individuelles vivent dans `measurements`. Aucune moyenne dans RAW.
+      // Anti-migration : un RAW legacy scalaire ré-enregistré à 1 mesure conserve
+      // sa forme scalaire historique (jamais de conversion auto en tableau).
+      const prevAdhRaw = currentRecord?.raw as AdhesionRawData | undefined;
+      const isPrevLegacyScalar =
+        !!prevAdhRaw && !Array.isArray(prevAdhRaw.measurements) && adhEntries.length <= 1;
+      const firstEntry = adhEntries[0] || { cls: null, obs: '' };
+      rawPayload = isPrevLegacyScalar
+        ? {
+            adhesionClass: firstEntry.cls,
+            gridSpacingMm: spacingInfo.gridSpacingMm,
+            coatingThicknessMicrons: currentBatch.dryFilmThicknessMicrons,
+            measurementDateTime: new Date().toISOString(),
+            applicationDateTime: currentBatch.applicationDate,
+                        normReference: 'NF EN ISO 2409:2020',
+            ...(firstEntry.obs.trim() ? { observation: firstEntry.obs.trim() } : {})
+          } as AdhesionRawData
+        : {
+            measurements: adhEntries.map((e, idx) => ({
+              measurementIndex: idx + 1,
+              adhesionClass: e.cls,
+              ...(e.obs.trim() ? { observation: e.obs.trim() } : {})
+            })),
+            gridSpacingMm: spacingInfo.gridSpacingMm,
+            coatingThicknessMicrons: currentBatch.dryFilmThicknessMicrons,
+            measurementDateTime: new Date().toISOString(),
+            applicationDateTime: currentBatch.applicationDate,
+            normReference: 'NF EN ISO 2409:2020'
+          } as AdhesionRawData;
     } else if (selectedFamilyId === 'OBSERVATIONS') {
       rawPayload = {
         observations,
@@ -313,10 +370,12 @@ export function Tab06MeasurementsBench({
 
     // NEXT automatique vers le panneau suivant incomplet
     if (autoAdvance) {
-      const currentIdx = activePanelsList.findIndex((item) => item.panel.id === currentPanel.id);
-      // Chercher d'abord le prochain incomplet
-      const nextIncomplete = activePanelsList.find((item, idx) => {
+      const currentIdx = benchPanelsList.findIndex((item) => item.panel.id === currentPanel.id);
+      // Chercher d'abord le prochain incomplet (T exclu d'office en campagne PERSOZ)
+      const nextIncomplete = benchPanelsList.find((item, idx) => {
         if (idx <= currentIdx) return false;
+        if (selectedFamilyId === 'PERSOZ' && !isPersozEligiblePanel(item.panel)) return false;
+        if (selectedFamilyId === 'ADHESION' && !isAdhesionEligiblePanel(item.panel, currentStage)) return false;
         const key = `${currentStage.id}__${item.panel.id}__${selectedFamilyId}`;
         const r = trial.acquisitions[key];
         return !r || !r.computed;
@@ -324,41 +383,33 @@ export function Tab06MeasurementsBench({
 
       if (nextIncomplete) {
         setSelectedPanelId(nextIncomplete.panel.id);
-      } else if (currentIdx < activePanelsList.length - 1) {
-        setSelectedPanelId(activePanelsList[currentIdx + 1].panel.id);
+      } else if (currentIdx < benchPanelsList.length - 1) {
+        const following = benchPanelsList.slice(currentIdx + 1).find((item) => {
+          if (selectedFamilyId === 'PERSOZ' && !isPersozEligiblePanel(item.panel)) return false;
+          if (selectedFamilyId === 'ADHESION' && !isAdhesionEligiblePanel(item.panel, currentStage)) return false;
+          return true;
+        });
+        if (following) setSelectedPanelId(following.panel.id);
       }
     }
   };
 
-  // Remplissage rapide / Import simulation
-  const handleFastPrefill = () => {
-    if (selectedFamilyId === 'COLOR') {
-      setColorReadings([
-        { L: '62.5', a: '8.4', b: '24.2' },
-        { L: '62.3', a: '8.5', b: '24.1' },
-        { L: '62.6', a: '8.3', b: '24.3' },
-        { L: '62.4', a: '8.4', b: '24.2' }
-      ]);
-    } else if (selectedFamilyId === 'GLOSS') {
-      setGlossSeriesData([
-        { orientation: 'Sens du fil', values: ['44.5', '44.8'] },
-        { orientation: 'Perpendiculaire', values: ['43.2', '43.6'] }
-      ]);
-    } else if (selectedFamilyId === 'PERSOZ') {
-      setPersozValues(['85.2', '84.8', '85.5']);
-    }
-  };
-
-  const computed = currentRecord?.computed as any;
+  const computed: unknown = currentRecord?.computed;
 
   // Calcul du résumé de la campagne pour la famille
-  const completedPanelsCount = activePanelsList.filter((item) => {
+  // Complétude de campagne : décomptée sur les seules cibles éligibles pour
+  // ADHÉSION (matrice du jalon courant), sur toute la liste sinon.
+  const countPanelsList =
+    selectedFamilyId === 'ADHESION'
+      ? activePanelsList.filter((item) => isAdhesionEligiblePanel(item.panel, currentStage))
+      : benchPanelsList;
+  const completedPanelsCount = countPanelsList.filter((item) => {
     const k = `${currentStage.id}__${item.panel.id}__${selectedFamilyId}`;
     const r = trial.acquisitions[k];
     return r && r.computed;
   }).length;
 
-  const totalPanelsCount = activePanelsList.length;
+  const totalPanelsCount = countPanelsList.length;
   const isFamilyCampaignComplete = completedPanelsCount === totalPanelsCount && totalPanelsCount > 0;
 
   const currentMeasuredIndex = measuredStages.findIndex((s) => s.id === currentStage.id);
@@ -400,11 +451,26 @@ export function Tab06MeasurementsBench({
         totalPanelsCount={totalPanelsCount}
         isFamilyCampaignComplete={isFamilyCampaignComplete}
         selectedFamilyId={selectedFamilyId}
-        activePanelsList={activePanelsList}
+        activePanelsList={benchPanelsList}
         currentPanelId={currentPanel?.id}
         currentStageId={currentStage.id}
+        currentStage={currentStage}
         acquisitions={trial.acquisitions}
-        onSelectPanel={setSelectedPanelId}
+        onSelectPanel={(panelId) => {
+          // Verrou UI PERSOZ (E1/E2/E3 strict) : T et panneaux non identifiés
+          // non sélectionnables en campagne PERSOZ.
+          if (selectedFamilyId === 'PERSOZ') {
+            const target = benchPanelsList.find((item) => item.panel.id === panelId);
+            if (target && !isPersozEligiblePanel(target.panel)) return;
+          }
+          // Verrou UI ADHÉSION : cible interdite non sélectionnable (matrice
+          // T0/T, C1-C11 aucun, C12/E1-E3 ; contexte invalide → fermé).
+          if (selectedFamilyId === 'ADHESION') {
+            const target = benchPanelsList.find((item) => item.panel.id === panelId);
+            if (target && !isAdhesionEligiblePanel(target.panel, currentStage)) return;
+          }
+          setSelectedPanelId(panelId);
+        }}
         onOpenValidationModal={() => setShowValidationSummaryModal(true)}
       />
 
@@ -427,23 +493,14 @@ export function Tab06MeasurementsBench({
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleFastPrefill}
-                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center gap-1"
-                  title="Pré-remplissage rapide pour test"
-                >
-                  <Zap className="w-3.5 h-3.5 text-amber-600" />
-                  Test Rapide
-                </button>
-              </div>
             </div>
 
             {/* Formulaire spécifique à la famille */}
             {selectedFamilyId === 'COLOR' && (
               <BenchColorForm
                 colorCount={colorCount}
+                standardColorCount={colorStandard}
+                protocolJustification={protocolJustification}
                 colorReadings={colorReadings}
                 onColorReadingsChange={setColorReadings}
               />
@@ -451,6 +508,11 @@ export function Tab06MeasurementsBench({
 
             {selectedFamilyId === 'GLOSS' && (
               <BenchGlossForm
+                glossSeriesCount={glossSeries}
+                glossReadingsPerSeries={glossReadingsPerSeries}
+                standardSeriesCount={glossStandard?.seriesCount ?? 0}
+                standardReadingsPerSeries={glossStandard?.readingsPerSeries ?? 0}
+                protocolJustification={protocolJustification}
                 glossSeriesData={glossSeriesData}
                 onGlossSeriesChange={setGlossSeriesData}
               />
@@ -458,6 +520,9 @@ export function Tab06MeasurementsBench({
 
             {selectedFamilyId === 'PERSOZ' && (
               <BenchPersozForm
+                persozCount={persozCount}
+                standardPersozReps={persozStandard}
+                protocolJustification={protocolJustification}
                 persozValues={persozValues}
                 onPersozValuesChange={setPersozValues}
               />
@@ -469,10 +534,11 @@ export function Tab06MeasurementsBench({
                 currentPanel={currentPanel}
                 currentStage={currentStage}
                 isInitialStage={isInitialStage}
-                adhesionClass={adhesionClass}
-                onAdhesionClassChange={setAdhesionClass}
-                adhesionObservation={adhesionObservation}
-                onAdhesionObservationChange={setAdhesionObservation}
+                expectedCount={adhExpectedCount}
+                standardAdhesionCount={adhesionStandard}
+                protocolJustification={protocolJustification}
+                entries={adhEntries}
+                onEntriesChange={setAdhEntries}
               />
             )}
 

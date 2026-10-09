@@ -16,9 +16,26 @@ import {
   ScientificRuleSet,
   UUID
 } from '../types/scientific';
-import { getActiveFamiliesForStage } from './panelUtils';
+import { getActiveFamiliesForStage, isAdhesionEligiblePanel, isPersozEligiblePanel } from './panelUtils';
+import { evaluateCountProtocolCompliance, evaluateSeriesProtocolCompliance } from './protocolEngine';
 
 export const QUALITY_ASSESSMENT_VERSION = '1.2.0';
+
+/**
+ * Attente applicable d'une famille sur un panneau au jalon courant.
+ * - ADHÉSION : matrice T0/T, C12/E1-E3 (isAdhesionEligiblePanel).
+ * - PERSOZ : E1/E2/E3 à tous les jalons (isPersozEligiblePanel), T jamais attendu.
+ * - Autres familles : tous les panneaux actifs (comportement historique).
+ */
+function isFamilyPanelExpected(
+  familyId: string,
+  panel: { label?: string; roleCode?: string; role?: string },
+  stage?: { cycleIndex?: number } | null
+): boolean {
+  if (familyId === 'ADHESION') return !!stage && isAdhesionEligiblePanel(panel, stage);
+  if (familyId === 'PERSOZ') return isPersozEligiblePanel(panel);
+  return true;
+}
 
 /**
  * Évalue la qualité globale au niveau d'une étape d'exposition
@@ -51,6 +68,7 @@ export function assessStageQuality(
 
   const stageAcquisitions = Object.values(trial.acquisitions).filter((a) => a.stageId === stageId);
   const activePanels = trial.batches.flatMap((b) => b.panels.filter((p) => p.status === 'ACTIVE'));
+  const panelById = new Map(activePanels.map((p) => [p.id, p] as const));
 
   let panelsComplete = 0;
   let panelsWithWarnings = 0;
@@ -60,10 +78,22 @@ export function assessStageQuality(
 
   for (const familyId of scheduledFamilies) {
     const familyAcqs = stageAcquisitions.filter((a) => a.familyId === familyId);
+    // Alertes pertinentes : acquisitions admissibles uniquement (ADHÉSION/PERSOZ).
+    // Une acquisition interdite/historique (panneau non éligible) ne doit jamais
+    // dégrader à elle seule le statut de la population scientifique attendue.
+    // Panneau introuvable : compté par prudence (donnée orpheline = anomalie visible).
+    // Autres familles : comportement inchangé (toutes acquisitions).
+    const eligibleFamilyAcqs =
+      (familyId === 'ADHESION' || familyId === 'PERSOZ') && stage
+        ? familyAcqs.filter((a) => {
+            const panel = panelById.get(a.panelId);
+            return !panel || isFamilyPanelExpected(familyId, panel, stage);
+          })
+        : familyAcqs;
     let famHasInvalid = false;
     let famHasWarning = false;
 
-    for (const acq of familyAcqs) {
+    for (const acq of eligibleFamilyAcqs) {
       if (acq.alerts?.some((alert) => alert.severity === 'BLOCKING')) {
         famHasInvalid = true;
       } else if (acq.alerts?.some((alert) => alert.severity === 'WARNING')) {
@@ -71,22 +101,48 @@ export function assessStageQuality(
       }
     }
 
+    // Complétude ciblée : ADHÉSION (matrice T0/T, C12/E1-E3) et PERSOZ
+    // (E1/E2/E3, T jamais attendu) ne comptent que leurs panneaux éligibles —
+    // ni les absences normales, ni les acquisitions interdites historiques ne
+    // satisfont la couverture. Autres familles : comportement inchangé.
+    let expectedCount = activePanels.length;
+    let coveredCount = familyAcqs.length;
+    if ((familyId === 'ADHESION' || familyId === 'PERSOZ') && stage) {
+      const eligibleIds = new Set(
+        activePanels.filter((p) => isFamilyPanelExpected(familyId, p, stage)).map((p) => p.id)
+      );
+      expectedCount = eligibleIds.size;
+      coveredCount = familyAcqs.filter((a) => eligibleIds.has(a.panelId)).length;
+    }
+
     if (famHasInvalid) {
       familyAssessments[familyId] = 'INVALID';
     } else if (famHasWarning) {
       familyAssessments[familyId] = 'WARNING';
-    } else if (familyAcqs.length >= activePanels.length) {
+    } else if (expectedCount > 0 && coveredCount >= expectedCount) {
+      familyAssessments[familyId] = 'GOOD';
+    } else if (expectedCount === 0) {
       familyAssessments[familyId] = 'GOOD';
     } else {
       familyAssessments[familyId] = 'ACCEPTABLE';
     }
   }
 
+  let panelsEvaluated = 0;
   for (const panel of activePanels) {
+    // Attentes applicables au panneau : ADHÉSION selon le jalon, PERSOZ sur
+    // E1/E2/E3 uniquement (T jamais attendu). Un panneau sans attente applicable
+    // est hors compteur — ni complet, ni en anomalie. Autres familles : inchangé.
+    const expectedFamilies = scheduledFamilies.filter((fam) => isFamilyPanelExpected(fam, panel, stage));
+    if (expectedFamilies.length === 0) continue;
+    panelsEvaluated++;
     const panelAcqs = stageAcquisitions.filter((a) => a.panelId === panel.id && scheduledFamilies.includes(a.familyId));
-    const hasBlocking = panelAcqs.some((a) => a.alerts?.some((al) => al.severity === 'BLOCKING'));
-    const hasWarning = panelAcqs.some((a) => a.alerts?.some((al) => al.severity === 'WARNING'));
-    const isComplete = panelAcqs.length === scheduledFamilies.length;
+    const eligibleAcqs = panelAcqs.filter((a) => isFamilyPanelExpected(a.familyId, panel, stage));
+    // Alertes pertinentes : acquisitions admissibles uniquement. Une acquisition
+    // interdite/historique ne dégrade jamais à elle seule le panneau attendu.
+    const hasBlocking = eligibleAcqs.some((a) => a.alerts?.some((al) => al.severity === 'BLOCKING'));
+    const hasWarning = eligibleAcqs.some((a) => a.alerts?.some((al) => al.severity === 'WARNING'));
+    const isComplete = eligibleAcqs.length === expectedFamilies.length;
 
     if (hasBlocking) {
       panelsInvalid++;
@@ -102,7 +158,7 @@ export function assessStageQuality(
     globalStatus = 'INVALID';
   } else if (panelsWithWarnings > 0) {
     globalStatus = 'WARNING';
-  } else if (panelsComplete === activePanels.length) {
+  } else if (panelsComplete === panelsEvaluated) {
     globalStatus = 'GOOD';
   } else {
     globalStatus = 'ACCEPTABLE';
@@ -110,7 +166,7 @@ export function assessStageQuality(
 
   return {
     stageId,
-    panelsEvaluated: activePanels.length,
+    panelsEvaluated,
     panelsComplete,
     panelsWithWarnings,
     panelsInvalid,
@@ -118,6 +174,24 @@ export function assessStageQuality(
     globalStatus,
     calculationVersion: QUALITY_ASSESSMENT_VERSION
   };
+}
+
+/**
+ * Éligibilité d'une acquisition au décompte qualité global de l'essai.
+ * Miroir niveau Trial de isFamilyPanelExpected (stage) : PERSOZ E1-E3,
+ * ADHÉSION selon matrice, autres familles inchangées.
+ * Panneau ou jalon introuvable : compté par prudence (politique PR #72 —
+ * une donnée orpheline reste une anomalie visible, jamais silencieuse).
+ */
+function isTrialAlertEligible(acq: PanelAcquisitionRecord, trial: Trial): boolean {
+  if (acq.familyId !== 'PERSOZ' && acq.familyId !== 'ADHESION') return true;
+  const batch = trial.batches?.find((b) => b.id === acq.batchId);
+  const panel = batch?.panels?.find((p) => p.id === acq.panelId);
+  if (!panel) return true;
+  if (acq.familyId === 'PERSOZ') return isPersozEligiblePanel(panel);
+  const stage = trial.stages?.find((s) => s.id === acq.stageId);
+  if (!stage) return true;
+  return isAdhesionEligiblePanel(panel, stage);
 }
 
 /**
@@ -131,38 +205,32 @@ export function assessTrialQuality(
   let blockingAlertsCount = 0;
   let warningAlertsCount = 0;
 
-  // 1. Décompte des alertes sur toutes les acquisitions
+  // 1. Décompte des alertes sur les acquisitions admissibles uniquement :
+  // une acquisition interdite/historique (PERSOZ/T, ADHÉSION hors matrice)
+  // ne dégrade jamais le statut global. RAW inchangé (lecture seule).
   Object.values(trial.acquisitions).forEach((acq) => {
+    if (!isTrialAlertEligible(acq, trial)) return;
     acq.alerts.forEach((alert) => {
       if (alert.severity === 'BLOCKING') blockingAlertsCount++;
       if (alert.severity === 'WARNING') warningAlertsCount++;
     });
   });
 
-  // 2. Évaluation de la conformité du protocole global
+  // 2. Évaluation de la conformité du protocole global : source unique = protocolEngine.
+  // Agrégation déterministe : INVALID > INCOMPLETE > ADAPTED_UNJUSTIFIED > ADAPTED_JUSTIFIED > STANDARD.
+  const rank: Record<ProtocolComplianceStatus, number> = {
+    STANDARD: 0, ADAPTED_JUSTIFIED: 1, ADAPTED_UNJUSTIFIED: 2, INCOMPLETE: 3, INVALID: 4
+  };
   let protocolCompliance: ProtocolComplianceStatus = 'STANDARD';
-
   for (const familyId of trial.config.activeFamilies) {
-    const famConfig = trial.config.familyConfigs[familyId];
-    if (famConfig?.countConfig) {
-      if (famConfig.countConfig.mode === 'CUSTOM_JUSTIFIED') {
-        if (!famConfig.countConfig.justification?.trim()) {
-          protocolCompliance = 'ADAPTED_UNJUSTIFIED';
-          break;
-        } else {
-          protocolCompliance = 'ADAPTED_JUSTIFIED';
-        }
-      }
-    }
-    if (famConfig?.seriesConfig) {
-      if (famConfig.seriesConfig.mode === 'CUSTOM_JUSTIFIED') {
-        if (!famConfig.seriesConfig.justification?.trim()) {
-          protocolCompliance = 'ADAPTED_UNJUSTIFIED';
-          break;
-        } else {
-          protocolCompliance = 'ADAPTED_JUSTIFIED';
-        }
-      }
+    const cfg = trial.config.familyConfigs[familyId];
+    const evaluation = familyId === 'GLOSS'
+      ? evaluateSeriesProtocolCompliance(cfg?.seriesConfig, ruleSet)
+      : familyId === 'OBSERVATIONS'
+        ? null
+        : evaluateCountProtocolCompliance(cfg?.countConfig, ruleSet);
+    if (evaluation && rank[evaluation.status] > rank[protocolCompliance]) {
+      protocolCompliance = evaluation.status;
     }
   }
 

@@ -87,6 +87,29 @@ export function checkPersozValidity(value: number | null | undefined): ReadingVa
 }
 
 /**
+ * Lit le statut qualité d'un objet COMPUTED de famille inconnue, par vérification
+ * structurelle minimale (aucune connaissance familiale requise).
+ * Retourne null si la structure n'est pas exploitable.
+ */
+const KNOWN_QUALITY_STATUSES: readonly QualityStatus[] = ['GOOD', 'ACCEPTABLE', 'WARNING', 'INVALID'];
+
+export function getQualityStatus(computed: unknown): QualityStatus | null {
+  if (typeof computed !== 'object' || computed === null) {
+    return null;
+  }
+  const qualityAssessment: unknown = (computed as { qualityAssessment?: unknown }).qualityAssessment;
+  if (typeof qualityAssessment !== 'object' || qualityAssessment === null) {
+    return null;
+  }
+  const status: unknown = (qualityAssessment as { status?: unknown }).status;
+  if (typeof status !== 'string') {
+    return null;
+  }
+  const known: readonly string[] = KNOWN_QUALITY_STATUSES;
+  return known.includes(status) ? (status as QualityStatus) : null;
+}
+
+/**
  * Calcule l'évaluation globale de qualité d'un ensemble de relevés
  */
 export function buildQualityAssessment(

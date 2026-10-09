@@ -27,7 +27,7 @@ import {
   PersozRawData,
   VisualObservationsRawData
 } from '../../types/scientific';
-import { getDefaultScientificRuleSet } from '../ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../ruleSet';
 import { extractTemporalKinetics } from '../analysis/TrendAnalyzer';
 import { compareSystemsAtStage } from '../analysis/MultiSystemComparator';
 import { exportReportToCsv, exportRawDataToCsv, buildScientificReport } from '../../services/reportGenerator';
@@ -94,6 +94,7 @@ export function runGate32FunctionalTests(): {
       productReference: 'Acrylique Hydro Phase A',
       woodSpecies: 'Pin Sylvestre Standardisé',
       coatCount: 2,
+      applicationDate: '2026-08-01',
       panels: panelsBatch1
     },
     {
@@ -104,6 +105,7 @@ export function runGate32FunctionalTests(): {
       productReference: 'Polyuréthane Bi-composant',
       woodSpecies: 'Pin Sylvestre Standardisé',
       coatCount: 3,
+      applicationDate: '2026-08-01',
       panels: panelsBatch2
     }
   ];
@@ -124,9 +126,26 @@ export function runGate32FunctionalTests(): {
       standardReference: 'NF EN 927-6',
       activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'OBSERVATIONS'],
       familyConfigs: {
-        COLOR: { familyId: 'COLOR', enabled: true },
-        GLOSS: { familyId: 'GLOSS', enabled: true },
-        PERSOZ: { familyId: 'PERSOZ', enabled: true },
+        COLOR: {
+          familyId: 'COLOR',
+          enabled: true,
+          countConfig: createCountConfiguration('COLOR', ruleSet.measurementConfigurations.COLOR.standardRecommendedCount, ruleSet)
+        },
+        GLOSS: {
+          familyId: 'GLOSS',
+          enabled: true,
+          seriesConfig: createSeriesConfiguration(
+            'GLOSS',
+            ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration.seriesCount ?? 0,
+            ruleSet.seriesConfigurations?.GLOSS?.standardConfiguration.readingsPerSeries ?? 0,
+            ruleSet
+          )
+        },
+        PERSOZ: {
+          familyId: 'PERSOZ',
+          enabled: true,
+          countConfig: createCountConfiguration('PERSOZ', ruleSet.measurementConfigurations.PERSOZ.standardRecommendedCount, ruleSet)
+        },
         OBSERVATIONS: { familyId: 'OBSERVATIONS', enabled: true }
       }
     },
@@ -198,38 +217,42 @@ export function runGate32FunctionalTests(): {
         operatorId: 'Operator A'
       });
 
-      // Persoz T0
-      globalTrialStore.recordAcquisition({
-        trialId,
-        stageId: stageT0.id,
-        batchId: batch.id,
-        panelId: panel.id,
-        familyId: 'PERSOZ',
-        raw: {
-          unit: 'SECONDS',
-          readings: [
-            { pointIndex: 1, dampingTimeSeconds: basePersoz },
-            { pointIndex: 2, dampingTimeSeconds: basePersoz + 2 }
-          ]
-        } as PersozRawData,
-        operatorId: 'Operator A'
-      });
+      // Persoz T0 — verrou PERSOZ/Témoin (PERSOZ interdit sur T, exposés uniquement).
+      if (panel.role !== 'WITNESS') {
+        globalTrialStore.recordAcquisition({
+          trialId,
+          stageId: stageT0.id,
+          batchId: batch.id,
+          panelId: panel.id,
+          familyId: 'PERSOZ',
+          raw: {
+            unit: 'SECONDS',
+            readings: [
+              { pointIndex: 1, dampingTimeSeconds: basePersoz },
+              { pointIndex: 2, dampingTimeSeconds: basePersoz + 2 }
+            ]
+          } as PersozRawData,
+          operatorId: 'Operator A'
+        });
+      }
     });
   });
 
-  // TEST 1 : Vérification de la complétude T0 sur 2 lots (8 éprouvettes x 3 familles = 24 acquisitions)
+  // TEST 1 : Vérification de la complétude T0 sur 2 lots
+  // (8 éprouvettes x COLOR+GLOSS + 6 exposées x PERSOZ = 22 acquisitions ;
+  // PERSOZ interdit sur les 2 témoins T — verrou PERSOZ/Témoin).
   {
     const reloaded = globalTrialStore.getTrial(trialId)!;
     const acqKeys = Object.keys(reloaded.acquisitions);
     const t0Acqs = acqKeys.filter((k) => k.startsWith(stageT0.id));
-    const passed = t0Acqs.length === 24;
+    const passed = t0Acqs.length === 22;
 
     record(
       'G32-01',
-      'Initialisation et complétude T0 multi-lots (24 acquisitions nominales)',
+      'Initialisation et complétude T0 multi-lots (22 acquisitions nominales)',
       'MULTI_BATCH_SCENARIO',
       passed,
-      '24 acquisitions enregistrées à T0',
+      '22 acquisitions enregistrées à T0',
       `${t0Acqs.length} acquisitions trouvées`
     );
   }

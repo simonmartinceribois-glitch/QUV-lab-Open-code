@@ -20,14 +20,22 @@
  * - G54-CAL-13 (D-1 UI) : Résolution et protection banc de mesure (aucun stage INACTIVE sélectionnable)
  * - G54-CAL-14 (D-3) : assessStageQuality() sur stage INACTIVE retourne évaluation non-applicable/vide
  * - G54-CAL-15 : Tests UX G52-CAL-04 et G52-CAL-07 exécutent de vraies vérifications dynamiques
+ * - G54-CAL-16 : ADHESION seule — applicable T0/C12, non applicable C1..C11, C1..C11 restent sélectionnables
+ * - G54-CAL-17 : COLOR + ADHESION à C3 — applicabilité indépendante par famille, C3 sélectionnable
+ * - G54-CAL-18 : T0/C12 obligatoires — jamais désactivables quelle que soit l'applicabilité
+ * - G54-CAL-19 : anti-régression 5c561d9 — familles non applicables ne désactivent jamais globalement un jalon
  */
 
 import { globalTrialStore, generateUUID } from '../../services/trialStore';
 import { assessStageQuality } from '../qualityEngine';
 import { getDefaultScientificRuleSet } from '../ruleSet';
 import { isFamilyScheduledForStage } from '../panelUtils';
+import { getMeasurementApplicability, isCycleGloballySelectable, isStageClickEnabled } from '../../components/wizard/measurementApplicability';
 import { ColorRawData, AdhesionRawData, MeasurementFamilyId } from '../../types/scientific';
 import { Trial, TrialMetadata } from '../../types/trial';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 
 export interface Gate54TestResult {
   id: string;
@@ -265,57 +273,51 @@ export function runGate54CalendarMeasurementPlanTests(): {
   );
 
   // --------------------------------------------------------------------------
-  // G54-CAL-08 : ADHESION présente à T0 et C12
+  // G54-CAL-08 : ADHESION verrouillée T0/T et C12/E1-E3 (matrice métier)
   // --------------------------------------------------------------------------
   const trial8 = createTestTrial({ reference: 'CAL-2026-08' });
-  const panel8 = trial8.batches[0].panels[0];
+  const panelT8 = trial8.batches[0].panels[0];
+  const panelE8 = trial8.batches[0].panels[1];
   const stT0_8 = trial8.stages.find((s) => s.cycleIndex === 0)!;
   const stC12_8 = trial8.stages.find((s) => s.cycleIndex === 12)!;
-  let adhT0Recorded = false;
-  let adhC12Recorded = false;
 
-  try {
-    const rawAdh: AdhesionRawData = {
-      gridSpacingMm: 1,
-      adhesionClass: 0,
-      measurementDateTime: new Date().toISOString(),
-      applicationDateTime: trial8.batches[0].applicationDate,
-      requiredMinimumDelayHours: 168,
-      normReference: 'NF EN ISO 2409:2020'
-    };
+  const tryAdh = (stageId: string, panelId: string): boolean => {
+    try {
+      const rawAdh: AdhesionRawData = {
+        gridSpacingMm: 1,
+        adhesionClass: 0,
+        measurementDateTime: new Date().toISOString(),
+        applicationDateTime: trial8.batches[0].applicationDate,
+        normReference: 'NF EN ISO 2409:2020'
+      };
+      globalTrialStore.recordAcquisition({
+        trialId: trial8.id,
+        stageId,
+        batchId: trial8.batches[0].id,
+        panelId,
+        familyId: 'ADHESION',
+        raw: rawAdh,
+        operatorId: 'Auditeur'
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
 
-    globalTrialStore.recordAcquisition({
-      trialId: trial8.id,
-      stageId: stT0_8.id,
-      batchId: trial8.batches[0].id,
-      panelId: panel8.id,
-      familyId: 'ADHESION',
-      raw: rawAdh,
-      operatorId: 'Auditeur'
-    });
-    adhT0Recorded = true;
-
-    globalTrialStore.recordAcquisition({
-      trialId: trial8.id,
-      stageId: stC12_8.id,
-      batchId: trial8.batches[0].id,
-      panelId: panel8.id,
-      familyId: 'ADHESION',
-      raw: rawAdh,
-      operatorId: 'Auditeur'
-    });
-    adhC12Recorded = true;
-  } catch (e) {
-    //
-  }
+  // T0 + T → OK ; T0 + E1 → KO ; C12 + T → KO ; C12 + E1 → OK.
+  const adhT0T = tryAdh(stT0_8.id, panelT8.id);
+  const adhT0E = tryAdh(stT0_8.id, panelE8.id);
+  const adhC12T = tryAdh(stC12_8.id, panelT8.id);
+  const adhC12E = tryAdh(stC12_8.id, panelE8.id);
 
   record(
     'G54-CAL-08',
-    'Acquisitions ADHESION autorisées et enregistrées avec succès à T0 et C12',
+    'Acquisitions ADHESION verrouillées : T0/T OK, T0/E1 KO, C12/T KO, C12/E1 OK',
     'CALENDAR_PLAN_INTEGRITY',
-    adhT0Recorded && adhC12Recorded,
-    'Adhésion enregistrée sans erreur à T0 et C12',
-    `adhT0=${adhT0Recorded}, adhC12=${adhC12Recorded}`
+    adhT0T && !adhT0E && !adhC12T && adhC12E,
+    'T0/T=true, T0/E1=false, C12/T=false, C12/E1=true',
+    `T0/T=${adhT0T}, T0/E1=${adhT0E}, C12/T=${adhC12T}, C12/E1=${adhC12E}`
   );
 
   // --------------------------------------------------------------------------
@@ -538,6 +540,145 @@ export function runGate54CalendarMeasurementPlanTests(): {
     uxLockTestPass && uxNoInterpolationPass,
     'Tests UX dynamiques validés par exécution réelle des règles métier',
     `uxLockTestPass=${uxLockTestPass}, uxNoInterpolationPass=${uxNoInterpolationPass}`
+  );
+
+  // --------------------------------------------------------------------------
+  // G54-CAL-16 : ADHESION seule — applicable T0/C12, non applicable C1..C11,
+  // MAIS les cycles C1..C11 restent sélectionnables globalement.
+  // --------------------------------------------------------------------------
+  const adhAloneT0 = getMeasurementApplicability(['ADHESION'], { cycleIndex: 0 });
+  const adhAloneC1 = getMeasurementApplicability(['ADHESION'], { cycleIndex: 1 });
+  const adhAloneC11 = getMeasurementApplicability(['ADHESION'], { cycleIndex: 11 });
+  const adhAloneC12 = getMeasurementApplicability(['ADHESION'], { cycleIndex: 12 });
+
+  const adhAloneT0Applicable = adhAloneT0.length === 1 && adhAloneT0[0].family === 'ADHESION' && adhAloneT0[0].applicable === true;
+  const adhAloneC1Applicable = adhAloneC1.length === 1 && adhAloneC1[0].applicable === false;
+  const adhAloneC11Applicable = adhAloneC11.length === 1 && adhAloneC11[0].applicable === false;
+  const adhAloneC12Applicable = adhAloneC12.length === 1 && adhAloneC12[0].family === 'ADHESION' && adhAloneC12[0].applicable === true;
+  // C1 et C11 restent sélectionnables globalement malgré ADHESION non applicable
+  const adhAloneCyclesSelectable = isCycleGloballySelectable(false) === true;
+
+  record(
+    'G54-CAL-16',
+    'ADHESION seule : applicable T0/C12, non applicable C1..C11, cycles C1..C11 toujours sélectionnables',
+    'CALENDAR_PLAN_INTEGRITY',
+    adhAloneT0Applicable && adhAloneC1Applicable && adhAloneC11Applicable && adhAloneC12Applicable && adhAloneCyclesSelectable,
+    'T0=true, C1=false, C11=false, C12=true ; sélection globale C1/C11 préservée',
+    `T0[${adhAloneT0[0]?.applicable}], C1[${adhAloneC1[0]?.applicable}], C11[${adhAloneC11[0]?.applicable}], C12[${adhAloneC12[0]?.applicable}], globalSelectable=${adhAloneCyclesSelectable}`
+  );
+
+  // --------------------------------------------------------------------------
+  // G54-CAL-17 : COLOR + ADHESION à C3 — COLOR applicable, ADHESION non
+  // applicable, C3 reste sélectionnable globalement.
+  // --------------------------------------------------------------------------
+  const c3Mix = getMeasurementApplicability(['COLOR', 'ADHESION'], { cycleIndex: 3 });
+  const c3Color = c3Mix.find((f) => f.family === 'COLOR');
+  const c3Adhesion = c3Mix.find((f) => f.family === 'ADHESION');
+  const c3MixApplicabilityOk =
+    c3Mix.length === 2 &&
+    c3Color !== undefined &&
+    c3Color.applicable === true &&
+    c3Adhesion !== undefined &&
+    c3Adhesion.applicable === false;
+  const c3MixSelectable = isCycleGloballySelectable(false) === true;
+
+  record(
+    'G54-CAL-17',
+    'COLOR + ADHESION à C3 : COLOR applicable, ADHESION non applicable, C3 sélectionnable globalement',
+    'CALENDAR_PLAN_INTEGRITY',
+    c3MixApplicabilityOk && c3MixSelectable,
+    'COLOR=true, ADHESION=false, globalSelectable=true',
+    `color=${c3Color?.applicable}, adhesion=${c3Adhesion?.applicable}, globalSelectable=${c3MixSelectable}`
+  );
+
+  // --------------------------------------------------------------------------
+  // G54-CAL-18 : T0/C12 obligatoires — aucune applicabilité ne peut les
+  // rendre désactivables (sélection globale toujours refusée).
+  // --------------------------------------------------------------------------
+  const t0GlobalBlocked = isCycleGloballySelectable(true) === false;
+  const c12GlobalBlocked = isCycleGloballySelectable(true) === false;
+  const mandatoryApplicabilityNeutral = getMeasurementApplicability(['ADHESION'], { cycleIndex: 0 })[0]?.applicable === true;
+
+  record(
+    'G54-CAL-18',
+    'T0/C12 obligatoires : sélection globale refusée, indépendamment de l\'applicabilité',
+    'CALENDAR_PLAN_INTEGRITY',
+    t0GlobalBlocked && c12GlobalBlocked && mandatoryApplicabilityNeutral,
+    'T0/C12 non désactivables (isCycleGloballySelectable(true)===false)',
+    `t0Blocked=${t0GlobalBlocked}, c12Blocked=${c12GlobalBlocked}, adhT0=${mandatoryApplicabilityNeutral}`
+  );
+
+  // --------------------------------------------------------------------------
+  // G54-CAL-19 : anti-régression 5c561d9 — une liste de familles applicable
+  // vide ne transforme JAMAIS le jalon en bouton globalement désactivé.
+  // --------------------------------------------------------------------------
+  const emptyApplicability = getMeasurementApplicability(['ADHESION'], { cycleIndex: 5 });
+  const noApplicableFamily = emptyApplicability.every((f) => f.applicable === false);
+  const cycleStillSelectable = isCycleGloballySelectable(false) === true;
+  const canBeMeasuredPatternAbsent = (emptyApplicability as unknown as { canBeMeasured?: unknown }).canBeMeasured === undefined;
+
+  record(
+    'G54-CAL-19',
+    'Anti-régression 5c561d9 : famille non applicable ne désactive pas globalement le jalon (aucun canBeMeasured)',
+    'CALENDAR_PLAN_INTEGRITY',
+    noApplicableFamily && cycleStillSelectable && canBeMeasuredPatternAbsent,
+    'Applicabilité vide ≠ désactivation globale ; aucune propriété canBeMeasured',
+    `noApplicableFamily=${noApplicableFamily}, cycleStillSelectable=${cycleStillSelectable}, canBeMeasuredAbsent=${canBeMeasuredPatternAbsent}`
+  );
+
+  // --------------------------------------------------------------------------
+  // G54-CAL-20 (R1, audit 11-12/09/2026) : anti-régression du CÂBLAGE RÉEL,
+  // pas seulement de la fonction pure sous-jacente.
+  //
+  // G54-CAL-16→19 ci-dessus appellent isCycleGloballySelectable(true|false)
+  // avec un booléen écrit à la main dans le test — ce qui prouve seulement la
+  // table de vérité d'une négation, jamais que WizardStep6Calendar.tsx
+  // câble réellement son onClick sur cette décision. Ce test :
+  // (a) exerce isStageClickEnabled(cycle) — la fonction EXACTEMENT invoquée
+  //     par le composant — avec de vrais numéros de cycle (0, 3, 7, 12) ;
+  // (b) lit le fichier source réel de WizardStep6Calendar.tsx pour vérifier
+  //     qu'il appelle bien isStageClickEnabled(st.cycle) dans son onClick,
+  //     et qu'aucune condition supplémentaire sur l'applicabilité par famille
+  //     n'a été réintroduite dans cette ligne (le point exact où la
+  //     régression 5c561d9 se produirait).
+  // --------------------------------------------------------------------------
+  const clickEnabledOnIntermediateCycle = isStageClickEnabled(3) === true;
+  const clickEnabledOnAnotherIntermediateCycle = isStageClickEnabled(7) === true;
+  const clickDisabledOnT0 = isStageClickEnabled(0) === false;
+  const clickDisabledOnC12 = isStageClickEnabled(12) === false;
+
+  let onClickLine = '';
+  let onClickCallsCanonicalFunction = false;
+  let onClickFreeOfApplicabilityGating = false;
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const componentPath = path.join(__dirname, '../../components/wizard/WizardStep6Calendar.tsx');
+    const componentSource = fs.readFileSync(componentPath, 'utf-8');
+    const allOnClickLines = componentSource.match(/^\s*onClick=\{.*\}\s*$/gm) || [];
+    const targetLine = allOnClickLines.find((l) => l.includes('onToggleCycle'));
+    onClickLine = targetLine ? targetLine.trim() : '';
+    onClickCallsCanonicalFunction = onClickLine.includes('isStageClickEnabled(st.cycle)');
+    // La ligne onClick ne doit référencer ni "applicability" ni le nom d'une
+    // famille : la décision de câblage doit rester indépendante de
+    // l'applicabilité par famille (cf. G54-CAL-16/17).
+    onClickFreeOfApplicabilityGating = !/applicability|activeFamilies/i.test(onClickLine);
+  } catch {
+    onClickLine = '';
+  }
+
+  record(
+    'G54-CAL-20',
+    "Anti-régression du câblage réel (pas seulement de la fonction pure) : WizardStep6Calendar.tsx appelle isStageClickEnabled(st.cycle) sans condition sur l'applicabilité",
+    'CALENDAR_PLAN_INTEGRITY',
+    clickEnabledOnIntermediateCycle &&
+      clickEnabledOnAnotherIntermediateCycle &&
+      clickDisabledOnT0 &&
+      clickDisabledOnC12 &&
+      onClickCallsCanonicalFunction &&
+      onClickFreeOfApplicabilityGating,
+    'isStageClickEnabled(cycle réel) correct sur T0/C3/C7/C12 ET ligne onClick réelle du composant conforme',
+    `C3=${clickEnabledOnIntermediateCycle}, C7=${clickEnabledOnAnotherIntermediateCycle}, T0=${clickDisabledOnT0}, C12=${clickDisabledOnC12}, onClickLine="${onClickLine}", appelleFonctionCanonique=${onClickCallsCanonicalFunction}, libreDeGatingApplicabilité=${onClickFreeOfApplicabilityGating}`
   );
 
   const passed = results.filter((r) => r.passed).length;

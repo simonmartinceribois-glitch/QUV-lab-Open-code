@@ -10,7 +10,7 @@ import React, { useState } from 'react';
 import { Trial, ExposureStage } from '../../types/trial';
 import { MeasurementFamilyId } from '../../types/scientific';
 import { globalTrialStore } from '../../services/trialStore';
-import { isMandatoryStage, getActiveFamiliesForStage } from '../../scientific/panelUtils';
+import { isMandatoryStage, getActiveFamiliesForStage, formatStageOption, formatStageShort } from '../../scientific/panelUtils';
 import {
   Calendar,
   Clock,
@@ -46,11 +46,9 @@ export function Tab05Stages({
   onTrialUpdated
 }: Props) {
   // Gate 54 (D-1) : seuls les jalons actifs font partie du plan de mesurage.
-  // Un jalon INACTIVE ne doit jamais pouvoir être sélectionné pour le banc de mesure.
   const activeStages = trial.stages.filter((s) => s.status !== 'INACTIVE');
   const currentStage = activeStages.find((s) => s.id === selectedStageId) || activeStages[0] || trial.stages[0];
 
-  // Si selectedStageId est inactif ou introuvable parmi les actifs, synchroniser avec le parent
   React.useEffect(() => {
     const isSelectedActive = activeStages.some((s) => s.id === selectedStageId);
     if (!isSelectedActive && currentStage && currentStage.status !== 'INACTIVE') {
@@ -58,15 +56,11 @@ export function Tab05Stages({
     }
   }, [selectedStageId, activeStages, currentStage, onSelectStageId]);
 
-  const [actualHours, setActualHours] = useState<string>(
-    currentStage.actualExposureHours !== undefined ? currentStage.actualExposureHours.toString() : ''
-  );
   const [operatorId, setOperatorId] = useState<string>('Simon Martin (Technicien)');
   const [validationNotes, setValidationNotes] = useState<string>('');
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [showDeactivationModal, setShowDeactivationModal] = useState(false);
   const [deactivationReason, setDeactivationReason] = useState<string>('');
-  const [saveHoursSuccess, setSaveHoursSuccess] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const isMandatory = isMandatoryStage(currentStage);
@@ -76,6 +70,26 @@ export function Tab05Stages({
   // Gate 54 (D-2) : verrouillage strict du plan après la 1ère acquisition
   const hasAcquisitions = Object.keys(trial.acquisitions || {}).length > 0;
   const isPlanLocked = trial.configurationStatus === 'LOCKED' || hasAcquisitions;
+
+  const formatDateTimeLocal = (iso?: string) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  };
+
+  const handleT0EffectiveDateChange = (value: string) => {
+    if (!value || currentStage.cycleIndex !== 0 || isPlanLocked) return;
+    try {
+      globalTrialStore.updateT0EffectiveDate(trial.id, value, operatorId);
+      onTrialUpdated();
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err?.message || 'Date T0 invalide.' });
+      setTimeout(() => setStatusMessage(null), 4000);
+    }
+  };
+
 
   const activePanels = trial.batches.flatMap((b) => b.panels).filter((p) => p.status === 'ACTIVE');
   const totalActivePanelsCount = activePanels.length;
@@ -117,17 +131,6 @@ export function Tab05Stages({
   const allFamiliesComplete = stageActiveFamilies.every(
     (fam) => (familyStats[fam]?.completed ?? 0) === totalActivePanelsCount && totalActivePanelsCount > 0
   );
-
-  const handleSaveHours = () => {
-    const val = parseFloat(actualHours);
-    if (!isNaN(val)) {
-      currentStage.actualExposureHours = val;
-      globalTrialStore.saveTrial(trial);
-      setSaveHoursSuccess(true);
-      setTimeout(() => setSaveHoursSuccess(false), 2000);
-      onTrialUpdated();
-    }
-  };
 
   const handleConfirmValidation = () => {
     globalTrialStore.validateStage(trial.id, currentStage.id, operatorId, validationNotes);
@@ -204,7 +207,6 @@ export function Tab05Stages({
               onClick={() => {
                 if (isStInactive) return;
                 onSelectStageId(stage.id);
-                setActualHours(stage.actualExposureHours !== undefined ? stage.actualExposureHours.toString() : '');
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5 transition-all ${
                 isSelected
@@ -221,7 +223,7 @@ export function Tab05Stages({
               {isVal && <CheckCircle2 className="w-3.5 h-3.5" />}
               {isInProg && !isVal && <PlayCircle className="w-3.5 h-3.5" />}
               {isStInactive && <Ban className="w-3.5 h-3.5 text-slate-400" />}
-              {stage.cycleIndex === 0 ? 'T0 (0 h)' : `${stage.scheduledExposureHours} h`}
+              {formatStageShort(stage)}
               {isStMandatory && <span className="text-[9px] px-1 bg-amber-200 text-amber-900 rounded">REQ</span>}
               {isStInactive && <span className="text-[9px] px-1 bg-slate-200 text-slate-500 rounded font-normal">EXCLU</span>}
             </button>
@@ -248,11 +250,7 @@ export function Tab05Stages({
               >
                 {isInactive ? 'DÉSACTIVÉE (NON-DESTRUCTIF)' : currentStage.status}
               </span>
-              {isMandatory && (
-                <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 rounded-md">
-                  Norme Obligatoire
-                </span>
-              )}
+
             </div>
             <p className="text-xs text-slate-500">
               Exposition théorique prévue (NF EN 927-6) : <strong className="font-mono text-slate-800">{currentStage.cycleIndex} × 168 h = {currentStage.scheduledExposureHours} h</strong>
@@ -312,30 +310,15 @@ export function Tab05Stages({
           </div>
         </div>
 
-        {/* Input Heures réelles */}
+        {/* Jalon d'exposition déterministe (lecture seule) : le cycle QUV
+            détermine la durée — aucune saisie manuelle d'heures. */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Heures réelles constatées (h)
+              Jalon d'exposition : {currentStage.scheduledExposureHours} h
             </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                step="0.1"
-                disabled={isInactive}
-                value={actualHours}
-                onChange={(e) => setActualHours(e.target.value)}
-                placeholder={currentStage.scheduledExposureHours.toString()}
-                className="w-full text-xs font-mono font-bold px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
-              />
-              <button
-                type="button"
-                disabled={isInactive}
-                onClick={handleSaveHours}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold disabled:opacity-50"
-              >
-                {saveHoursSuccess ? '✓' : 'Fixer'}
-              </button>
+            <div className="text-xs text-slate-600 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg">
+              Déterminé automatiquement par le cycle QUV (cycle {currentStage.cycleIndex} × 168 h).
             </div>
           </div>
 
@@ -344,11 +327,18 @@ export function Tab05Stages({
               Date effective du relevé
             </label>
             <input
-              type="text"
-              disabled
-              value={currentStage.measuredAt ? new Date(currentStage.measuredAt).toLocaleString('fr-FR') : 'En cours...'}
-              className="w-full text-xs px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-600"
+              type="datetime-local"
+              disabled={isPlanLocked || currentStage.cycleIndex !== 0}
+              value={currentStage.cycleIndex === 0 ? formatDateTimeLocal(currentStage.scheduledAt) : formatDateTimeLocal(currentStage.measuredAt)}
+              onChange={(e) => handleT0EffectiveDateChange(e.target.value)}
+              title={isPlanLocked ? 'Date T0 verrouillée après la première acquisition.' : 'Date de référence du relevé T0 et du calcul du conditionnement.'}
+              className="w-full text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 disabled:bg-slate-100 disabled:text-slate-500"
             />
+            {currentStage.cycleIndex === 0 && (
+              <p className="mt-1 text-[10px] text-slate-500">
+                Référence T0 : les jalons C1 à C12 sont calculés automatiquement par pas exacts de 168 h.
+              </p>
+            )}
           </div>
 
           <div>
@@ -489,7 +479,7 @@ export function Tab05Stages({
 
             <div className="space-y-3 text-xs text-slate-600">
               <p>
-                Vous allez désactiver l'étape <strong>{currentStage.name} ({currentStage.scheduledExposureHours} h)</strong>.
+                Vous allez désactiver l'étape <strong>{formatStageOption(currentStage)}</strong>.
               </p>
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900">
                 <strong>Garantie de non-destruction :</strong> Les données déjà saisies sur ce jalon ne seront pas effacées. L'étape sera masquée des campagnes de mesures et des calculs de tendances jusqu'à une éventuelle réactivation.

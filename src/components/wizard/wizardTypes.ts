@@ -5,7 +5,27 @@
 
 import type { Dispatch, SetStateAction } from 'react';
 import type { MeasurementFamilyId } from '../../types/scientific';
-import type { LotFormItem } from '../CreateTrialWizardModal';
+
+// Déplacée depuis CreateTrialWizardModal.tsx (suppression du cycle
+// CreateTrialWizardModal → step → wizardTypes → CreateTrialWizardModal).
+// Propriétés strictement inchangées.
+export interface LotFormItem {
+  id: string;
+  reference: string;
+  woodSpecies: string;
+  productReference: string;
+  manufacturerOrSupplier: string;
+  coatingSystem: string;
+  coatCount: number;
+  substratePreparation: string;
+  applicationMethod: string;
+  applicationConditions: string;
+  applicationDate: string;
+  dryingOrConditioningTime: string;
+  batchNotes: string;
+  // Pas de panelCount : chaque lot utilise la configuration canonique
+  // (4 panneaux — T, E1, E2, E3) créée par createTrial().
+}
 
 export type TextSetter = Dispatch<SetStateAction<string>>;
 export type NumberSetter = Dispatch<SetStateAction<number>>;
@@ -17,4 +37,4 @@ export interface StepNavigation {
   onStepChange: (step: 1 | 2 | 3 | 4 | 5 | 6 | 7) => void;
 }
 
-export type { LotFormItem, MeasurementFamilyId };
+export type { MeasurementFamilyId };

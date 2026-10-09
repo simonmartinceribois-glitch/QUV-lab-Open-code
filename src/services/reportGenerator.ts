@@ -5,18 +5,80 @@
  */
 
 import { Trial } from '../types/trial';
+import { getGlossOrientationLabel } from '../scientific/glossEngine';
 import {
   ScientificRuleSet,
   ScientificReport,
+  ProtocolComplianceStatus,
   ScientificReportMetadata,
   ScientificReportStatus,
-  ScientificReportReviewComment
+  ScientificReportReviewComment,
+  ColorComputedData,
+  GlossComputedData,
+  PersozComputedData,
+  AdhesionComputedData,
+  VisualObservationsComputedData
 } from '../types/scientific';
 import { generateUUID } from './trialIds';
-import { getActiveExposedPanels } from '../scientific/panelUtils';
+import { csvUserText, csvValue } from './csvUtils';
+import {
+  getActiveE1E2E3Panels,
+  isPersozEligiblePanel,
+  isAdhesionEligiblePanel,
+  isExposedE1E2E3Panel
+} from '../scientific/panelUtils';
+import { aggregateBatchColorExposed, PanelComputedItem } from '../scientific/aggregations';
+import { evaluateCountProtocolCompliance, evaluateSeriesProtocolCompliance, buildProtocolDefinition } from '../scientific/protocolEngine';
+import { isAdaptationJustificationValid } from '../scientific/ruleSet';
+import type { MeasurementFamilyId } from '../types/scientific';
+import {
+  evaluateScientificCriteriaPerBatch,
+  type ScientificCriteriaEvaluationPerBatch
+} from './scientificCriteriaEvaluationService';
+
+/**
+ * Admissibilité scientifique d'une acquisition COMPUTED à la restitution
+ * (section COMPUTED du CSV rapport). Règle unique, sans duplication métier :
+ * - PERSOZ : E1/E2/E3 à tous les jalons (T jamais).
+ * - ADHÉSION : matrice T0/T, C1-C11 aucun, C12/E1-E3.
+ * - COLOR/GLOSS : population exposée E1-E2-E3 (T exclu des stats exposées).
+ * - OBSERVATIONS et autres : restitution existante inchangée.
+ * Le CSV RAW reste exhaustif et n'utilise jamais ce filtre.
+ */
+export function isComputedExportAdmissible(
+  familyId: MeasurementFamilyId | string,
+  panel: { label?: string; roleCode?: string; role?: string },
+  stage: { cycleIndex?: number }
+): boolean {
+  if (familyId === 'PERSOZ') return isPersozEligiblePanel(panel);
+  if (familyId === 'ADHESION') return isAdhesionEligiblePanel(panel, stage);
+  if (familyId === 'COLOR' || familyId === 'GLOSS') return isExposedE1E2E3Panel(panel);
+  return true;
+}
 
 export const REPORT_SCHEMA_VERSION = '1.2.0';
 export const REPORT_GENERATOR_VERSION = 'v1.2.0';
+
+/**
+ * Restitution fidèle d'une donnée expérimentale : absence explicite
+ * ('Non renseigné'), jamais de valeur fictive. Un 0 numérique reste 0
+ * (seuls undefined/null/chaîne vide déclenchent l'absence).
+ */
+export function displayReportValue(value: unknown): string {
+  if (value === undefined || value === null) return 'Non renseigné';
+  if (typeof value === 'string' && value.trim() === '') return 'Non renseigné';
+  return String(value);
+}
+
+/**
+ * Restitution d'une mesure numérique nullable : absence (null/undefined)
+ * → 'Non renseigné' ; valeur réelle (y compris 0 ou 100) → formatée.
+ * Le paramètre étant une valeur (non capturée), le narrowing est total.
+ */
+export function formatNullableMeasure(value: number | null | undefined, decimals: number): string {
+  if (value === null || value === undefined) return displayReportValue(value);
+  return value.toFixed(decimals);
+}
 
 export interface PreReportAuditResult {
   isComplete: boolean;
@@ -32,7 +94,6 @@ export interface PreReportAuditResult {
     final2016hAvailableOrFlagged: boolean;
     computationsAvailable: boolean;
     engineVersionAvailable: boolean;
-    ruleSetAvailable: boolean;
     adaptationsTraced: boolean;
     alertsCataloged: boolean;
   };
@@ -62,7 +123,13 @@ export function auditTrialBeforeReport(trial: Trial, ruleSet: ScientificRuleSet)
   }
 
   const stageT0 = trial.stages.find((s) => s.stageType === 'INITIAL_PRE_EXPOSURE' || s.cycleIndex === 0);
-  const t0Available = !!stageT0 && (stageT0.status === 'VALIDATED' || stageT0.status === 'IN_PROGRESS');
+  // Une étape T0 est considérée mesurée uniquement lorsqu'une acquisition
+  // scientifique exploitable lui est rattachée. Le statut d'étape est un état
+  // de workflow et ne constitue jamais, à lui seul, une preuve de mesure.
+  const t0HasAcquisition = !!stageT0 && Object.values(trial.acquisitions || {}).some(
+    (a) => a.stageId === stageT0.id && a.raw !== null && a.raw !== undefined && a.status !== 'EMPTY'
+  );
+  const t0Available = !!stageT0 && t0HasAcquisition;
   if (!t0Available) {
     missingCriticalElements.push("Étape initiale T0 manquante ou non mesurée (référence obligatoire).");
   }
@@ -79,23 +146,54 @@ export function auditTrialBeforeReport(trial: Trial, ruleSet: ScientificRuleSet)
 
   const stage2016 = trial.stages.find((s) => s.stageType === 'FINAL_POST_EXPOSURE' || s.cycleIndex === 12);
   const final2016hAvailable = !!stage2016 && stage2016.status === 'VALIDATED';
-  const final2016hAvailableOrFlagged = true; // Toujours tracé (disponible ou explicitement signalé non atteint)
+  // Tracé explicite : disponible, ou jalon existant signalé non atteint via warning.
+  const final2016hAvailableOrFlagged = final2016hAvailable || !!stage2016;
   if (!final2016hAvailable) {
     warnings.push("Étape finale 2016 h non encore réalisée (essai en cours). Rapport partiel.");
   }
 
-  // Vérification de la disponibilité des calculs computed
+  // Vérification de la disponibilité des calculs computed : seuls des calculs
+  // réellement présents comptent (une absence d'acquisitions ne prouve rien).
   const acquisitionsList = Object.values(trial.acquisitions);
   const hasComputations = acquisitionsList.some((a) => a.computed !== null && a.computed !== undefined);
-  const computationsAvailable = hasComputations || acquisitionsList.length === 0;
+  const computationsAvailable = hasComputations;
 
   const engineVersionAvailable = !!ruleSet.version;
-  const ruleSetAvailable = !!ruleSet.standardReference;
 
-  // Adaptations tracées
-  const adaptationsTraced = true;
-  // Alertes recensées
-  const alertsCataloged = true;
+  // Adaptations réellement tracées : aucune dérogation, ou chacune munie d'une
+  // justification formellement valide (règle centralisée ≥ 8 caractères après trim).
+  const unjustifiedAdaptation = Object.entries(trial.config.familyConfigs).some(
+    ([, cfg]) =>
+      (cfg?.countConfig?.deviationFromStandard === true &&
+        !isAdaptationJustificationValid(cfg.countConfig.justification)) ||
+      (cfg?.seriesConfig?.deviationFromStandard === true &&
+        !isAdaptationJustificationValid(cfg.seriesConfig.justification))
+  );
+  const adaptationsTraced = !unjustifiedAdaptation;
+  if (unjustifiedAdaptation) {
+    warnings.push("Adaptation de protocole non justifiée détectée (justification absente ou inférieure à 8 caractères).");
+  }
+  // Alertes recensées : chaque acquisition expose un catalogue d'alertes.
+  const alertsCataloged = acquisitionsList.every((a) => Array.isArray((a as { alerts?: unknown }).alerts));
+
+  // Le rapport scientifique est bloqué si le protocole actif est INCOMPLETE ou INVALID.
+  // Le statut est calculé exclusivement par protocolEngine ; le rapport ne redéfinit pas les règles.
+  const protocolRank: Record<ProtocolComplianceStatus, number> = {
+    STANDARD: 0, ADAPTED_JUSTIFIED: 1, ADAPTED_UNJUSTIFIED: 2, INCOMPLETE: 3, INVALID: 4
+  };
+  let reportProtocolStatus: ProtocolComplianceStatus = 'STANDARD';
+  for (const familyId of trial.config.activeFamilies) {
+    const cfg = trial.config.familyConfigs[familyId];
+    const evaluation = familyId === 'GLOSS'
+      ? evaluateSeriesProtocolCompliance(cfg?.seriesConfig, ruleSet)
+      : familyId === 'OBSERVATIONS'
+        ? null
+        : evaluateCountProtocolCompliance(cfg?.countConfig, ruleSet);
+    if (evaluation && protocolRank[evaluation.status] > protocolRank[reportProtocolStatus]) reportProtocolStatus = evaluation.status;
+  }
+  if (reportProtocolStatus === 'INCOMPLETE' || reportProtocolStatus === 'INVALID' || reportProtocolStatus === 'ADAPTED_UNJUSTIFIED') {
+    missingCriticalElements.push(`Statut protocolaire bloquant : ${reportProtocolStatus}.`);
+  }
 
   const isComplete =
     trialIdentified &&
@@ -105,7 +203,7 @@ export function auditTrialBeforeReport(trial: Trial, ruleSet: ScientificRuleSet)
     final2016hAvailable &&
     missingCriticalElements.length === 0;
 
-  const canGenerate = missingCriticalElements.length === 0;
+  const canGenerate = missingCriticalElements.length === 0 && reportProtocolStatus !== 'INCOMPLETE' && reportProtocolStatus !== 'INVALID' && reportProtocolStatus !== 'ADAPTED_UNJUSTIFIED';
 
   return {
     isComplete,
@@ -121,11 +219,98 @@ export function auditTrialBeforeReport(trial: Trial, ruleSet: ScientificRuleSet)
       final2016hAvailableOrFlagged,
       computationsAvailable,
       engineVersionAvailable,
-      ruleSetAvailable,
       adaptationsTraced,
       alertsCataloged
     }
   };
+}
+
+const fmtCriterion = (v: number | null): string =>
+  v === null ? 'n.c.' : v.toFixed(3);
+
+/**
+ * Rendu textuel factuel des évaluations complémentaires NF EN 927-2:2014, par lot.
+ * Règles de calcul uniquement dans le moteur scientifique ; ici simple mise en
+ * forme des résultats du service d'évaluation (aucun verdict global).
+ */
+function renderNf9272CriteriaSection(
+  trial: Trial,
+  ruleSet: ScientificRuleSet
+): string {
+  const evals = evaluateScientificCriteriaPerBatch(trial, ruleSet);
+  if (evals.length === 0) {
+    return 'Aucun lot enregistré : évaluation complémentaire NF EN 927-2:2014 indisponible.';
+  }
+  const block = (perBatch: ScientificCriteriaEvaluationPerBatch): string => {
+    const nf = perBatch.evaluation.nf9272;
+    const lines = [
+      '=== NF EN 927-2:2014 (HISTORICAL_TRANSITIONAL) — ÉVALUATION COMPLÉMENTAIRE ===',
+      `Système de finition évalué : ${nf.batchScoped.batchLabel ?? nf.batchScoped.batchId ?? 'Aucun lot'}`,
+      `Référence : ${nf.reference}:${nf.edition}`,
+      `Statut : ${nf.status}`,
+      `Jalon évalué : ${nf.jalon.display}`,
+      `Statut de données : ${nf.testValidity}`
+    ];
+    if (nf.batchScoped.scopeBlockedReason) {
+      lines.push(`Portée : ${nf.batchScoped.scopeBlockedReason}`);
+    }
+    if (nf.testValidity === 'VALID') {
+      lines.push(`Classification 2014 : ${nf.classification ?? 'NO_CATEGORY_MET'}`);
+      if (nf.classification) {
+        lines.push(`Σ12 = ${fmtCriterion(nf.sum12)} | Δmax = ${fmtCriterion(nf.maxDifference)}`);
+        for (const id of ['BLISTERING', 'CRACKING', 'FLAKING', 'ADHESION'] as const) {
+          const c = nf.results[id];
+          lines.push(
+            `${c.label} : ${c.status} — moyenne ${fmtCriterion(c.value)}` +
+              (typeof c.threshold === 'number' ? ` ≤ ${c.threshold}` : '')
+          );
+        }
+      }
+    } else if (nf.testValidity === 'INVALID_TEST') {
+      lines.push('Essai invalidé : écart maximum − minimum supérieur à 4,0 — classification 2014 non applicable.');
+    } else {
+      lines.push(
+        `Données insuffisantes : ${nf.batchScoped.scopeBlockedReason ?? 'jalon C12 absent ou inexploitable.'}`
+      );
+    }
+    lines.push(`Note factuelle : ${nf.complementaryNotice}`);
+    return lines.join('\n');
+  };
+  return evals.map(block).join('\n\n');
+}
+
+/**
+ * Rendu textuel factuel des évaluations complémentaires INFIPERF, par lot.
+ * Chaque indicateur reste indépendant : aucune conformité NF EN 927-6.
+ */
+function renderInfiperfCriteriaSection(
+  trial: Trial,
+  ruleSet: ScientificRuleSet
+): string {
+  const evals = evaluateScientificCriteriaPerBatch(trial, ruleSet);
+  if (evals.length === 0) {
+    return 'Aucun lot enregistré : évaluation complémentaire INFIPERF indisponible.';
+  }
+  const block = (perBatch: ScientificCriteriaEvaluationPerBatch): string => {
+    const inf = perBatch.evaluation.infiperf;
+    const colorCycles = inf.results.COLOR.cycles
+      .map(
+        (c) =>
+          `${c.display}: ΔL* ${fmtCriterion(c.deltaL)}, Δa* ${fmtCriterion(c.deltaA)}, Δb* ${fmtCriterion(c.deltaB)}, ΔE* ${fmtCriterion(c.deltaE)}`
+      )
+      .join(' | ');
+    return [
+      '=== INFIPERF / FCBA — ÉVALUATION COMPLÉMENTAIRE ===',
+      `Système de finition évalué : ${perBatch.batchLabel ?? perBatch.batchId ?? 'Aucun lot'}`,
+      `Référence : ${inf.reference}:${inf.edition}`,
+      `Rétention de brillance : ${inf.results.GLOSS_RETENTION.status} — moyenne ${fmtCriterion(inf.results.GLOSS_RETENTION.value)} % (seuil documenté : ${fmtCriterion(inf.results.GLOSS_RETENTION.threshold)} %)`,
+      `Persoz : ${inf.results.PERSOZ.status} — ${fmtCriterion(inf.results.PERSOZ.value)} s (seuil documenté : ${fmtCriterion(inf.results.PERSOZ.threshold)} s)`,
+      `Couleur : ${inf.results.COLOR.status} — ${colorCycles || 'aucune mesure colorimétrique exploitable'}`,
+      `Aspect général : ${inf.results.GENERAL_APPEARANCE.status} — ${fmtCriterion(inf.results.GENERAL_APPEARANCE.value)} (niveau d'alerte documenté : ${fmtCriterion(inf.results.GENERAL_APPEARANCE.alertThreshold)})`,
+      `Note factuelle : ${inf.complementaryNotice}`
+    ].join('\n');
+  };
+  return evals.map(block).join('\n\n');
 }
 
 /**
@@ -140,6 +325,9 @@ export function buildScientificReport(
   }
 ): ScientificReport {
   const audit = auditTrialBeforeReport(trial, ruleSet);
+  if (!audit.canGenerate) {
+    throw new Error('Rapport scientifique non générable : ' + audit.missingCriticalElements.join(' | '));
+  }
   const now = new Date().toISOString();
   const reportId = generateUUID();
   const existingReportsCount = trial.reports?.length || 0;
@@ -154,27 +342,55 @@ export function buildScientificReport(
   const activePanelsCount = allPanels.filter((p) => p.status === 'ACTIVE').length;
   const excludedPanelsCount = allPanels.filter((p) => p.status === 'EXCLUDED').length;
 
-  // Détection des adaptations
+  // Détection des adaptations via le moteur canonique (protocolEngine) :
+  // chaque configuration présente est évaluée ; le statut rapport agrège
+  // le pire cas. Aucune règle métier dupliquée ici.
   const adaptedFamilies: string[] = [];
+  const unjustifiedFamilies: string[] = [];
+  const familyProtocolStatuses: ProtocolComplianceStatus[] = [];
+  const rankProtocolStatus = (s: ProtocolComplianceStatus): number =>
+    s === 'INVALID' ? 4 : s === 'ADAPTED_UNJUSTIFIED' ? 3 : s === 'INCOMPLETE' ? 2 : s === 'ADAPTED_JUSTIFIED' ? 1 : 0;
   Object.entries(trial.config.familyConfigs).forEach(([fam, cfg]) => {
     if (cfg?.countConfig?.deviationFromStandard || cfg?.seriesConfig?.deviationFromStandard) {
       adaptedFamilies.push(fam);
     }
+    const evaluated: ProtocolComplianceStatus[] = [];
+    if (cfg?.countConfig) evaluated.push(evaluateCountProtocolCompliance(cfg.countConfig, ruleSet).status);
+    if (cfg?.seriesConfig) evaluated.push(evaluateSeriesProtocolCompliance(cfg.seriesConfig, ruleSet).status);
+    if (evaluated.length === 0) {
+      evaluated.push('INCOMPLETE');
+    }
+    for (const s of evaluated) {
+      familyProtocolStatuses.push(s);
+      if (s === 'ADAPTED_UNJUSTIFIED' && !unjustifiedFamilies.includes(fam)) unjustifiedFamilies.push(fam);
+    }
   });
 
-  const protocolStatus =
-    adaptedFamilies.length > 0 ? 'ADAPTED_JUSTIFIED' : 'STANDARD';
+  let protocolStatus: ProtocolComplianceStatus = 'STANDARD';
+  // Fail-closed (P1-3) : toute famille active doit disposer d'une configuration
+  // exploitable ; une famille active absente de familyConfigs rend INCOMPLETE.
+  for (const fam of trial.config.activeFamilies) {
+    const cfg = trial.config.familyConfigs[fam];
+    if (!cfg || (!cfg.countConfig && !cfg.seriesConfig)) {
+      familyProtocolStatuses.push('INCOMPLETE');
+    }
+  }
+  for (const s of familyProtocolStatuses) {
+    if (rankProtocolStatus(s) > rankProtocolStatus(protocolStatus)) protocolStatus = s;
+  }
 
-  // GATE 55 — SÉGRÉGATION TÉMOIN / EXPOSÉ :
+  // GATE 55 — SÉGRÉGATION TÉMOIN / EXPOSÉ (population E1/E2/E3 normalisée) :
   // Le panneau Témoin T, conservé à l'obscurité, ne doit JAMAIS entrer dans les calculs
   // statistiques ou agrégations des panneaux exposés E1, E2, E3.
-  const activeExposedPanels = getActiveExposedPanels(allPanels);
+  const activeExposedPanels = getActiveE1E2E3Panels(allPanels);
   const activeExposedPanelIds = new Set(activeExposedPanels.map((p) => p.id));
 
-  // Synthèse des calculs sans JAMAIS recalculer localement
-  let maxDeltaE = 0;
+  // Synthèse des calculs sans JAMAIS recalculer localement.
+  // Absence de donnée = null (jamais 0 ni 100 : ces valeurs sont des
+  // résultats expérimentaux légitimes et doivent être distinguées).
+  let maxDeltaE: number | null = null;
   let maxDeltaEPanel = '';
-  let minRetention = 100;
+  let minRetention: number | null = null;
   let minRetentionPanel = '';
 
   Object.entries(trial.acquisitions).forEach(([key, acq]) => {
@@ -184,20 +400,108 @@ export function buildScientificReport(
     }
 
     if (acq.familyId === 'COLOR' && acq.computed) {
-      const dE = (acq.computed as any).deltaE;
-      if (typeof dE === 'number' && dE > maxDeltaE) {
+      const dE = (acq.computed as ColorComputedData).deltaE;
+      if (typeof dE === 'number' && (maxDeltaE === null || dE > maxDeltaE)) {
         maxDeltaE = dE;
         maxDeltaEPanel = acq.panelId;
       }
     }
     if (acq.familyId === 'GLOSS' && acq.computed) {
-      const ret = (acq.computed as any).retentionRatePercent;
-      if (typeof ret === 'number' && ret < minRetention) {
+      const ret = (acq.computed as GlossComputedData).retentionRatePercent;
+      if (typeof ret === 'number' && (minRetention === null || ret < minRetention)) {
         minRetention = ret;
         minRetentionPanel = acq.panelId;
       }
     }
   });
+
+  // Observations visuelles réellement calculées (P1-1 : jamais de conclusion
+  // « aucun défaut » sans données) et distribution qualité réelle (P1-3).
+  const observationAcqs = Object.values(trial.acquisitions).filter(
+    (a) => a.familyId === 'OBSERVATIONS' && a.computed !== null && a.computed !== undefined
+  );
+  const qualityCounts: Record<string, number> = { GOOD: 0, ACCEPTABLE: 0, WARNING: 0, INVALID: 0, NON_QUALIFIE: 0 };
+  let qualifiedTotal = 0;
+  Object.values(trial.acquisitions).forEach((a) => {
+    if (a.computed === null || a.computed === undefined) return;
+    qualifiedTotal += 1;
+    const st = (a.computed as { qualityAssessment?: { status?: string } }).qualityAssessment?.status;
+    if (st === 'GOOD' || st === 'ACCEPTABLE' || st === 'WARNING' || st === 'INVALID') qualityCounts[st] += 1;
+    else qualityCounts.NON_QUALIFIE += 1;
+  });
+
+  // Plan de mesurage restitué depuis la configuration réelle (P1-2) via la
+  // définition protocolaire canonique : configuré vs référence, adaptation
+  // signalée, absence explicite. Aucun comptage codé en dur.
+  const planDetail = (fam: MeasurementFamilyId, unit: string): string => {
+    const cfg = trial.config.familyConfigs[fam];
+    if (!cfg?.enabled) return 'Désactivée';
+    const defs: { n: number | undefined; std: number | undefined; adapted: boolean; just: string }[] = [];
+    if (cfg.countConfig) {
+      const d = buildProtocolDefinition(cfg.countConfig, ruleSet);
+      defs.push({ n: d.configuredCount, std: d.standardRecommendedCount, adapted: d.isAdapted, just: isAdaptationJustificationValid(d.justification) ? d.justification!.trim() : '' });
+    }
+    if (cfg.seriesConfig) {
+      const d = buildProtocolDefinition(cfg.seriesConfig, ruleSet);
+      defs.push({ n: d.configuredCount, std: d.standardRecommendedCount, adapted: d.isAdapted, just: isAdaptationJustificationValid(d.justification) ? d.justification!.trim() : '' });
+    }
+    if (defs.length === 0) return 'Active (détail de configuration Non renseigné)';
+    return `Active (${defs.map((d) => `${displayReportValue(d.n)} ${unit} (référence : ${displayReportValue(d.std)})${d.adapted ? (d.just ? ' — adaptation justifiée' : ' — ADAPTATION NON JUSTIFIÉE') : ''}`).join(' ; ')})`;
+  };
+
+  // Bloc PROTOCOLE DE MESURE (P5) : restitué depuis trial.config.familyConfigs +
+  // ruleSet, sans aucune valeur codée en dur. Statut STANDARD / ADAPTÉ /
+  // NON RENSEIGNÉ, justification réelle ou NON RENSEIGNÉE (jamais inventée).
+  const protocolMeasureBlock = (fam: MeasurementFamilyId): string => {
+    const labels: Record<string, string> = {
+      COLOR: 'COULEUR L*a*b*',
+      GLOSS: 'BRILLANCE SPÉCULAIRE 60°',
+      PERSOZ: 'DURETÉ PERSOZ',
+      ADHESION: 'ADHÉRENCE PAR QUADRILLAGE (NF EN ISO 2409:2020)',
+      OBSERVATIONS: 'OBSERVATIONS VISUELLES'
+    };
+    const countUnits: Record<string, string> = {
+      COLOR: 'point(s) par éprouvette',
+      PERSOZ: 'répétition(s) par éprouvette',
+      ADHESION: 'mesure(s) par panneau'
+    };
+    const stdRef = ruleSet.measurementConfigurations[fam]?.standardReference || ruleSet.standardReference;
+    const cfg = trial.config.familyConfigs[fam];
+    let reference = 'Non renseigné';
+    let realized = 'Non renseigné';
+    let adapted = false;
+    let justification = '';
+    if (fam === 'GLOSS' && cfg?.seriesConfig) {
+      const std = ruleSet.seriesConfigurations?.['GLOSS']?.standardConfiguration;
+      reference = `${std?.seriesCount ?? cfg.seriesConfig.configuredConfiguration.seriesCount} séries × ${std?.readingsPerSeries ?? cfg.seriesConfig.configuredConfiguration.readingsPerSeries} relevés`;
+      realized = `${cfg.seriesConfig.configuredConfiguration.seriesCount} séries × ${cfg.seriesConfig.configuredConfiguration.readingsPerSeries} relevés`;
+      adapted = cfg.seriesConfig.deviationFromStandard === true;
+      const justSeries = cfg.seriesConfig.justification;
+      justification = isAdaptationJustificationValid(justSeries) ? (justSeries as string).trim() : '';
+    } else if (cfg?.countConfig) {
+      reference = `${cfg.countConfig.standardRecommendedCount} ${countUnits[fam]}`;
+      realized = `${cfg.countConfig.configuredCount} ${countUnits[fam]}`;
+      adapted = cfg.countConfig.deviationFromStandard === true;
+      const justCount = cfg.countConfig.justification;
+      justification = isAdaptationJustificationValid(justCount) ? (justCount as string).trim() : '';
+    }
+    const missing = !cfg || (!cfg.countConfig && !cfg.seriesConfig);
+    const status = missing
+      ? 'PROTOCOLE NON RENSEIGNÉ'
+      : adapted
+        ? 'PROTOCOLE ADAPTÉ'
+        : 'PROTOCOLE STANDARD';
+    const justLine = adapted
+      ? `${justification.trim() ? `\nJustification : ${justification.trim()}` : '\nJustification : NON RENSEIGNÉE'}\nNOTE : cette configuration constitue une adaptation du cadre normatif/scientifique appliqué à l'essai ; elle ne modifie pas le texte de la référence ${stdRef}.`
+      : '';
+    return (
+      `PROTOCOLE DE MESURE — ${labels[fam]}\n` +
+      `Référence scientifique : ${stdRef}\n` +
+      `Configuration de référence : ${reference}\n` +
+      `Configuration réalisée : ${realized}\n` +
+      `Statut : ${status}${justLine}\n\n`
+    );
+  };
 
   const metadata: ScientificReportMetadata = {
     reportId,
@@ -222,16 +526,16 @@ export function buildScientificReport(
       `  - NF EN 927-3:2019 (Vieillissement naturel) : NE PAS utiliser pour le moteur de conformité QUV ni pour définir les calculs ou seuils QUV. Elle sera traitée ultérieurement dans le module de vieillissement naturel (VN).\n` +
       `• NORMES D'ÉVALUATION ET DE MESURE ASSOCIÉES :\n` +
       `  - Colorimétrie : ISO 7724 / CIE L*a*b* (Illuminant D65, Observateur 10°, ΔE*ab 1976).\n` +
-      `  - Brillance : ISO 2813 (Réflectomètre géométrie 60° sens longitudinal et perpendiculaire au fil).\n` +
+      `  - Brillance : ISO 2813 (Réflectomètre géométrie 60°, deux séries : sens du fil et sens opposé au fil par rotation de 180° de l'instrument, faisceau toujours strictement parallèle au fil du bois).\n` +
       `  - Dégradations de surface : ISO 4628 parties 1 à 6 (Cloquage, Écaillage, Craquelage, Farinage) & ISO 2409.`,
     materialsAndBatches: `Nombre total de lots : ${trial.batches.length}\n` +
       trial.batches
         .map(
           (b, i) =>
-            `  Lot ${i + 1} [${b.reference}] : ${b.coatingSystem || 'Système non renseigné'} | Support: ${b.woodSpecies || 'Chêne'} | Produit: ${b.productReference || 'N/A'} | Fabricant: ${b.manufacturerOrSupplier || 'N/A'} | Couches: ${b.coatCount || '3'} | Préparation: ${b.substratePreparation || 'P120'} | Application: ${b.applicationMethod || 'Pinceau'} | Séchage: ${b.dryingOrConditioningTime || '7 jours'}`
+            `  Lot ${i + 1} [${b.reference}] : ${b.coatingSystem || 'Système non renseigné'} | Support: ${displayReportValue(b.woodSpecies)} | Produit: ${b.productReference || 'N/A'} | Fabricant: ${b.manufacturerOrSupplier || 'N/A'} | Couches: ${displayReportValue(b.coatCount)} | Préparation: ${displayReportValue(b.substratePreparation)} | Application: ${displayReportValue(b.applicationMethod)} | Séchage: ${displayReportValue(b.dryingOrConditioningTime)}`
         )
         .join('\n'),
-    panelsDefinition: `Nombre total d'éprouvettes : ${totalPanelsCount} (Actives : ${activePanelsCount}, Exclues : ${excludedPanelsCount})\nDimensions normalisées : ${trial.commonCharacteristics?.dimensions?.lengthMm || 150} × ${trial.commonCharacteristics?.dimensions?.widthMm || 75} × ${trial.commonCharacteristics?.dimensions?.thicknessMm || 15} mm\nOrientation du fil : ${trial.commonCharacteristics?.woodGrainOrientation || 'Sur quartier (NF EN 927-6)'}\nConditionnement préalable : ${trial.commonCharacteristics?.conditioningNotes || 'Stabilisation selon NF EN 927-6 §5'}` +
+    panelsDefinition: `Nombre total d'éprouvettes : ${totalPanelsCount} (Actives : ${activePanelsCount}, Exclues : ${excludedPanelsCount})\nDimensions des éprouvettes : ${displayReportValue(trial.commonCharacteristics?.dimensions?.lengthMm)} × ${displayReportValue(trial.commonCharacteristics?.dimensions?.widthMm)} × ${displayReportValue(trial.commonCharacteristics?.dimensions?.thicknessMm)} mm\nOrientation du fil (mesurée) : ${displayReportValue(trial.commonCharacteristics?.woodGrainOrientation)}\nConditionnement préalable (réalisé) : ${displayReportValue(trial.commonCharacteristics?.conditioningNotes)}\nCommentaire de conditionnement avant T0 (NF EN 927-6:2018 §6.3.3) : environ 7 jours à 20 ± 2 °C et 65 ± 5 % HR ; ces conditions sont paramétrées sur l’enceinte climatique, ne sont pas contrôlées ni bloquantes dans QUV-Lab, et sont restituées uniquement comme information de protocole.\nContrôle QUV-Lab : intervalle temporel entre la date d’application et la date effective du relevé T0, sans utiliser measuredAt/createdAt comme substitut.` +
       (excludedPanelsCount > 0
         ? `\nÉprouvettes exclues : ` +
           allPanels
@@ -239,22 +543,22 @@ export function buildScientificReport(
             .map((p) => `${p.label} (Motif : ${p.exclusionReason || 'Non précisé'}, par ${p.excludedBy} le ${p.excludedAt})`)
             .join(' ; ')
         : ''),
-    experimentalConditions: `Enceinte de vieillissement accéléré type QUV / UV-A 340 nm.\nCycle standard 168 heures : 24 h condensation à 45°C suivi de 144 h d'exposition alternée UV-A (2,5 h à 60°C, irradiance 0,89 W/(m²·nm)) / pulvérisation d'eau (0,5 h à température ambiante).`,
+    experimentalConditions: `Conditions d'exposition — référentiel normatif NF EN 927-6 (paramètres de principe, non enregistrés comme exécution réelle) : enceinte type QUV / UV-A 340 nm ; cycle de 168 heures : 24 h condensation à 45°C puis 144 h d'exposition alternée UV-A / pulvérisation d'eau (irradiance 0,89 W/(m²·nm)).\nConditions réellement exécutées : Non renseigné (aucune donnée d'exécution enregistrée pour cet essai).`,
     exposureSchedule: `Calendrier complet en 13 étapes (1 étape initiale + 12 cycles de 168 h) :\n` +
       trial.stages
         .map(
           (st) =>
-            `  - [${st.stageType}] ${st.name} | Planifié : ${st.scheduledExposureHours} h | Réel : ${st.actualExposureHours !== undefined ? st.actualExposureHours + ' h' : 'Non mesuré'} | Statut : ${st.status}`
+            `  - [${st.stageType}] ${st.name} | Jalon d'exposition : ${st.scheduledExposureHours} h (cycle ${st.cycleIndex} × 168 h) | Date effective planifiée : ${st.scheduledAt ? new Date(st.scheduledAt).toLocaleString('fr-FR') : 'Non renseignée'} | Mesuré techniquement le : ${st.measuredAt ? new Date(st.measuredAt).toLocaleString('fr-FR') : 'Non relevé'} | Statut : ${st.status}`
         )
         .join('\n'),
-    measurementPlan: `Familles de mesure actives : ${trial.config.activeFamilies.join(', ')}\n• Couleur : ${trial.config.familyConfigs.COLOR?.enabled ? 'Active (4 points normatifs par éprouvette)' : 'Désactivée'}\n• Brillance : ${trial.config.familyConfigs.GLOSS?.enabled ? 'Active (2 points sens du fil + 2 points perpendiculaire)' : 'Désactivée'}\n• Persoz : ${trial.config.familyConfigs.PERSOZ?.enabled ? 'Active (3 mesures d\'amortissement - Labo)' : 'Désactivée'}\n• Adhérence au quadrillage : ${trial.config.familyConfigs.ADHESION?.enabled ? 'Active (NF EN ISO 2409:2020 - 6×6 incisions)' : 'Désactivée'}\n• Observations visuelles : ${trial.config.familyConfigs.OBSERVATIONS?.enabled ? 'Active (Évaluation ISO 4628)' : 'Désactivée'}`,
-    colorResults: `Les coordonnées trichromatiques CIE L*a*b* et les variations différentielles ΔL*, Δa*, Δb*, ΔE*ab sont issues exclusivement du moteur scientifique QUV-Lab (version ${ruleSet.version}).\nÉtape initiale T0 : Référence absolue pour chaque éprouvette.\nProgression observée : Variation maximale ΔE* enregistrée : ${maxDeltaE.toFixed(2)} sur les éprouvettes évaluées.\nConsulter l'Annexe B pour le détail des valeurs par éprouvette et par lot.`,
-    glossResults: `Mesures de réflectance spéculaire sous géométrie 60°.\nÉtape initiale T0 : Niveau de brillance initial caractérisé par éprouvette.\nÉvolution temporelle : Rétention résiduelle minimale de ${minRetention.toFixed(1)} % constatée sur la campagne.\nConsulter l'Annexe B pour les calculs de variation absolue ΔGloss et de taux de rétention résiduelle.`,
-    persozResults: `Dureté superficielle par temps d'amortissement du pendule Persoz (secondes).\nNOTE MÉTHODOLOGIQUE : Cette grandeur constitue une recommandation interne du laboratoire (LAB_RECOMMENDATION) et ne constitue pas une exigence normative formelle de la NF EN 927-6.\nÉvolution : Suivi de la cinétique de réticulation / dégradation mécanique superficielle.`,
-    adhesionResults: `Évaluation de la résistance à la séparation par quadrillage selon NF EN ISO 2409:2020.\nNOTE MÉTHODOLOGIQUE : L'essai au quadrillage constitue une méthode d'évaluation qualitative de la résistance du revêtement au détachement selon une grille de 6×6 incisions (classes 0 à 5), et ne doit en aucun cas être assimilé à une force d'adhérence quantitative en MPa.\nProtocole : Éprouvette témoin T à T0 (référence initiale), éprouvettes exposées à C12 (2016 h). Espacement de peigne 2 mm (≤ 120 µm) ou 3 mm (121–250 µm) selon l'épaisseur sèche du revêtement.`,
-    visualObservations: `Cotations des défauts surfaciques selon les normes ISO 4628 (Cloquage, Écaillage, Craquelage, Farinage) et ISO 2409 (Quadrillage).\nAucun défaut majeur prématuré n'a entraîné d'arrêt anticipé de l'essai.`,
-    kineticsAnalysis: `Analyse cinétique de la dégradation : Les données compilées permettent d'observer les courbes d'évolution temporelle depuis T0 (0 h) jusqu'aux étapes en cours d'exposition (168 h à ${evaluatedStages[evaluatedStages.length - 1]?.scheduledExposureHours || 0} h) et l'étape finale à 2016 h.\nDistinction rigoureuse : La dispersion intra-panneau (répétabilité de la mesure) est isolée de la dispersion inter-panneaux (homogénéité du lot).`,
-    qualityControl: `Contrôle qualité des acquisitions : Chaque mesure est qualifiée selon 4 niveaux (GOOD, ACCEPTABLE, WARNING, INVALID).\nToutes les données brutes (RAW) sont préservées dans leur intégralité sans modification ni arrondissement destructif.\nRelevés avec alerte qualité : dûment signalés avec mention explicite dans les tableaux d'annexes.`,
+    measurementPlan: `Familles de mesure actives : ${trial.config.activeFamilies.join(', ')}\n• Couleur : ${planDetail('COLOR', 'points par éprouvette')}\n• Brillance : ${planDetail('GLOSS', 'lectures')}\n• Persoz : ${planDetail('PERSOZ', 'mesures')}\n• Adhérence au quadrillage : ${planDetail('ADHESION', 'mesures (NF EN ISO 2409:2020)')}\n• Observations visuelles : ${trial.config.familyConfigs.OBSERVATIONS?.enabled ? 'Active (Évaluation ISO 4628)' : 'Désactivée'}`,
+    colorResults: protocolMeasureBlock('COLOR') + `Les coordonnées trichromatiques CIE L*a*b* et les variations différentielles ΔL*, Δa*, Δb*, ΔE*ab sont issues exclusivement du moteur scientifique QUV-Lab (version ${ruleSet.version}).\nÉtape initiale T0 : Référence absolue pour chaque éprouvette.\nProgression observée : Variation maximale ΔE* enregistrée : ${formatNullableMeasure(maxDeltaE, 2)} sur les éprouvettes évaluées.\nConsulter l'Annexe B pour le détail des valeurs par éprouvette et par lot.`,
+    glossResults: protocolMeasureBlock('GLOSS') + `Mesures de réflectance spéculaire sous géométrie 60°.\nÉtape initiale T0 : Niveau de brillance initial caractérisé par éprouvette.\nÉvolution temporelle : Rétention résiduelle minimale de ${formatNullableMeasure(minRetention, 1)} % constatée sur la campagne.\nConsulter l'Annexe B pour les calculs de variation absolue ΔGloss et de taux de rétention résiduelle.`,
+    persozResults: protocolMeasureBlock('PERSOZ') + `Dureté superficielle par temps d'amortissement du pendule Persoz (secondes).\nNOTE MÉTHODOLOGIQUE : Cette grandeur constitue une recommandation interne du laboratoire (LAB_RECOMMENDATION) et ne constitue pas une exigence normative formelle de la NF EN 927-6.\nÉvolution : Suivi de la cinétique de réticulation / dégradation mécanique superficielle.`,
+    adhesionResults: protocolMeasureBlock('ADHESION') + `Évaluation de la résistance à la séparation par quadrillage selon NF EN ISO 2409:2020.\nNOTE MÉTHODOLOGIQUE : L'essai au quadrillage constitue une méthode d'évaluation qualitative de la résistance du revêtement au détachement selon une grille de 6×6 incisions (classes 0 à 5), et ne doit en aucun cas être assimilé à une force d'adhérence quantitative en MPa.\nProtocole : Éprouvette témoin T à T0 (référence initiale), éprouvettes exposées à C12 (2016 h). Espacement de peigne 2 mm (≤ 120 µm) ou 3 mm (121–250 µm) selon l'épaisseur sèche du revêtement.`,
+    visualObservations: `Cotations des défauts surfaciques selon les normes ISO 4628 (Cloquage, Écaillage, Craquelage, Farinage) et ISO 2409 (Quadrillage).\n` + (observationAcqs.length > 0 ? `${observationAcqs.length} relevé(s) d'observations calculé(s) — détail en Annexe B.` : `Aucune cotation d'observation enregistrée : état Non renseigné.`),
+    kineticsAnalysis: `Analyse cinétique de la dégradation : Les données compilées permettent d'observer les courbes d'évolution temporelle depuis T0 (0 h) jusqu'aux étapes en cours d'exposition (168 h à ${displayReportValue(evaluatedStages.filter((s) => s.cycleIndex > 0).slice(-1)[0]?.scheduledExposureHours)} h)${stage2016 && stage2016.status === 'VALIDATED' ? ' et l’étape finale à 2016 h.' : ' ; l’étape finale à 2016 h restant à réaliser.'}\nDistinction rigoureuse : La dispersion intra-panneau (répétabilité de la mesure) est isolée de la dispersion inter-panneaux (homogénéité du lot).`,
+    qualityControl: `Contrôle qualité des acquisitions : Chaque mesure est qualifiée selon 4 niveaux (GOOD, ACCEPTABLE, WARNING, INVALID).\nLes données RAW disponibles sont restituées sans modification ni arrondissement destructif dans le cadre de la génération du rapport. L'intégrité complète du corpus RAW n'est pas déterminée en l'absence d'un audit d'intégrité dédié.\nRelevés avec alerte qualité : dûment signalés avec mention explicite dans les tableaux d'annexes.`,
     deviationsAndAdaptations: adaptedFamilies.length > 0
       ? `Adaptations de protocole enregistrées pour cet essai :\n` +
         adaptedFamilies
@@ -265,17 +569,22 @@ export function buildScientificReport(
             return `  • Famille ${fam} : Statut ${countCfg?.mode || seriesCfg?.mode || 'ADAPTED'} | Justification : "${countCfg?.justification || seriesCfg?.justification || 'Non précisée'}" (Configuré par ${countCfg?.configuredBy || seriesCfg?.configuredBy} le ${countCfg?.configuredAt || seriesCfg?.configuredAt})`;
           })
           .join('\n') +
-        `\nNOTE IMPORTANTE : Une adaptation justifiée (ADAPTED_JUSTIFIED) ne constitue pas une conformité standard automatique à la NF EN 927-6.`
-      : `Aucune adaptation de protocole. L'ensemble des acquisitions a suivi les paramètres standards par défaut du référentiel NF EN 927-6.`,
-    calculationTraceability: `Traçabilité intégrale du moteur de calcul :\n• Moteur scientifique : QUV-Lab Scientific Engine ${ruleSet.version}\n• RuleSet ID : ${ruleSet.id} (Référence : ${ruleSet.standardReference})\n• Méthode d'écart-type : Échantillon n-1 (${ruleSet.statisticalRules.stdDevMethod})\n• Formule colorimétrique : ${ruleSet.colorimetry.differenceFormula} (${ruleSet.colorimetry.illuminant}/${ruleSet.colorimetry.observer})\n• Géométrie de brillance par défaut : ${ruleSet.statisticalRules.glossGeometryDefault}°\n• Date d'exécution du calcul : ${now}`,
-    scientificSynthesis: `Synthèse générale :\nL'essai ${trial.metadata.reference} regroupe ${trial.batches.length} lots expérimentaux sur support bois massif. Les mesures de référence initiales T0 ont été validées pour l'ensemble des grandeurs physiques actives. Le comportement au vieillissement est caractérisé par le couplage des cinétiques colorimétriques (ΔE*ab), de perte de réflectance (rétention de brillance) et de résistance mécanique (Persoz).\nL'ensemble des résultats est conservé avec distinction stricte entre données brutes et résultats calculés.`,
-    factualConclusion: `Les résultats obtenus montrent l'évolution des propriétés mesurées au cours de l'exposition.\n\nLes éventuelles variations observées sont présentées par famille de mesure et comparées aux valeurs initiales T0.\n\nLes relevés présentant des alertes ou des adaptations de protocole sont identifiés dans les tableaux de résultats.\n\nLa présente synthèse ne constitue pas à elle seule une conclusion de conformité à la NF EN 927-6.`
+        `\nNOTE IMPORTANTE : Une adaptation justifiée (ADAPTED_JUSTIFIED) ne constitue pas une conformité standard automatique à la NF EN 927-6.` +
+        (unjustifiedFamilies.length > 0
+          ? `\nALERTE : ${unjustifiedFamilies.join(', ')} — adaptation(s) SANS justification (statut ADAPTED_UNJUSTIFIED, bloquant pour toute conclusion de conformité).`
+          : '')
+      : `Aucune adaptation de protocole n'est enregistrée dans la configuration de l'essai.`,
+    calculationTraceability: `Traçabilité intégrale du moteur de calcul :\n• Moteur scientifique : QUV-Lab Scientific Engine ${ruleSet.version}\n• RuleSet ID : ${ruleSet.id} (Référence : ${ruleSet.standardReference})\n• Méthode d'écart-type : Échantillon n-1 (${ruleSet.statisticalRules.stdDevMethod})\n• Formule colorimétrique : ${ruleSet.colorimetry.differenceFormula} (${ruleSet.colorimetry.illuminant}/${ruleSet.colorimetry.observer})\n• Géométrie de brillance par défaut : ${ruleSet.statisticalRules.glossGeometryDefault ?? '—'}°\n• Date d'exécution du calcul : ${now}`,
+    scientificSynthesis: `Synthèse générale :\nL'essai ${trial.metadata.reference} regroupe ${trial.batches.length} lots expérimentaux (support : ${displayReportValue(trial.metadata.substrateDescription)}). Les mesures de référence initiales T0 ${stageT0?.status === 'VALIDATED' ? 'ont été validées pour l’ensemble des grandeurs physiques actives' : stageT0?.status === 'IN_PROGRESS' || stageT0?.status === 'READY_FOR_VALIDATION' ? 'sont en cours de réalisation (T0 non encore validé)' : stageT0?.status === 'NOT_STARTED' ? 'n’ont pas été réalisées (T0 non effectué)' : 'sont de statut indisponible (T0 non traçable)'}. Le comportement au vieillissement est caractérisé par le couplage des cinétiques colorimétriques (ΔE*ab), de perte de réflectance (rétention de brillance) et de résistance mécanique (Persoz).\nL'ensemble des résultats est conservé avec distinction stricte entre données brutes et résultats calculés.`,
+    factualConclusion: `Les résultats obtenus montrent l'évolution des propriétés mesurées au cours de l'exposition.\n\nLes éventuelles variations observées sont présentées par famille de mesure et comparées aux valeurs initiales T0.\n\nLes relevés présentant des alertes ou des adaptations de protocole sont identifiés dans les tableaux de résultats.\n\nLa présente synthèse ne constitue pas à elle seule une conclusion de conformité à la NF EN 927-6.${audit.isComplete ? '' : ' Essai incomplet (C12 non validé) : aucune conclusion globale de conformité ne peut être émise.'}`,
+    nf9272CriteriaEvaluation: renderNf9272CriteriaSection(trial, ruleSet),
+    infiperfCriteriaEvaluation: renderInfiperfCriteriaSection(trial, ruleSet)
   };
 
   const annexes = {
-    annexA_RawDataSummary: `ANNEXE A — DONNÉES DE MESURE BRUTES (RAW DATA)\nTotal acquisitions : ${Object.keys(trial.acquisitions).length} relevés enregistrés.\nIntégrité : 100% des points bruts conservés dans leur précision native d'acquisition sans altération.`,
+    annexA_RawDataSummary: `ANNEXE A — DONNÉES DE MESURE BRUTES (RAW DATA)\nTotal acquisitions : ${Object.keys(trial.acquisitions).length} relevés enregistrés.\nIntégrité : Non déterminée (aucun résultat d'audit d'intégrité enregistré pour cet essai).`,
     annexB_ComputedResultsSummary: `ANNEXE B — RÉSULTATS CALCULÉS (COMPUTED DATA)\nMoyennes arithmétiques, écarts-types d'échantillon, variations différentielles (ΔE*ab, ΔGloss, rétention %, ΔDureté) calculés par le moteur scientifique v${ruleSet.version}.`,
-    annexC_QualityAssessmentSummary: `ANNEXE C — CONTRÔLE QUALITÉ DES MESURES\nSynthèse de qualification métrologique (VALID / SUSPECT / INVALID / MISSING).\nTous les avertissements et anomalies sont répertoriés sans masquage.`,
+    annexC_QualityAssessmentSummary: `ANNEXE C — CONTRÔLE QUALITÉ DES MESURES\nSynthèse de qualification métrologique (GOOD / ACCEPTABLE / WARNING / INVALID).` + (qualifiedTotal > 0 ? `\nMesures qualifiées : ${qualifiedTotal} (GOOD : ${qualityCounts.GOOD}, ACCEPTABLE : ${qualityCounts.ACCEPTABLE}, WARNING : ${qualityCounts.WARNING}, INVALID : ${qualityCounts.INVALID}, non qualifiées : ${qualityCounts.NON_QUALIFIE}).` : `\nÉtat de traçabilité qualité : Non déterminé (aucune mesure qualifiée).`),
     annexD_ProtocolAdaptationsSummary: `ANNEXE D — ADAPTATIONS DE PROTOCOLE & DÉROGATIONS\nRegistre des modifications de paramétrage, motifs techniques et signatures opérateurs.`,
     annexE_AuditTrailSummary: `ANNEXE E — JOURNAL D'AUDIT SCIENTIFIQUE (AUDIT TRAIL)\nHistorique chronologique immuable des ${trial.auditTrail.length} événements enregistrés pour cet essai.`,
     annexF_ScientificVersionSummary: `ANNEXE F — RÉFÉRENTIEL SCIENTIFIQUE & VERSIONS\nRuleSet : ${ruleSet.id} | Standard : ${ruleSet.standardReference} | Schéma : ${REPORT_SCHEMA_VERSION} | Moteur : ${ruleSet.version}`
@@ -285,11 +594,12 @@ export function buildScientificReport(
     id: reportId,
     metadata,
     status: 'GENERATED' as ScientificReportStatus,
-    title: `Rapport Scientifique d'Essai — ${trial.metadata.reference}`,
-    executiveSummary: `Rapport d'essai de vieillissement accéléré NF EN 927-6 émis le ${new Date(now).toLocaleDateString('fr-FR')} pour l'essai ${trial.metadata.reference}. Comprend la synthèse des ${trial.batches.length} lots et l'analyse chronologique de T0 à ${evaluatedStages[evaluatedStages.length - 1]?.scheduledExposureHours || 0} h.`,
+    title: `Rapport Open Code — Rapport Scientifique d'Essai — ${trial.metadata.reference}`,
+    executiveSummary: `Rapport d'essai de vieillissement accéléré NF EN 927-6 émis le ${new Date(now).toLocaleDateString('fr-FR')} pour l'essai ${trial.metadata.reference}. Comprend la synthèse des ${trial.batches.length} lots et l'analyse chronologique de T0 à ${displayReportValue(evaluatedStages[evaluatedStages.length - 1]?.scheduledExposureHours)} h.${audit.isComplete ? '' : ' [RAPPORT PARTIEL / INTERMÉDIAIRE — C12 non validé : aucune conclusion de conformité.]'}`,
     normativeReference: ruleSet.standardReference || 'NF EN 927-6',
     protocolStatus,
     isComplete: audit.isComplete,
+    completenessStatus: audit.isComplete ? 'COMPLET' : 'PARTIEL / INTERMÉDIAIRE',
     missingCriticalElements: audit.missingCriticalElements,
     sections,
     annexes,
@@ -304,12 +614,12 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
   const lines: string[] = [];
 
   lines.push(`RAPPORT SCIENTIFIQUE QUV-LAB — NF EN 927-6`);
-  lines.push(`Référence Essai;${trial.metadata.reference}`);
-  lines.push(`Titre;${trial.metadata.title || ''}`);
+  lines.push(`Référence Essai;${csvUserText(trial.metadata.reference, 'auto')}`);
+  lines.push(`Titre;${csvUserText(trial.metadata.title, 'auto')}`);
   lines.push(`Rapport ID;${report.id}`);
-  lines.push(`Version Rapport;${report.metadata.reportVersion}`);
+  lines.push(`Version Rapport;${csvUserText(report.metadata.reportVersion, 'auto')}`);
   lines.push(`Date Génération;${report.metadata.generatedAt}`);
-  lines.push(`Généré Par;${report.metadata.generatedBy}`);
+  lines.push(`Généré Par;${csvUserText(report.metadata.generatedBy, 'auto')}`);
   lines.push(`Moteur Scientifique;QUV-Lab v${report.metadata.calculationVersion}`);
   lines.push(`RuleSet ID;${report.metadata.scientificRuleSetId}`);
   lines.push(`Statut Protocole;${report.protocolStatus}`);
@@ -322,7 +632,7 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
   trial.batches.forEach((b) => {
     const activeP = b.panels.filter((p) => p.status === 'ACTIVE').length;
     lines.push(
-      `"${b.reference}";"${b.coatingSystem || ''}";"${b.woodSpecies || ''}";"${b.productReference || ''}";${b.coatCount || 3};${b.panels.length};${activeP}`
+      `${csvUserText(b.reference)};${csvUserText(b.coatingSystem)};${csvUserText(b.woodSpecies)};${csvUserText(b.productReference)};${displayReportValue(b.coatCount)};${b.panels.length};${activeP}`
     );
   });
   lines.push(``);
@@ -330,7 +640,7 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
   // Section Résultats Calculés COMPUTED
   lines.push(`=== RÉSULTATS CALCULÉS PAR ÉTAPE (COMPUTED DATA) ===`);
   lines.push(
-    `Étape;Heures Planifiées;Éprouvette;Lot;Famille;Moyenne / Valeur;Écart-Type;Δ vs T0;Rétention %;Qualité;Version Calcul;Calculé Le`
+    `Étape;Heures Planifiées;Éprouvette;Lot;Famille;Moyenne / Valeur;Écart-Type;Δ vs T0;Rétention %;Qualité;Version Calcul;Calculé Le;ReferenceStageId;ReferencePanelId;ReferenceAcquisitionId;ReferenceRule`
   );
 
   trial.stages.forEach((st) => {
@@ -340,40 +650,72 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
           const key = `${st.id}__${p.id}__${fam}`;
           const acq = trial.acquisitions[key];
           if (acq && acq.computed) {
+            // Verrouillage scientifique COMPUTED : seules les populations
+            // canoniques (famille + jalon) sont restituées. Le CSV RAW reste
+            // exhaustif et n'applique jamais ce filtre.
+            if (!isComputedExportAdmissible(fam, p, st)) return;
             let valStr = '';
             let stdStr = '';
             let deltaStr = '';
             let retStr = '';
-            const comp = acq.computed as any;
+            // Union pour les accès communs (qualityAssessment, computation) présents sur les 5 types ;
+            // chaque branche ci-dessous affine avec le type de sa famille (PARTIE 1 narrowing).
+            const comp = acq.computed as
+              | ColorComputedData
+              | GlossComputedData
+              | PersozComputedData
+              | AdhesionComputedData
+              | VisualObservationsComputedData;
 
             if (fam === 'COLOR') {
-              valStr = `L*=${comp.meanL?.toFixed(2) ?? '—'}, a*=${comp.meanA?.toFixed(2) ?? '—'}, b*=${comp.meanB?.toFixed(2) ?? '—'}`;
-              stdStr = `sL=${comp.stdDevL?.toFixed(2) ?? '—'}`;
-              deltaStr = comp.deltaE !== null && comp.deltaE !== undefined ? `ΔE*=${comp.deltaE.toFixed(2)}` : 'RÉF (T0)';
+              const compColor = acq.computed as ColorComputedData;
+              valStr = `L*=${compColor.meanL?.toFixed(2) ?? '—'}, a*=${compColor.meanA?.toFixed(2) ?? '—'}, b*=${compColor.meanB?.toFixed(2) ?? '—'}`;
+              stdStr = `sL=${compColor.stdDevL?.toFixed(2) ?? '—'}`;
+              deltaStr = compColor.deltaE !== null && compColor.deltaE !== undefined ? `ΔE*=${compColor.deltaE.toFixed(2)}` : 'RÉF (T0)';
             } else if (fam === 'GLOSS') {
-              valStr = comp.meanGloss !== null && comp.meanGloss !== undefined ? `${comp.meanGloss.toFixed(1)} GU` : '—';
-              stdStr = comp.stdDevGloss !== null && comp.stdDevGloss !== undefined ? `${comp.stdDevGloss.toFixed(2)}` : '—';
-              deltaStr = comp.deltaGloss !== null && comp.deltaGloss !== undefined ? `${comp.deltaGloss.toFixed(1)} GU` : 'RÉF (T0)';
-              retStr = comp.retentionRatePercent !== null && comp.retentionRatePercent !== undefined ? `${comp.retentionRatePercent.toFixed(1)} %` : '100 %';
+              const compGloss = acq.computed as GlossComputedData;
+              valStr = compGloss.meanGloss !== null && compGloss.meanGloss !== undefined ? `${compGloss.meanGloss.toFixed(1)} GU` : '—';
+              stdStr = compGloss.stdDevGloss !== null && compGloss.stdDevGloss !== undefined ? `${compGloss.stdDevGloss.toFixed(2)}` : '—';
+              deltaStr = compGloss.deltaGloss !== null && compGloss.deltaGloss !== undefined ? `${compGloss.deltaGloss.toFixed(1)} GU` : 'RÉF (T0)';
+              retStr = compGloss.retentionRatePercent !== null && compGloss.retentionRatePercent !== undefined ? `${compGloss.retentionRatePercent.toFixed(1)} %` : displayReportValue(compGloss.retentionRatePercent);
             } else if (fam === 'PERSOZ') {
-              valStr = comp.meanDampingTime !== null && comp.meanDampingTime !== undefined ? `${comp.meanDampingTime.toFixed(1)} s` : '—';
-              stdStr = comp.stdDevDampingTime !== null && comp.stdDevDampingTime !== undefined ? `${comp.stdDevDampingTime.toFixed(2)}` : '—';
-              deltaStr = comp.deltaDampingTime !== null && comp.deltaDampingTime !== undefined ? `${comp.deltaDampingTime.toFixed(1)} s` : 'RÉF (T0)';
+              const compPersoz = acq.computed as PersozComputedData;
+              valStr = compPersoz.meanDampingTime !== null && compPersoz.meanDampingTime !== undefined ? `${compPersoz.meanDampingTime.toFixed(1)} s` : '—';
+              stdStr = compPersoz.stdDevDampingTime !== null && compPersoz.stdDevDampingTime !== undefined ? `${compPersoz.stdDevDampingTime.toFixed(2)}` : '—';
+              deltaStr = compPersoz.deltaDampingTime !== null && compPersoz.deltaDampingTime !== undefined ? `${compPersoz.deltaDampingTime.toFixed(1)} s` : 'RÉF (T0)';
             } else if (fam === 'ADHESION') {
-              valStr = comp.adhesionClass !== null && comp.adhesionClass !== undefined ? `Classe ${comp.adhesionClass}` : '—';
-              stdStr = comp.gridSpacingUsedMm ? `Peigne ${comp.gridSpacingUsedMm} mm` : '—';
-              deltaStr = comp.deltaAdhesionClass !== null && comp.deltaAdhesionClass !== undefined ? `ΔClasse=${comp.deltaAdhesionClass >= 0 ? '+' : ''}${comp.deltaAdhesionClass}` : 'RÉF (T0)';
-              retStr = comp.delayCompliance || '—';
+              const compAdh = acq.computed as AdhesionComputedData;
+              // Gate 57 : mesures individuelles + moyenne visibles ; repli scalaire legacy.
+              const indiv = compAdh && Array.isArray(compAdh.individualResults) ? compAdh.individualResults : [];
+              if (indiv.length > 1) {
+                valStr = `${indiv.map((m) => `M${m.measurementIndex}=${m.adhesionClass ?? '—'}`).join(', ')} (moy. ${compAdh.panelMean ?? '—'})`;
+              } else {
+                valStr = compAdh.adhesionClass !== null && compAdh.adhesionClass !== undefined ? `Classe ${compAdh.adhesionClass}` : '—';
+              }
+              stdStr = compAdh.gridSpacingUsedMm ? `Peigne ${compAdh.gridSpacingUsedMm} mm` : '—';
+              // Δ = variation moyenne de classement, indicateur complémentaire non normatif.
+              deltaStr = compAdh.deltaAdhesionClass !== null && compAdh.deltaAdhesionClass !== undefined ? `${indiv.length > 1 ? 'Δmoy.(compl.)=' : 'ΔClasse='}${compAdh.deltaAdhesionClass >= 0 ? '+' : ''}${compAdh.deltaAdhesionClass}` : 'RÉF (T0)';
+              // Le conditionnement avant T0 est une règle générale de protocole,
+              // non un critère spécifique à l'adhérence ; aucune colonne de délai
+              // n'est calculée ici à partir des RAW d'adhérence.
+              retStr = '—';
             } else if (fam === 'OBSERVATIONS') {
-              valStr = comp.summary || 'Aspect conforme';
+              const compObs = acq.computed as VisualObservationsComputedData;
+              valStr = displayReportValue(compObs.summary);
             }
 
             const qStatus = comp.qualityAssessment?.status || acq.status;
             const calcVer = comp.computation?.calculationVersion || ruleSet.version;
             const calcAt = comp.computation?.calculatedAt || acq.trace.lastModifiedAt || acq.trace.createdAt;
+            // Traçabilité explicite de la référence (N/A si aucune utilisée).
+            const refTrace = comp.referenceTrace;
+            const refStage = refTrace?.referenceStageId ?? 'N/A';
+            const refPanel = refTrace?.referencePanelId ?? 'N/A';
+            const refAcq = refTrace?.referenceAcquisitionId ?? 'N/A';
+            const refRule = refTrace?.referenceRule ?? 'N/A';
 
             lines.push(
-              `"${st.name}";${st.scheduledExposureHours};"${p.label}";"${b.reference}";${fam};"${valStr}";"${stdStr}";"${deltaStr}";"${retStr}";${qStatus};"${calcVer}";"${calcAt}"`
+              `${csvUserText(st.name)};${st.scheduledExposureHours};${csvUserText(p.label)};${csvUserText(b.reference)};${fam};${csvValue(valStr)};${csvValue(stdStr)};${csvValue(deltaStr)};${csvValue(retStr)};${qStatus};${csvValue(calcVer)};${csvValue(calcAt)};${refStage};${refPanel};${refAcq};${refRule}`
             );
           }
         });
@@ -382,8 +724,58 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
   });
 
   lines.push(``);
+  lines.push(`=== COULEUR — STATISTIQUES INTER-PANNEAUX DES EXPOSÉS E1-E3 ===`);
+  lines.push(
+    `Étape;Heures Planifiées;Lot;COLOR_L_moy;COLOR_L_SD;COLOR_a_moy;COLOR_a_SD;COLOR_b_moy;COLOR_b_SD;DeltaE_moy;DeltaE_SD`
+  );
+
+  // Restitution des statistiques calculées par aggregateBatchColor (aucun recalcul
+  // local) : moyennes des moyennes panneau E1/E2/E3, écarts-types échantillon n−1.
+  // Étapes/panneaux sans données : champs vides, jamais de valeur fabriquée.
+  trial.stages.forEach((st) => {
+    trial.batches.forEach((b) => {
+      const exposedPanels = getActiveE1E2E3Panels(b.panels);
+      const colorItems: PanelComputedItem<ColorComputedData>[] = [];
+      exposedPanels.forEach((p) => {
+        const acq = trial.acquisitions[`${st.id}__${p.id}__COLOR`];
+        if (acq?.computed) colorItems.push({ panel: p, computed: acq.computed as ColorComputedData });
+      });
+      if (colorItems.length === 0) return;
+      const agg = aggregateBatchColorExposed(b.id, st.id, colorItems);
+      const fmt = (v: number | null | undefined, decimals: number): string =>
+        v !== null && v !== undefined ? v.toFixed(decimals) : '';
+      lines.push(
+        `${csvUserText(st.name)};${st.scheduledExposureHours};${csvUserText(b.reference)};${fmt(agg.color?.meanL, 3)};${fmt(agg.color?.stdDevL, 3)};${fmt(agg.color?.meanA, 3)};${fmt(agg.color?.stdDevA, 3)};${fmt(agg.color?.meanB, 3)};${fmt(agg.color?.stdDevB, 3)};${fmt(agg.meanDeltaE, 2)};${fmt(agg.interPanelStdDev, 2)}`
+      );
+    });
+  });
+
+  lines.push(``);
   lines.push(`=== CONCLUSION FACTUELLE ===`);
-  lines.push(`"${report.sections.factualConclusion.replace(/\n/g, ' ')}"`);
+  lines.push(csvValue(report.sections.factualConclusion.replace(/\n/g, ' ')));
+
+  // ==========================================================================
+  // BLOC ADDITIF — CRITÈRES COMPLÉMENTAIRES NF EN 927-2:2014 & INFIPERF
+  // Aucune colonne existante n'est déplacée ; uniquement des lignes ajoutées en
+  // fin d'export. Évaluation par lot, jamais inter-lots.
+  // ==========================================================================
+  lines.push(``);
+  lines.push(`=== CRITÈRES COMPLÉMENTAIRES NF EN 927-2:2014 (HISTORICAL_TRANSITIONAL) & INFIPERF / FCBA ===`);
+  lines.push(`NF9272_STATUS;NF9272_CLASSIFICATION;NF9272_BATCH_ID;INFIPERF_STATUS;INFIPERF_RESULT`);
+  evaluateScientificCriteriaPerBatch(trial, ruleSet).forEach((perBatch) => {
+    const nf = perBatch.evaluation.nf9272;
+    const classification =
+      nf.testValidity === 'VALID' ? (nf.classification ?? 'NO_CATEGORY_MET') : nf.testValidity;
+    const infiperfResult = [
+      `GLOSS_RETENTION=${perBatch.evaluation.infiperf.results.GLOSS_RETENTION.status}`,
+      `PERSOZ=${perBatch.evaluation.infiperf.results.PERSOZ.status}`,
+      `COLOR=${perBatch.evaluation.infiperf.results.COLOR.status}`,
+      `GENERAL_APPEARANCE=${perBatch.evaluation.infiperf.results.GENERAL_APPEARANCE.status}`
+    ].join(' | ');
+    lines.push(
+      `${csvValue(nf.status)};${csvValue(classification)};${csvValue(perBatch.batchId ?? 'N/A')};"COMPLEMENTARY";${csvValue(infiperfResult)}`
+    );
+  });
 
   return lines.join('\n');
 }
@@ -394,7 +786,7 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
 export function exportRawDataToCsv(trial: Trial): string {
   const lines: string[] = [];
   lines.push(`DONNÉES BRUTES ACQUISES (RAW DATA) — QUV-LAB`);
-  lines.push(`Essai;${trial.metadata.reference}`);
+  lines.push(`Essai;${csvUserText(trial.metadata.reference, 'auto')}`);
   lines.push(`Date Export;${new Date().toISOString()}`);
   lines.push(``);
   lines.push(`StageId;StageName;CycleIndex;BatchId;BatchRef;PanelId;PanelLabel;FamilyId;PointIndex / Series;RawValue1;RawValue2;RawValue3;RawValue4;Source;Operateur;DateSaisie`);
@@ -407,14 +799,17 @@ export function exportRawDataToCsv(trial: Trial): string {
           const acq = trial.acquisitions[key];
           if (acq && acq.raw) {
             const raw = acq.raw as any;
-            const src = acq.trace?.source || 'MANUAL_KEYPAD';
-            const op = acq.trace?.createdBy || 'OP';
+            const src = acq.trace?.source ?? '';
+            const op = acq.trace?.createdBy ?? '';
             const dt = acq.trace?.createdAt || '';
+            // Colonnes communes StageId…PanelLabel et Source/Operateur/DateSaisie.
+            const head = `${csvValue(st.id)};${csvUserText(st.name)};${st.cycleIndex};${csvValue(b.id)};${csvUserText(b.reference)};${csvValue(p.id)};${csvUserText(p.label)}`;
+            const tail = `${src};${csvUserText(op)};${csvValue(dt)}`;
 
             if (fam === 'COLOR' && Array.isArray(raw.readings)) {
               raw.readings.forEach((r: any) => {
                 lines.push(
-                  `"${st.id}";"${st.name}";${st.cycleIndex};"${b.id}";"${b.reference}";"${p.id}";"${p.label}";COLOR;${r.pointIndex};${r.L ?? ''};${r.a ?? ''};${r.b ?? ''};;${src};"${op}";"${dt}"`
+                  `${head};COLOR;${r.pointIndex};${r.L ?? ''};${r.a ?? ''};${r.b ?? ''};;${tail}`
                 );
               });
             } else if (fam === 'GLOSS' && Array.isArray(raw.series)) {
@@ -422,7 +817,7 @@ export function exportRawDataToCsv(trial: Trial): string {
                 if (Array.isArray(s.readings)) {
                   s.readings.forEach((r: any) => {
                     lines.push(
-                      `"${st.id}";"${st.name}";${st.cycleIndex};"${b.id}";"${b.reference}";"${p.id}";"${p.label}";GLOSS;"S${s.seriesIndex}_P${r.pointIndex}_${s.orientation}";${r.value ?? ''};;;;${src};"${op}";"${dt}"`
+                      `${head};GLOSS;${csvValue(`S${s.seriesIndex}_P${r.pointIndex}_${getGlossOrientationLabel(s.orientation) || s.orientation}`)};${r.value ?? ''};;;;${tail}`
                     );
                   });
                 }
@@ -430,17 +825,27 @@ export function exportRawDataToCsv(trial: Trial): string {
             } else if (fam === 'PERSOZ' && Array.isArray(raw.readings)) {
               raw.readings.forEach((r: any) => {
                 lines.push(
-                  `"${st.id}";"${st.name}";${st.cycleIndex};"${b.id}";"${b.reference}";"${p.id}";"${p.label}";PERSOZ;${r.pointIndex};${r.dampingTimeSeconds ?? ''};;;;${src};"${op}";"${dt}"`
+                  `${head};PERSOZ;${r.pointIndex};${r.dampingTimeSeconds ?? ''};;;;${tail}`
                 );
               });
-            } else if (fam === 'ADHESION' && raw.adhesionClass !== undefined) {
-              lines.push(
-                `"${st.id}";"${st.name}";${st.cycleIndex};"${b.id}";"${b.reference}";"${p.id}";"${p.label}";ADHESION;"Classe ${raw.adhesionClass ?? ''}";${raw.coatingThicknessMicrons ?? ''};${raw.gridSpacingMm ?? ''};${raw.elapsedTimeHours ?? ''};"${raw.observation || ''}";${src};"${op}";"${dt}"`
-              );
+            } else if (fam === 'ADHESION' && (Array.isArray(raw.measurements) || raw.adhesionClass !== undefined)) {
+              // Gate 57 : branche explicite multi-mesures, fallback scalaire legacy.
+              // Une acquisition multi-mesures n'est jamais perdue dans le CSV.
+              if (Array.isArray(raw.measurements)) {
+                raw.measurements.forEach((m: any) => {
+                  lines.push(
+                    `${head};ADHESION;${csvValue(`Mesure ${m.measurementIndex ?? ''} Classe ${m.adhesionClass ?? ''}`)};${raw.coatingThicknessMicrons ?? ''};${raw.gridSpacingMm ?? ''};${raw.elapsedTimeHours ?? ''};${csvUserText(m.observation)};${tail}`
+                  );
+                });
+              } else {
+                lines.push(
+                  `${head};ADHESION;${csvValue(`Classe ${raw.adhesionClass ?? ''}`)};${raw.coatingThicknessMicrons ?? ''};${raw.gridSpacingMm ?? ''};${raw.elapsedTimeHours ?? ''};${csvUserText(raw.observation)};${tail}`
+                );
+              }
             } else if (fam === 'OBSERVATIONS' && Array.isArray(raw.observations)) {
               raw.observations.forEach((obs: any) => {
                 lines.push(
-                  `"${st.id}";"${st.name}";${st.cycleIndex};"${b.id}";"${b.reference}";"${p.id}";"${p.label}";OBSERVATIONS;"${obs.category}";"${obs.rating}";"${obs.status}";"${obs.comment || ''}";;${src};"${op}";"${dt}"`
+                  `${head};OBSERVATIONS;${csvValue(obs.category)};${csvValue(obs.rating)};${csvValue(obs.status)};${csvUserText(obs.comment)};;${tail}`
                 );
               });
             }

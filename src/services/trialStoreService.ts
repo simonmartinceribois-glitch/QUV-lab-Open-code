@@ -24,6 +24,7 @@ import {
   UUID,
   MeasurementFamilyId,
   ScientificRuleSet,
+  ScientificContext,
   ColorRawData,
   GlossRawData,
   PersozRawData,
@@ -34,17 +35,131 @@ import {
   ScientificReportStatus,
   ScientificReportReviewComment
 } from '../types/scientific';
-import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../scientific/ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration, isAdaptationJustificationValid } from '../scientific/ruleSet';
 import { recalculateAcquisition } from '../scientific/recalculator';
+import { getQualityStatus } from '../scientific/validity';
 import { createConfigChangeEvent } from '../scientific/auditEngine';
 import { buildScientificReport } from './reportGenerator';
-import { isFamilyScheduledForStage } from '../scientific/panelUtils';
+import { isFamilyScheduledForStage, isPersozEligiblePanel, isAdhesionEligiblePanel } from '../scientific/panelUtils';
 import { generateUUID } from './trialIds';
-import { validateAcquisitionTarget, validatePhotoTarget } from './trialIntegrity';
+import { IntegrityViolationError, validateAcquisitionTarget, validatePhotoTarget, validateAcquisitionFamily, validateAcquisitionRaw, isStructurallyValidTrial, isPlainRecord } from './trialIntegrity';
 import { generateStandardExposureStages } from './trialStages';
+
+// P4-b (audit 11-12/09/2026) : constante nommée remplaçant le repli en dur
+// `|| 2016` sur le libellé d'affichage de l'étape finale C12, cohérente avec
+// la valeur normative NF EN 927-6:2018 (12 × 168 h = 2016 h).
+const C12_SCHEDULED_HOURS = 2016;
 import { createDemoTrial, createValidationTrial } from './trialSeed';
+import { evaluateCountProtocolCompliance, evaluateSeriesProtocolCompliance, evaluatePreExposureConditioning } from '../scientific/protocolEngine';
 
 const STORAGE_KEY = 'quv_lab_trials_v2_2';
+
+// ============================================================================
+// ÉTAPE 4 — CONTEXTE SCIENTIFIQUE (SCIENTIFIC CONTEXT)
+// États techniques exclusifs (dérivés, jamais matérialisés dans
+// scientificContext.status — seul 'FROZEN' y est écrit) :
+//   - NOT_FROZEN : contexte ABSENT (scientificContext === undefined)
+//   - FROZEN     : contexte présent, complet, cohérent, snapshot obligatoire
+//   - INVALID    : contexte présent mais incohérent/incomplet → FAIL CLOSED
+// ============================================================================
+/**
+ * Étiquette de version du moteur consignée dans le contexte gelé.
+ * Information de traçabilité uniquement (jamais un mécanisme de restauration).
+ * Le RuleSet (ruleSet.version = '2018 / Moteur v1.2.0') n'est pas modifié.
+ */
+const SCIENTIFIC_CONTEXT_ENGINE_VERSION = '1.2.0';
+
+export type ScientificContextState = 'NOT_FROZEN' | 'FROZEN' | 'INVALID';
+
+/**
+ * ÉTAPE 4 — VALIDATION DU CONTEXTE (structure réelle, jamais le statut protocolaire).
+ * Retourne FROZEN si et seulement si : identité présente, snapshot exploitable et
+ * cohérent (id/version identiques à l'identité), étiquette moteur, frozenAt/frozenBy,
+ * frozenTrigger === 'FIRST_ACQUISITION', status === 'FROZEN'.
+ * Ne modifie pas le Trial, ne crée pas de snapshot, ne répare rien.
+ */
+export function validateScientificContext(context: ScientificContext | undefined): ScientificContextState {
+  if (context === undefined) return 'NOT_FROZEN';
+
+  const snapshot = context.scientificRuleSetSnapshot;
+  const snapshotExploitable =
+    !!snapshot &&
+    typeof snapshot === 'object' &&
+    typeof snapshot.id === 'string' &&
+    snapshot.id.length > 0 &&
+    typeof snapshot.version === 'string' &&
+    snapshot.version.length > 0;
+
+  const frozen =
+    typeof context.scientificRuleSetId === 'string' &&
+    context.scientificRuleSetId.length > 0 &&
+    typeof context.scientificRuleSetVersion === 'string' &&
+    context.scientificRuleSetVersion.length > 0 &&
+    snapshotExploitable &&
+    context.scientificRuleSetId === snapshot.id &&
+    context.scientificRuleSetVersion === snapshot.version &&
+    typeof context.calculationEngineVersion === 'string' &&
+    context.calculationEngineVersion.length > 0 &&
+    typeof context.frozenAt === 'string' &&
+    context.frozenAt.length > 0 &&
+    typeof context.frozenBy === 'string' &&
+    context.frozenBy.length > 0 &&
+    context.frozenTrigger === 'FIRST_ACQUISITION' &&
+    context.status === 'FROZEN';
+
+  return frozen ? 'FROZEN' : 'INVALID';
+}
+
+/**
+ * ÉTAPE 4 — HELPER UNIQUE DE RÉSOLUTION FAIL-CLOSED DU RULESET DE CALCUL.
+ *   - NOT_FROZEN : RuleSet live autorisé (seule source légitime tant que le
+ *     contexte est absent ; ancien essai non migré inclus).
+ *   - FROZEN     : scientificRuleSetSnapshot UNIQUEMENT (live interdit).
+ *   - INVALID    : IntegrityViolationError explicite (fail-closed) — jamais de
+ *     snapshot ?? live, jamais de réparation, jamais de conversion en NOT_FROZEN.
+ * Ne modifie pas le Trial, ne crée pas de snapshot, ne répare rien.
+ */
+export function resolveScientificRuleSetForTrial(trial: Trial, currentRuleSet: ScientificRuleSet): ScientificRuleSet {
+  const state = validateScientificContext(trial.scientificContext);
+  if (state === 'FROZEN') {
+    return trial.scientificContext!.scientificRuleSetSnapshot;
+  }
+  if (state === 'NOT_FROZEN') {
+    return currentRuleSet;
+  }
+  throw new IntegrityViolationError(
+    'Contexte scientifique présent mais invalide ou incomplet : aucun RuleSet de remplacement n’est autorisé (fail-closed).',
+    { trialId: trial.id }
+  );
+}
+
+/**
+ * Événement émis lorsqu'une écriture localStorage échoue (quota dépassé ou autre).
+ * Depuis la migration IndexedDB (PR #111), localStorage ne contient plus que des
+ * métadonnées JSON (les Blobs photo n'y transitent plus) : le risque de saturation
+ * est donc bien plus faible qu'avant, mais il reste non nul (accumulation d'essais
+ * sur la durée, navigation privée, quota déjà partiellement occupé par une autre
+ * application du même domaine, etc.). Cet événement permet à la couche UI d'avertir
+ * l'opérateur au lieu de laisser passer l'échec en silence.
+ *
+ * Deux types concernent la LECTURE au démarrage (cf. getStorageLoadIssue()) :
+ *   - STORAGE_LOAD_RECOVERED : contenu illisible ou partiellement corrompu, copié
+ *     intégralement sous `backupKey` avant toute écriture ; l'application reste
+ *     utilisable sans perte.
+ *   - STORAGE_WRITE_BLOCKED : lecture impossible ou copie de secours échouée ;
+ *     toute écriture est refusée pour ne jamais écraser les données d'origine.
+ */
+export interface StorageErrorEvent {
+  type: 'STORAGE_QUOTA_EXCEEDED' | 'STORAGE_UNKNOWN_ERROR' | 'STORAGE_LOAD_RECOVERED' | 'STORAGE_WRITE_BLOCKED';
+  message: string;
+  timestamp: string;
+  backupKey?: string;
+}
+
+type StorageErrorListener = (event: StorageErrorEvent) => void;
+
+/** Préfixe des copies de secours du contenu brut illisible (jamais relues automatiquement). */
+export const STORAGE_BACKUP_KEY_PREFIX = `${STORAGE_KEY}__backup_`;
 /**
  * Service TrialStore complet
  */
@@ -52,6 +167,13 @@ export class TrialStoreService {
   private trials: Map<UUID, Trial> = new Map();
   private ruleSet: ScientificRuleSet;
   private isEphemeral: boolean;
+  private storageErrorListeners: StorageErrorListener[] = [];
+  private persistenceHealthy = true;
+  // Anomalie détectée au chargement (null = lecture saine). Si son type est
+  // STORAGE_WRITE_BLOCKED, saveToStorage() n'écrit plus jamais.
+  private storageLoadIssue: StorageErrorEvent | null = null;
+  // Contenu brut illisible à copier sous une clé de secours avant la 1re écriture.
+  private pendingBackup: { raw: string; reason: string } | null = null;
 
   constructor(options?: { ephemeral?: boolean }) {
     this.ruleSet = getDefaultScientificRuleSet();
@@ -76,11 +198,12 @@ export class TrialStoreService {
     if (!trial || !Array.isArray(trial.stages)) return trial;
 
     // Ensure orderNumber and reportNumber are present
+    // Valeurs neutres : aucune référence de campagne ne doit être injectée (G52-CLEAN).
     if (!trial.metadata.orderNumber) {
-      trial.metadata.orderNumber = 'CO-VAN2026-001';
+      trial.metadata.orderNumber = '';
     }
     if (!trial.metadata.reportNumber) {
-      trial.metadata.reportNumber = 'RA-VAN2026-001';
+      trial.metadata.reportNumber = '';
     }
 
     // Ensure project-level dimensions
@@ -129,7 +252,7 @@ export class TrialStoreService {
       } else if (isFinal) {
         stage.stageType = 'FINAL_POST_EXPOSURE';
         if (!stage.name || stage.name.includes('MESURES FINALES') || stage.name.includes('2016 h')) {
-          stage.name = `${stage.scheduledExposureHours || 2016} h — MESURES FINALES APRÈS EXPOSITION`;
+          stage.name = `${stage.scheduledExposureHours || C12_SCHEDULED_HOURS} h — MESURES FINALES APRÈS EXPOSITION`;
         }
       } else {
         // Cycles intermédiaires (168 h à 1848 h)
@@ -145,42 +268,216 @@ export class TrialStoreService {
     return trial;
   }
 
-  private loadFromStorage(): void {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as Trial[];
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          parsed.forEach((t) => {
-            // Éliminer préventivement toute pollution issue d'anciens mocks de test (Gate 55 - D-6)
-            if (t && t.id && !t.id.startsWith('MOCK_TEST_')) {
-              const migrated = this.migrateTrialTerminology(t);
-              this.trials.set(migrated.id, migrated);
-            }
-          });
-          return;
-        }
-      }
-    } catch {
-      // ignore
-    }
-
-    // Initialisation avec démo et essai de validation si vide
+  /**
+   * Initialise le store mémoire avec les essais de démonstration.
+   * @param persist true uniquement au premier lancement (stockage vide) ;
+   * false après une corruption (mémoire utilisable, JAMAIS d'écrasement
+   * des données persistées existantes par des données DEMO).
+   */
+  private seedDemoTrials(persist: boolean): void {
     const demo = createDemoTrial(this.ruleSet);
     const valTrial = createValidationTrial(this.ruleSet);
     this.trials.set(demo.id, demo);
     this.trials.set(valTrial.id, valTrial);
-    this.saveToStorage();
+    if (persist) {
+      this.saveToStorage();
+    }
+  }
+
+  private loadFromStorage(): void {
+    let stored: string | null = null;
+    try {
+      stored = localStorage.getItem(STORAGE_KEY);
+    } catch (err) {
+      // Lecture impossible : mémoire utilisable, écritures BLOQUÉES (on ignore
+      // ce que contient le stockage, il ne doit donc jamais être remplacé).
+      console.warn('[QUV-Lab] Lecture du stockage local impossible, essais de démonstration en mémoire uniquement.', err);
+      this.seedDemoTrials(false);
+      this.blockStorageWrites(
+        "Le stockage local n'a pas pu être lu : les essais affichés sont des essais de démonstration et aucune modification ne sera enregistrée."
+      );
+      return;
+    }
+    // Stockage vide : premier lancement, comportement existant (seed + persist).
+    if (!stored) {
+      this.seedDemoTrials(true);
+      return;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(stored);
+    } catch (err) {
+      // JSON corrompu : copie de secours du contenu brut AVANT toute écriture.
+      console.warn('[QUV-Lab] Stockage local illisible (JSON corrompu).', err);
+      this.seedDemoTrials(false);
+      this.secureUnreadableStorage(stored, 'contenu illisible (JSON corrompu)');
+      return;
+    }
+    if (!Array.isArray(parsed)) {
+      console.warn('[QUV-Lab] Stockage local inattendu (tableau attendu), essais de démonstration en mémoire uniquement.');
+      this.seedDemoTrials(false);
+      this.secureUnreadableStorage(stored, 'format inattendu (tableau attendu)');
+      return;
+    }
+    // Tableau lisible (même vide ou entièrement corrompu) : charger les essais
+    // valides un par un, ignorer les autres. Ne JAMAIS réécrire le stockage ici.
+    let skipped = 0;
+    parsed.forEach((entry: unknown) => {
+      // Validation structurelle D'ABORD (avant tout accès métier tel que
+      // entry.id) : un id non-string (ex. 123) ne doit jamais faire
+      // planter le chargement. Entrée corrompue → ignorée + warning,
+      // les autres essais se chargent normalement (try/catch par essai).
+      if (!isStructurallyValidTrial(entry)) {
+        const rawId: unknown = isPlainRecord(entry) ? (entry as Record<string, unknown>)['id'] : undefined;
+        console.warn(
+          `[QUV-Lab] Essai ignoré au chargement : structure invalide (id=${typeof rawId === 'string' ? rawId : 'absent/invalide'}).`
+        );
+        skipped++;
+        return;
+      }
+      // Éliminer préventivement toute pollution issue d'anciens mocks de test (Gate 55 - D-6)
+      if (entry.id.startsWith('MOCK_TEST_')) return;
+      try {
+        const migrated = this.migrateTrialTerminology(entry);
+        this.trials.set(migrated.id, migrated);
+      } catch (err) {
+        console.warn(`[QUV-Lab] Essai ignoré au chargement : migration impossible (id=${entry.id}).`, err);
+        skipped++;
+      }
+    });
+    // Les essais ignorés disparaîtraient à la prochaine écriture : on conserve
+    // d'abord le contenu brut complet.
+    if (skipped > 0) {
+      this.secureUnreadableStorage(stored, `${skipped} essai(s) illisible(s) ignoré(s)`);
+    }
+  }
+
+  /**
+   * Programme la copie de secours du contenu brut. Elle n'est PAS écrite ici :
+   * le chargement ne fait jamais d'écriture (IR-35/36/37/48/56). Elle est
+   * réalisée par saveToStorage() juste avant la première écriture.
+   */
+  private secureUnreadableStorage(raw: string, reason: string): void {
+    this.pendingBackup = { raw, reason };
+    this.storageLoadIssue = {
+      type: 'STORAGE_LOAD_RECOVERED',
+      message: `Stockage local partiellement illisible (${reason}). Le contenu d'origine sera sauvegardé intégralement avant la première modification.`,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Écrit la copie de secours programmée. Si elle réussit, les écritures
+   * normales restent autorisées (rien n'est perdu) ; sinon elles sont bloquées
+   * définitivement pour ne jamais écraser l'original.
+   */
+  private writePendingBackup(): boolean {
+    const pending = this.pendingBackup;
+    if (!pending) return true;
+    const backupKey = `${STORAGE_BACKUP_KEY_PREFIX}${new Date().toISOString().replace(/[:.]/g, '-')}`;
+    try {
+      localStorage.setItem(backupKey, pending.raw);
+    } catch (err) {
+      console.warn('[QUV-Lab] Copie de secours du stockage local impossible : écritures bloquées.', err);
+      this.pendingBackup = null;
+      this.blockStorageWrites(
+        `Stockage local partiellement illisible (${pending.reason}) et copie de secours impossible : aucune modification ne sera enregistrée afin de préserver les données d'origine.`
+      );
+      return false;
+    }
+    console.warn(`[QUV-Lab] Contenu brut du stockage local sauvegardé sous « ${backupKey} ».`);
+    this.pendingBackup = null;
+    this.storageLoadIssue = {
+      type: 'STORAGE_LOAD_RECOVERED',
+      message: `Stockage local partiellement illisible (${pending.reason}). Le contenu d'origine a été sauvegardé intégralement sous la clé « ${backupKey} » avant toute modification.`,
+      timestamp: new Date().toISOString(),
+      backupKey
+    };
+    this.notifyStorageError(this.storageLoadIssue);
+    return true;
+  }
+
+  private blockStorageWrites(message: string): void {
+    this.storageLoadIssue = { type: 'STORAGE_WRITE_BLOCKED', message, timestamp: new Date().toISOString() };
+  }
+
+  /**
+   * Anomalie détectée lors du chargement initial (null si la lecture était saine).
+   * Le chargement a lieu dans le constructeur, avant tout abonnement possible à
+   * onStorageError() : la couche UI doit donc interroger cette méthode au démarrage.
+   */
+  public getStorageLoadIssue(): StorageErrorEvent | null {
+    return this.storageLoadIssue;
   }
 
   private saveToStorage(): void {
     if (this.isEphemeral) return;
+    // Le contenu d'origine n'a pas pu être lu ni sauvegardé : l'écraser par
+    // l'état en mémoire (démo + modifications) le détruirait définitivement.
+    const backupOk = this.writePendingBackup();
+    const issue = this.storageLoadIssue;
+    if (!backupOk || issue?.type === 'STORAGE_WRITE_BLOCKED') {
+      this.persistenceHealthy = false;
+      if (issue) this.notifyStorageError({ ...issue, timestamp: new Date().toISOString() });
+      return;
+    }
     try {
       const list = Array.from(this.trials.values()).filter((t) => !t.id.startsWith('MOCK_TEST_'));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-    } catch {
-      // ignore
+      this.persistenceHealthy = true;
+    } catch (err) {
+      // Ancien comportement : l'erreur était totalement avalée ici. Les Blobs photo
+      // ne transitent plus par localStorage depuis la PR #111 (IndexedDB), mais un
+      // échec d'écriture des métadonnées JSON reste possible et doit être visible.
+      this.persistenceHealthy = false;
+      const errName = err instanceof Error || (err && typeof err === 'object') ? (err as { name?: unknown }).name : undefined;
+      const errCode = err && typeof err === 'object' ? (err as { code?: unknown }).code : undefined;
+      // Détection par duck-typing (nom/code) plutôt que par `instanceof DOMException` :
+      // certains environnements (polyfills, tests, realms différents) peuvent produire
+      // une erreur portant name === 'QuotaExceededError' sans être une véritable
+      // DOMException du même realm — un `instanceof` strict la classerait à tort en
+      // erreur inconnue.
+      const isQuotaError =
+        errName === 'QuotaExceededError' || errName === 'NS_ERROR_DOM_QUOTA_REACHED' || errCode === 22;
+      this.notifyStorageError({
+        type: isQuotaError ? 'STORAGE_QUOTA_EXCEEDED' : 'STORAGE_UNKNOWN_ERROR',
+        message: isQuotaError
+          ? "Espace de stockage local saturé : les métadonnées de l'essai n'ont pas pu être enregistrées."
+          : "Échec de l'enregistrement local des essais. Vos dernières modifications peuvent ne pas avoir été sauvegardées.",
+        timestamp: new Date().toISOString()
+      });
     }
+  }
+
+  /**
+   * S'abonne aux échecs de persistance locale. Retourne une fonction de désabonnement.
+   */
+  public onStorageError(listener: StorageErrorListener): () => void {
+    this.storageErrorListeners.push(listener);
+    return () => {
+      this.storageErrorListeners = this.storageErrorListeners.filter((l) => l !== listener);
+    };
+  }
+
+  /**
+   * Reflète uniquement le résultat de la DERNIÈRE tentative d'écriture localStorage
+   * (true dès que ce dernier setItem() a réussi). Ce n'est PAS une garantie que
+   * l'intégralité des modifications actuellement en mémoire a été persistée : un
+   * appel à saveTrial() peut très bien réussir alors qu'une mutation antérieure,
+   * elle, avait échoué et n'a pas été rejouée automatiquement.
+   */
+  public isPersistenceHealthy(): boolean {
+    return this.persistenceHealthy;
+  }
+
+  private notifyStorageError(event: StorageErrorEvent): void {
+    this.storageErrorListeners.forEach((listener) => {
+      try {
+        listener(event);
+      } catch {
+        // un listener défaillant ne doit jamais casser la persistance elle-même
+      }
+    });
   }
 
   public getTrials(): Trial[] {
@@ -202,6 +499,36 @@ export class TrialStoreService {
 
   public getAllTrials(): Trial[] {
     return this.getTrials();
+  }
+
+  /**
+   * Modifie la date effective du relevé T0 avant verrouillage du plan.
+   * T0 devient la référence temporelle unique : C1..C12 sont recalculés
+   * par incréments exacts de 168 h à partir de cette nouvelle date.
+   */
+  public updateT0EffectiveDate(trialId: UUID, effectiveDate: string, operatorId: string): Trial {
+    const trial = this.getTrial(trialId);
+    if (!trial) throw new Error('Essai introuvable');
+    if (trial.configurationStatus === 'LOCKED' || Object.keys(trial.acquisitions || {}).length > 0) {
+      throw new IntegrityViolationError('La date effective du relevé T0 ne peut plus être modifiée après le démarrage de la campagne.', { trialId });
+    }
+    const parsed = new Date(effectiveDate);
+    if (Number.isNaN(parsed.getTime())) throw new IntegrityViolationError('La date effective du relevé T0 est invalide.', { trialId });
+    const t0 = trial.stages.find((stage) => stage.stageType === 'INITIAL_PRE_EXPOSURE' || stage.cycleIndex === 0);
+    if (!t0) throw new IntegrityViolationError('Le jalon T0 est introuvable.', { trialId });
+    const t0Iso = parsed.toISOString();
+    t0.scheduledAt = t0Iso;
+    t0.scheduledExposureHours = 0;
+    for (const stage of trial.stages) {
+      if (stage.cycleIndex < 1 || stage.cycleIndex > 12) continue;
+      stage.scheduledExposureHours = stage.cycleIndex * 168;
+      stage.scheduledAt = new Date(parsed.getTime() + stage.scheduledExposureHours * 3600 * 1000).toISOString();
+    }
+    trial.startDate = t0Iso;
+    trial.updatedAt = new Date().toISOString();
+    trial.auditTrail.push({ id: generateUUID(), trialId, timestamp: trial.updatedAt, operatorId: operatorId || 'OPERATOR', action: 'UPDATE_T0_EFFECTIVE_DATE', entityType: 'STAGE', entityId: t0.id, details: { effectiveDate: t0Iso, scheduleRule: 'Ck = T0 + k × 168 h' } });
+    this.saveTrial(trial);
+    return trial;
   }
 
   public saveTrial(trial: Trial): void {
@@ -241,11 +568,13 @@ export class TrialStoreService {
       applicationDate?: string;
       dryingOrConditioningTime?: string;
       batchNotes?: string;
-      panelCount: number;
+      // Pas de panelCount : chaque lot reçoit la configuration canonique
+      // (4 panneaux — T témoin, E1/E2/E3 exposées), voir ci-dessous.
     }[];
     activeFamilies: MeasurementFamilyId[];
     familyConfigs?: Partial<TrialProtocolConfig['familyConfigs']>;
     selectedMeasurementCycles?: number[];
+    startDate?: string;
   }): Trial {
     const createdBy = params.metadata?.createdBy?.trim();
     if (!createdBy) {
@@ -255,8 +584,19 @@ export class TrialStoreService {
     const trialId = generateUUID();
     const now = new Date().toISOString();
 
+    // Date de début (T0) — source unique du calendrier (G52-DATE).
+    // Date seule "yyyy-mm-dd" → 08:00 locale de laboratoire ; date horodatée → telle quelle ;
+    // absente/invalide → instant courant (défaut dynamique, sans contexte de campagne câblé).
+    const rawStartDate = params.startDate?.trim();
+    const trialStartDateIso =
+      rawStartDate && !isNaN(Date.parse(rawStartDate))
+        ? new Date(rawStartDate.length === 10 ? `${rawStartDate}T08:00:00` : rawStartDate).toISOString()
+        : now;
+
     const createdBatches: BatchDefinition[] = params.batches.map((b, bIdx) => {
       const batchId = generateUUID();
+      // Configuration canonique : exactement 4 panneaux (T, E1, E2, E3).
+      // Aucun nombre variable : toute valeur panelCount éventuelle est ignorée.
       const panels: PanelDefinition[] = [
         {
           id: generateUUID(),
@@ -329,21 +669,22 @@ export class TrialStoreService {
         COLOR: params.familyConfigs?.COLOR || {
           familyId: 'COLOR',
           enabled: params.activeFamilies.includes('COLOR'),
-          countConfig: createCountConfiguration('COLOR', 4, this.ruleSet)
+          countConfig: createCountConfiguration('COLOR', this.ruleSet.measurementConfigurations.COLOR.standardRecommendedCount, this.ruleSet)
         },
         GLOSS: params.familyConfigs?.GLOSS || {
           familyId: 'GLOSS',
           enabled: params.activeFamilies.includes('GLOSS'),
-          seriesConfig: createSeriesConfiguration('GLOSS', 2, 2, this.ruleSet)
+          seriesConfig: createSeriesConfiguration('GLOSS', this.ruleSet.seriesConfigurations!.GLOSS.standardConfiguration.seriesCount, this.ruleSet.seriesConfigurations!.GLOSS.standardConfiguration.readingsPerSeries, this.ruleSet)
         },
         PERSOZ: params.familyConfigs?.PERSOZ || {
           familyId: 'PERSOZ',
           enabled: params.activeFamilies.includes('PERSOZ'),
-          countConfig: createCountConfiguration('PERSOZ', 3, this.ruleSet)
+          countConfig: createCountConfiguration('PERSOZ', this.ruleSet.measurementConfigurations.PERSOZ.standardRecommendedCount, this.ruleSet)
         },
         ADHESION: params.familyConfigs?.ADHESION || {
           familyId: 'ADHESION',
-          enabled: params.activeFamilies.includes('ADHESION')
+          enabled: params.activeFamilies.includes('ADHESION'),
+          countConfig: createCountConfiguration('ADHESION', this.ruleSet.measurementConfigurations.ADHESION.standardRecommendedCount, this.ruleSet)
         },
         OBSERVATIONS: params.familyConfigs?.OBSERVATIONS || {
           familyId: 'OBSERVATIONS',
@@ -352,7 +693,7 @@ export class TrialStoreService {
       }
     };
 
-    const stages = generateStandardExposureStages(trialId, params.selectedMeasurementCycles);
+    const stages = generateStandardExposureStages(trialId, trialStartDateIso, params.selectedMeasurementCycles);
 
     const auditTrail: AuditEvent[] = [
       {
@@ -378,6 +719,7 @@ export class TrialStoreService {
       schemaVersion: '1.2.0',
       createdAt: now,
       updatedAt: now,
+      startDate: trialStartDateIso,
       metadata: {
         ...params.metadata,
         createdBy
@@ -475,9 +817,9 @@ export class TrialStoreService {
     const prevConfig = famConfig?.countConfig || famConfig?.seriesConfig;
 
     if (typeof newCountOrSeries === 'number') {
-      const isStandard = newCountOrSeries === (this.ruleSet.measurementConfigurations[familyId]?.standardRecommendedCount ?? 4);
-      if (!isStandard && (!justification || justification.trim().length === 0)) {
-        throw new Error('Une justification obligatoire est requise pour toute adaptation du nombre de mesures.');
+      const isStandard = newCountOrSeries === (this.ruleSet.measurementConfigurations[familyId]?.standardRecommendedCount ?? undefined);
+      if (!isStandard && !isAdaptationJustificationValid(justification)) {
+        throw new Error('Une justification obligatoire (8 caractères minimum) est requise pour toute adaptation du nombre de mesures.');
       }
       const updatedConfig = createCountConfiguration(familyId, newCountOrSeries, this.ruleSet, {
         justification,
@@ -498,8 +840,8 @@ export class TrialStoreService {
         std &&
         newCountOrSeries.seriesCount === std.seriesCount &&
         newCountOrSeries.readingsPerSeries === std.readingsPerSeries;
-      if (!isStandard && (!justification || justification.trim().length === 0)) {
-        throw new Error('Une justification obligatoire est requise pour toute adaptation de structure de séries.');
+      if (!isStandard && !isAdaptationJustificationValid(justification)) {
+        throw new Error('Une justification obligatoire (8 caractères minimum) est requise pour toute adaptation de structure de séries.');
       }
       const updatedConfig = createSeriesConfiguration(
         familyId,
@@ -538,11 +880,38 @@ export class TrialStoreService {
     source?: 'MANUAL_KEYPAD' | 'INSTRUMENT_IMPORT' | 'FILE_IMPORT';
     mediaIds?: UUID[];
   }): { trial: Trial; record: PanelAcquisitionRecord } {
+    // Robustesse imports P2 : famille inconnue et RAW mal formé rejetés
+    // explicitement avant tout effet de bord (jamais de valeur fabriquée,
+    // jamais d'acquisition EMPTY silencieuse).
+    validateAcquisitionFamily(params.familyId);
+    validateAcquisitionRaw(params.raw);
+
     const trial = this.getTrial(params.trialId);
     if (!trial) throw new Error(`Essai ${params.trialId} introuvable`);
 
     // Garde-fou d'intégrité relationnelle (Gate 3.1 - Risque 1) avant tout effet de bord
     validateAcquisitionTarget(trial, params.stageId, params.batchId, params.panelId);
+
+    // Verrou métier PERSOZ (règle stricte E1/E2/E3) : la dureté Persoz se mesure
+    // UNIQUEMENT sur éprouvettes exposées E1, E2, E3 identifiées sans ambiguïté,
+    // à tous les jalons (T0..C12). T et tout panneau non identifiable sont refusés.
+    // Rejet AVANT toute mutation : ni trial.acquisitions, ni lock, ni audit, ni save.
+    if (params.familyId === 'PERSOZ') {
+      const targetBatch = trial.batches?.find((b) => b.id === params.batchId);
+      const targetPanel = targetBatch?.panels?.find((p) => p.id === params.panelId);
+      if (!targetPanel || !isPersozEligiblePanel(targetPanel)) {
+        throw new IntegrityViolationError(
+          `PERSOZ interdit sur cette éprouvette : la dureté Persoz se mesure uniquement sur éprouvettes exposées E1, E2, E3 (témoin T et panneaux non identifiés refusés).`,
+          {
+            trialId: trial.id,
+            stageId: params.stageId,
+            batchId: params.batchId,
+            panelId: params.panelId,
+            familyId: 'PERSOZ'
+          }
+        );
+      }
+    }
 
     // Règle métier canonique : ADHESION = T0 + C12 uniquement. Interdit à C1..C11.
     const targetStage = trial.stages?.find((s) => s.id === params.stageId);
@@ -561,22 +930,28 @@ export class TrialStoreService {
       );
     }
 
-    const now = new Date().toISOString();
-
-    // Verrouillage automatique si non encore verrouillé
-    if (trial.configurationStatus !== 'LOCKED') {
-      trial.configurationStatus = 'LOCKED';
-      trial.auditTrail.push({
-        id: generateUUID(),
-        trialId: trial.id,
-        timestamp: now,
-        operatorId: 'SYSTEM',
-        action: 'LOCK_TRIAL_CONFIGURATION',
-        entityType: 'CONFIG',
-        entityId: trial.id,
-        details: { reason: 'Première acquisition scientifique enregistrée.' }
-      });
+    // Verrou métier ADHÉSION (matrice T0/T, C12/E1-E3) : la cible panneau est
+    // vérifiée en plus du calendrier. T0 → témoin T uniquement ;
+    // C12 → E1/E2/E3 strictement ; C1..C11 → aucun.
+    // Rejet AVANT toute mutation : ni trial.acquisitions, ni lock, ni audit, ni save.
+    if (params.familyId === 'ADHESION') {
+      const targetBatch = trial.batches?.find((b) => b.id === params.batchId);
+      const targetPanel = targetBatch?.panels?.find((p) => p.id === params.panelId);
+      if (!targetPanel || !isAdhesionEligiblePanel(targetPanel, targetStage)) {
+        throw new IntegrityViolationError(
+          `ADHÉSION interdite sur cette cible : T0 autorisé uniquement sur le témoin T, C12 uniquement sur E1/E2/E3, C1 à C11 interdits.`,
+          {
+            trialId: trial.id,
+            stageId: params.stageId,
+            batchId: params.batchId,
+            panelId: params.panelId,
+            familyId: 'ADHESION'
+          }
+        );
+      }
     }
+
+    const now = new Date().toISOString();
 
     const key = `${params.stageId}__${params.panelId}__${params.familyId}`;
     const prevRecord = trial.acquisitions[key];
@@ -602,21 +977,143 @@ export class TrialStoreService {
       mediaIds: params.mediaIds || prevRecord?.mediaIds || []
     };
 
+    // Contrôle général du conditionnement avant les examens initiaux T0.
+    // Le délai est défini par le RuleSet NF EN 927-6 et s'applique aux familles
+    // mesurées à T0 ; il ne constitue pas une règle spécifique à l'adhérence.
+    if (targetStage.stageType === 'INITIAL_PRE_EXPOSURE') {
+      const targetBatch = trial.batches?.find((b) => b.id === params.batchId);
+      const conditioning = evaluatePreExposureConditioning(
+        targetBatch?.applicationDate,
+        targetStage.scheduledAt,
+        this.ruleSet,
+        params.familyId,
+        params.stageId,
+        params.panelId
+      );
+      if (conditioning.alert) {
+        throw new IntegrityViolationError(conditioning.alert.message, {
+          trialId: trial.id,
+          stageId: params.stageId,
+          batchId: params.batchId,
+          panelId: params.panelId,
+          familyId: params.familyId
+        });
+      }
+    }
+
+    // Avant le premier verrouillage, toutes les familles actives quantitatives
+    // doivent disposer d’une configuration complète et valide issue du RuleSet.
+    // Aucun verrou partiel n’est autorisé si une autre famille active est incomplète.
+    if (trial.configurationStatus !== 'LOCKED') {
+      for (const familyId of trial.config.activeFamilies) {
+        const familyConfig = trial.config.familyConfigs[familyId];
+        if (!familyConfig || !familyConfig.enabled) {
+          throw new IntegrityViolationError(`Configuration protocolaire absente pour la famille active ${familyId}.`, { trialId: trial.id, familyId });
+        }
+        const protocol = familyId === 'GLOSS'
+          ? evaluateSeriesProtocolCompliance(familyConfig.seriesConfig, this.ruleSet)
+          : familyId === 'OBSERVATIONS'
+            ? null
+            : evaluateCountProtocolCompliance(familyConfig.countConfig, this.ruleSet);
+        if (protocol && (protocol.status === 'INCOMPLETE' || protocol.status === 'INVALID')) {
+          throw new IntegrityViolationError(`Configuration protocolaire ${familyId} incomplète ou invalide : la première acquisition ne peut pas verrouiller l’essai.`, { trialId: trial.id, familyId });
+        }
+      }
+    }
+
+    // ====================================================================
+    // ÉTAPE 4 — GEL DU CONTEXTE SCIENTIFIQUE À LA PREMIÈRE ACQUISITION
+    // ====================================================================
+    // Résolution fail-closed (helper unique) :
+    //   - NOT_FROZEN (contexte absent) : RuleSet live autorisé.
+    //   - FROZEN (valide) : scientificRuleSetSnapshot UNIQUEMENT.
+    //   - INVALID (présent mais incohérent/incomplet) : erreur explicite,
+    //     jamais de RuleSet live de remplacement, jamais de conversion NOT_FROZEN.
+    // Atomicité du gel : construction COMPLÈTE du ScientificContext en mémoire
+    // (identité + snapshot profonde issus d'une seule instance ruleSetToFreeze),
+    // validation avant écriture, calcul de la première acquisition SUR LE SNAPSHOT,
+    // puis persistance finale unique (saveTrial). Échec → ancien état conservé,
+    // aucune écriture partielle FROZEN.
+    const contextState = validateScientificContext(trial.scientificContext);
+    const isAboutToLock = trial.configurationStatus !== 'LOCKED';
+
+    let calculationRuleSet: ScientificRuleSet;
+    let frozenContext: ScientificContext | null = null;
+
+    if (contextState === 'FROZEN') {
+      // C1..C12 : contexte déjà gelé → snapshot uniquement, jamais le live.
+      calculationRuleSet = resolveScientificRuleSetForTrial(trial, this.ruleSet);
+    } else if (contextState === 'INVALID') {
+      // Contexte présent mais invalide/incomplet → fail-closed explicite AVANT
+      // toute écriture : ni acquisition, ni verrou, ni audit, ni saveTrial.
+      throw new IntegrityViolationError(
+        'Contexte scientifique présent mais invalide ou incomplet : aucun RuleSet de remplacement n’est autorisé (fail-closed).',
+        { trialId: trial.id, familyId: params.familyId, stageId: params.stageId }
+      );
+    } else if (isAboutToLock) {
+      // Première acquisition valide verrouillée (NOT_FROZEN + premier verrouillage)
+      // → GEL du contexte scientifique. ruleSetToFreeze est l'instance live unique.
+      const ruleSetToFreeze = this.ruleSet;
+      frozenContext = {
+        scientificRuleSetId: ruleSetToFreeze.id,
+        scientificRuleSetVersion: ruleSetToFreeze.version,
+        scientificRuleSetSnapshot: structuredClone(ruleSetToFreeze),
+        calculationEngineVersion: SCIENTIFIC_CONTEXT_ENGINE_VERSION,
+        frozenAt: now,
+        frozenBy: params.operatorId || 'OPERATOR',
+        frozenTrigger: 'FIRST_ACQUISITION',
+        status: 'FROZEN'
+      };
+      // Validation AVANT écriture (défense en profondeur) : un contexte construit
+      // mais invalide ne doit JAMAIS être associé à l'essai.
+      if (validateScientificContext(frozenContext) !== 'FROZEN') {
+        throw new IntegrityViolationError(
+          'Contexte scientifique construit invalide : gel refusé (fail-closed, aucune écriture partielle).',
+          { trialId: trial.id, familyId: params.familyId }
+        );
+      }
+      // Le calcul de la PREMIÈRE acquisition s'effectue SUR LE SNAPSHOT.
+      calculationRuleSet = frozenContext.scientificRuleSetSnapshot;
+    } else {
+      // Essai déjà verrouillé sans contexte (hérité, non migré) : NOT_FROZEN,
+      // RuleSet live autorisé (pas de migration, pas d'injection de snapshot).
+      calculationRuleSet = resolveScientificRuleSetForTrial(trial, this.ruleSet);
+    }
+
     // Calcul immédiat via PROMPT 5 sans toucher à raw
-    const { updatedRecord, rawUnchanged } = recalculateAcquisition(newRecord, trial, this.ruleSet);
+    const { updatedRecord, rawUnchanged } = recalculateAcquisition(newRecord, trial, calculationRuleSet);
     if (!rawUnchanged) {
-      // Garde-fou scientifique : le moteur de calcul a modifié le RAW, ce qui ne doit
-      // structurellement jamais arriver. On le rend visible plutôt que de le laisser silencieux.
-      updatedRecord.alerts.push({
+      // P0 : rejet transactionnel AVANT tout commit — aucune mutation n'a encore eu lieu
+      // (ni verrouillage, ni acquisition, ni audit, ni sauvegarde). L'ancien enregistrement,
+      // s'il existe, reste intact puisque trial.acquisitions[key] n'est jamais assigné ici.
+      throw new IntegrityViolationError(
+        'Anomalie critique d’intégrité RAW : les données brutes ont été modifiées pendant le recalcul scientifique. L’acquisition a été rejetée et aucune donnée n’a été persistée.',
+        {
+          trialId: trial.id,
+          stageId: params.stageId,
+          batchId: params.batchId,
+          panelId: params.panelId,
+          familyId: params.familyId
+        }
+      );
+    }
+
+    // Verrouillage automatique si non encore verrouillé (uniquement sur le chemin validé :
+    // une acquisition rejetée ne doit jamais verrouiller la configuration à elle seule).
+    if (trial.configurationStatus !== 'LOCKED') {
+      trial.configurationStatus = 'LOCKED';
+      trial.auditTrail.push({
         id: generateUUID(),
-        severity: 'BLOCKING',
-        code: 'RAW_INTEGRITY_VIOLATION',
-        message: 'Anomalie critique : la donnée brute (RAW) a été modifiée lors du recalcul. Intégrité scientifique compromise.',
-        familyId: params.familyId,
-        stageId: params.stageId,
-        panelId: params.panelId
+        trialId: trial.id,
+        timestamp: now,
+        operatorId: 'SYSTEM',
+        action: 'LOCK_TRIAL_CONFIGURATION',
+        entityType: 'CONFIG',
+        entityId: trial.id,
+        details: { reason: 'Première acquisition scientifique enregistrée.' }
       });
     }
+
     trial.acquisitions[key] = updatedRecord;
 
     // Audit de l'acquisition
@@ -633,10 +1130,18 @@ export class TrialStoreService {
         panelId: params.panelId,
         familyId: params.familyId,
         source: newRecord.trace.source,
-        quality: (updatedRecord.computed as any)?.qualityAssessment?.status || 'N/A',
+        quality: getQualityStatus(updatedRecord.computed) || 'N/A',
         rawUnchanged
       }
     });
+
+    // ÉTAPE 4 — Gel atomique : l'association du contexte FROZEN complet (construit
+    // et validé en mémoire) se fait au dernier instant, juste avant la persistance
+    // finale unique. Aucun verrouillage partiel FROZEN n'est possible : en cas
+    // d'échec précédent, trial.scientificContext reste inchangé (absence = NOT_FROZEN).
+    if (frozenContext) {
+      trial.scientificContext = frozenContext;
+    }
 
     this.saveTrial(trial);
     return { trial, record: updatedRecord };
@@ -738,9 +1243,11 @@ export class TrialStoreService {
     if (!trial.auditTrail) trial.auditTrail = [];
 
     if (!active) {
-      // Protection stricte : Un jalon contenant déjà des acquisitions scientifiques ne peut pas être désactivé rétroactivement
+      // Protection stricte : Un jalon contenant déjà des acquisitions scientifiques ne peut pas être désactivé rétroactivement.
+      // Toute acquisition dont le statut n'est pas EMPTY a été touchée (COMPLETE, WARNING, ERROR ou PARTIAL) :
+      // c'est cette condition qui protège, plutôt qu'une énumération manuelle de statuts qui peut diverger du type.
       const hasAcquisitions = Object.values(trial.acquisitions || {}).some(
-        (acq) => acq && acq.stageId === stageId && (acq.raw !== undefined || acq.status === 'COMPLETE' || acq.status === 'VALID' as any)
+        (acq) => acq && acq.stageId === stageId && (acq.raw !== undefined || acq.status !== 'EMPTY')
       );
       if (hasAcquisitions) {
         throw new Error(
@@ -845,7 +1352,7 @@ export class TrialStoreService {
       trialId,
       timestamp: now,
       operatorId: operatorId || 'OPERATOR',
-      action: 'UPDATE_MEASUREMENT_PLAN' as any,
+      action: 'UPDATE_MEASUREMENT_PLAN',
       entityType: 'TRIAL',
       entityId: trialId,
       details: {
@@ -870,7 +1377,8 @@ export class TrialStoreService {
     caption?: string;
     operatorId: string;
     storageKey?: string;
-    replaceExisting?: boolean;
+    sizeBytes?: number;
+    mimeType?: string;
   }): Trial {
     const trial = this.getTrial(params.trialId);
     if (!trial) throw new Error(`Essai ${params.trialId} introuvable`);
@@ -922,8 +1430,8 @@ export class TrialStoreService {
       status: 'ACTIVE',
       storageKey: params.storageKey || `photos/${params.filename}`,
       filename: params.filename,
-      mimeType: 'image/jpeg',
-      sizeBytes: 1024 * 250,
+      mimeType: params.mimeType || 'image/jpeg',
+      sizeBytes: params.sizeBytes ?? 1024 * 250,
       capturedAt: now,
       capturedBy: params.operatorId || 'OPERATOR',
       caption: params.caption,

@@ -19,6 +19,8 @@ import {
   MeasurementFamilyId,
   ColorComputedData,
   GlossComputedData,
+  PersozComputedData,
+  AdhesionComputedData,
   UUID,
   ComputationMetadata
 } from '../types/scientific';
@@ -27,8 +29,35 @@ import {
   calculateSampleStdDev,
   roundMetric
 } from './statistics';
+import { isExposedE1E2E3Panel } from './panelUtils';
 
 export const AGGREGATION_CALCULATION_VERSION = '1.1.0';
+
+/**
+ * Couple panneau + résultat calculé pour les points d'entrée stricts.
+ * Le panneau porte l'identité métier (roleCode/role/status) permettant
+ * le filtrage E1/E2/E3 — information absente des types COMPUTED purs.
+ */
+export interface PanelComputedItem<TComputed> {
+  panel: {
+    id: string;
+    roleCode?: string;
+    role?: string;
+    status?: string;
+  };
+  computed: TComputed;
+}
+
+/**
+ * Filtre strict partagé : E1/E2/E3 actifs uniquement (T, custom, inactifs,
+ * incohérents exclus). Aucune statistique, aucune mutation, aucun arrondi ici.
+ */
+function filterStrictExposed<TComputed>(items: PanelComputedItem<TComputed>[]): TComputed[] {
+  return items
+    .filter((item) => item && item.panel && item.computed !== null && item.computed !== undefined)
+    .filter((item) => (!item.panel.status || item.panel.status === 'ACTIVE') && isExposedE1E2E3Panel(item.panel))
+    .map((item) => item.computed);
+}
 
 /**
  * Calcule l'agrégation des mesures d'un lot pour la famille Couleur (inter-panneaux).
@@ -37,7 +66,7 @@ export const AGGREGATION_CALCULATION_VERSION = '1.1.0';
  * Les données transmises dans `panelComputedList` doivent provenir EXCLUSIVEMENT des
  * panneaux exposés actifs (E1, E2, E3). Le panneau Témoin T, conservé à l'obscurité,
  * ne doit JAMAIS être injecté dans cette liste d'agrégation.
- * Le filtrage doit être garanti en amont par l'appelant à l'aide de `getActiveExposedPanels()`.
+ * Le filtrage doit être garanti en amont par l'appelant à l'aide de `getActiveE1E2E3Panels()`.
  *
  * @param batchId Identifiant du lot
  * @param stageId Identifiant de l'étape
@@ -51,6 +80,19 @@ export function aggregateBatchColor(
   const activePanels = panelComputedList.filter((p) => p.validCount > 0);
   const deltaEValues = activePanels
     .map((p) => p.deltaE)
+    .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+
+  // Consolidation L*/a*/b* inter-panneaux : moyennes des moyennes panneau
+  // (haute précision conservée jusqu'ici, arrondi à 3 décimales à la sortie,
+  // comme ΔE). Référence ΔE de chaque panneau = T0 du même panneau (moteur).
+  const meanLVals = activePanels
+    .map((p) => p.meanL)
+    .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  const meanAVals = activePanels
+    .map((p) => p.meanA)
+    .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  const meanBVals = activePanels
+    .map((p) => p.meanB)
     .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
 
   const meanDeltaE = calculateMean(deltaEValues);
@@ -70,6 +112,14 @@ export function aggregateBatchColor(
     interPanelMean: roundMetric(meanDeltaE, 3),
     interPanelStdDev: roundMetric(interPanelStdDevDeltaE, 3),
     meanDeltaE: roundMetric(meanDeltaE, 3),
+    color: {
+      meanL: roundMetric(calculateMean(meanLVals), 3),
+      stdDevL: roundMetric(calculateSampleStdDev(meanLVals), 3),
+      meanA: roundMetric(calculateMean(meanAVals), 3),
+      stdDevA: roundMetric(calculateSampleStdDev(meanAVals), 3),
+      meanB: roundMetric(calculateMean(meanBVals), 3),
+      stdDevB: roundMetric(calculateSampleStdDev(meanBVals), 3)
+    },
     computation
   };
 }
@@ -81,7 +131,7 @@ export function aggregateBatchColor(
  * Les données transmises dans `panelComputedList` doivent provenir EXCLUSIVEMENT des
  * panneaux exposés actifs (E1, E2, E3). Le panneau Témoin T, conservé à l'obscurité,
  * ne doit JAMAIS être injecté dans cette liste d'agrégation.
- * Le filtrage doit être garanti en amont par l'appelant à l'aide de `getActiveExposedPanels()`.
+ * Le filtrage doit être garanti en amont par l'appelant à l'aide de `getActiveE1E2E3Panels()`.
  *
  * @param batchId Identifiant du lot
  * @param stageId Identifiant de l'étape
@@ -127,4 +177,138 @@ export function aggregateBatchGloss(
     meanGlossRetentionPercent: roundMetric(meanGlossRetentionPercent, 1),
     computation
   };
+}
+
+/**
+ * Calcule l'agrégation des mesures d'un lot pour la famille Persoz (inter-panneaux, Gate 58).
+ *
+ * CONTRAT SCIENTIFIQUE IMPÉRATIF (identique GATE 55 — D-8) :
+ * `panelComputedList` doit provenir EXCLUSIVEMENT des panneaux exposés actifs
+ * (E1, E2, E3). Le panneau Témoin T ne doit JAMAIS y figurer.
+ * Le filtrage doit être garanti en amont par l'appelant à l'aide de `getActiveE1E2E3Panels()`.
+ *
+ * Valeur inter-panneaux : `meanDampingTime` (moyenne intra-panneau déjà calculée
+ * par persozEngine — jamais recalculée ici, RAW jamais touché).
+ * Moyenne et écart-type arrondis à 1 décimale.
+ * Écart-type inter-panneaux : formule d'échantillon (n-1), comme COLOR/GLOSS/ADHESION.
+ *
+ * @param batchId Identifiant du lot
+ * @param stageId Identifiant de l'étape
+ * @param panelComputedList Liste des résultats calculés des panneaux exposés actifs uniquement
+ */
+export function aggregateBatchPersoz(
+  batchId: UUID,
+  stageId: UUID,
+  panelComputedList: PersozComputedData[]
+): BatchAggregationStats {
+  const activePanels = panelComputedList.filter((p) => p.validCount > 0);
+  const dampingValues = activePanels
+    .map((p) => p.meanDampingTime)
+    .filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+
+  const meanDamping = calculateMean(dampingValues);
+  const interPanelStdDevDamping = calculateSampleStdDev(dampingValues);
+
+  const computation: ComputationMetadata = {
+    calculationVersion: AGGREGATION_CALCULATION_VERSION,
+    calculatedAt: new Date().toISOString()
+  };
+
+  return {
+    batchId,
+    stageId,
+    familyId: 'PERSOZ',
+    panelsCount: panelComputedList.length,
+    activePanelsCount: activePanels.length,
+    interPanelMean: roundMetric(meanDamping, 1),
+    interPanelStdDev: roundMetric(interPanelStdDevDamping, 1),
+    computation
+  };
+}
+
+/**
+ * Calcule l'agrégation d'un lot pour la famille Adhérence (Gate 57).
+ *
+ * CONTRAT SCIENTIFIQUE IMPÉRATIF (identique GATE 55 — D-8) :
+ * `panelComputedList` doit provenir EXCLUSIVEMENT des panneaux exposés actifs
+ * (E1, E2, E3). Le panneau Témoin T ne doit JAMAIS y figurer (référence T0 uniquement).
+ *
+ * Moyenne globale = moyenne des moyennes de panneau, à 1 décimale.
+ * Écart-type inter-panneaux : formule d'échantillon (n-1), comme COLOR/GLOSS.
+ *
+ * @param batchId Identifiant du lot
+ * @param stageId Identifiant de l'étape (C12 en pratique)
+ * @param panelComputedList Liste des résultats calculés des panneaux exposés actifs uniquement
+ */
+export function aggregateBatchAdhesion(
+  batchId: UUID,
+  stageId: UUID,
+  panelComputedList: AdhesionComputedData[]
+): BatchAggregationStats {
+  const panelMeans = panelComputedList.map((p) =>
+    typeof p.panelMean === 'number' && Number.isFinite(p.panelMean) ? p.panelMean : null
+  );
+  const validMeans = panelMeans.filter((v): v is number => v !== null);
+  const overallMean = calculateMean(validMeans);
+  const interPanelStdDev = calculateSampleStdDev(validMeans);
+
+  const computation: ComputationMetadata = {
+    calculationVersion: AGGREGATION_CALCULATION_VERSION,
+    calculatedAt: new Date().toISOString()
+  };
+
+  return {
+    batchId,
+    stageId,
+    familyId: 'ADHESION',
+    panelsCount: panelComputedList.length,
+    activePanelsCount: validMeans.length,
+    interPanelMean: roundMetric(overallMean, 1),
+    interPanelStdDev: roundMetric(interPanelStdDev, 1),
+    adhesion: {
+      panelMeans,
+      overallMean: roundMetric(overallMean, 1),
+      standardDeviation: roundMetric(interPanelStdDev, 1)
+    },
+    computation
+  };
+}
+
+/**
+ * Points d'entrée STRICTS (défense en profondeur P2) : filtrent E1/E2/E3 actifs
+ * AVANT délégation aux agrégateurs canoniques (formules et signatures intactes).
+ * T, custom, inactifs et incohérents sont exclus ici même si l'appelant a failli.
+ * Pour ADHÉSION : population C12/E1-E3 (le T0/T, référence, n'y entre jamais —
+ * le filtrage amont par jalon reste requis, voir isAdhesionEligiblePanel).
+ */
+export function aggregateBatchColorExposed(
+  batchId: UUID,
+  stageId: UUID,
+  items: PanelComputedItem<ColorComputedData>[]
+): BatchAggregationStats {
+  return aggregateBatchColor(batchId, stageId, filterStrictExposed(items));
+}
+
+export function aggregateBatchGlossExposed(
+  batchId: UUID,
+  stageId: UUID,
+  items: PanelComputedItem<GlossComputedData>[]
+): BatchAggregationStats {
+  return aggregateBatchGloss(batchId, stageId, filterStrictExposed(items));
+}
+
+export function aggregateBatchPersozExposed(
+  batchId: UUID,
+  stageId: UUID,
+  items: PanelComputedItem<PersozComputedData>[]
+): BatchAggregationStats {
+  return aggregateBatchPersoz(batchId, stageId, filterStrictExposed(items));
+}
+
+export function aggregateBatchAdhesionExposed(
+  batchId: UUID,
+  stageId: UUID,
+  items: PanelComputedItem<AdhesionComputedData>[]
+): BatchAggregationStats {
+  return aggregateBatchAdhesion(batchId, stageId, filterStrictExposed(items));
 }

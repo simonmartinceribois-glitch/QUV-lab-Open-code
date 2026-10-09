@@ -1,28 +1,57 @@
 /**
- * QUV-Lab — Paillasse : formulaire Adhérence au quadrillage ISO 2409 (refactor/split-bench-forms).
- * JSX déplacé à l'identique depuis Tab06MeasurementsBench.tsx (bloc IIFE inclus :
- * les dérivés thickness / spacing / délai sont recalculés ici depuis les mêmes props).
- * État de saisie au parent : classe + observation reçues en props.
+ * QUV-Lab — Paillasse : formulaire Adhérence au quadrillage ISO 2409 (Gate 57).
+ * N mesures indépendantes par panneau selon le protocole (standard 2 ; 1 ou 3 si adaptation justifiée).
+ * Chaque mesure : classe 0–5 + observation individuelle. État au parent (entries),
+ * aucune mutation du RAW ici — le payload est assemblé par Tab06MeasurementsBench.
  */
 
 import type { Dispatch, SetStateAction } from 'react';
 import { AlertTriangle, Info, Sliders } from 'lucide-react';
 import {
   ISO2409_CLASSES,
-  getApplicableGridSpacing,
-  calculateDelayCompliance
+  getApplicableGridSpacing
 } from '../../scientific/adhesionEngine';
+import { ProtocolStatusHeader } from './ProtocolStatusHeader';
 import type { BatchDefinition, ExposureStage, PanelDefinition } from '../../types/trial';
+
+export interface AdhesionBenchEntry {
+  cls: number | null;
+  obs: string;
+}
+
+/**
+ * État d'affichage du quadrillage ISO 2409 selon l'épaisseur sèche réelle du film.
+ * Correction d'interface (G52) : au-delà de 250 µm, le quadrillage n'est pas applicable ;
+ * il s'agit d'un avertissement d'affichage, jamais d'une invalidation de la mesure RAW
+ * (l'épaisseur 300 µm reste 300 µm). La logique scientifique de l'espacement
+ * (getApplicableGridSpacing) n'est pas modifiée.
+ */
+export interface AdhesionGridDisplay {
+  isApplicable: boolean;
+  warningMessage: string | null;
+  gridSpacingMm: number | null;
+}
+
+export function getAdhesionGridDisplay(thickness?: number): AdhesionGridDisplay {
+  if (thickness === undefined) {
+    return { isApplicable: false, warningMessage: null, gridSpacingMm: null };
+  }
+  if (thickness > 250) {
+    return { isApplicable: false, warningMessage: '⚠️ Quadrillage non-applicable', gridSpacingMm: null };
+  }
+  return { isApplicable: true, warningMessage: null, gridSpacingMm: getApplicableGridSpacing(thickness).gridSpacingMm };
+}
 
 interface Props {
   currentBatch: BatchDefinition | undefined;
   currentPanel: PanelDefinition | undefined;
   currentStage: ExposureStage;
   isInitialStage: boolean;
-  adhesionClass: number | null;
-  onAdhesionClassChange: Dispatch<SetStateAction<number | null>>;
-  adhesionObservation: string;
-  onAdhesionObservationChange: Dispatch<SetStateAction<string>>;
+  expectedCount: number;
+  standardAdhesionCount: number;
+  protocolJustification?: string;
+  entries: AdhesionBenchEntry[];
+  onEntriesChange: Dispatch<SetStateAction<AdhesionBenchEntry[]>>;
 }
 
 export function BenchAdhesionForm({
@@ -30,18 +59,33 @@ export function BenchAdhesionForm({
   currentPanel,
   currentStage,
   isInitialStage,
-  adhesionClass,
-  onAdhesionClassChange,
-  adhesionObservation,
-  onAdhesionObservationChange
+  expectedCount,
+  standardAdhesionCount,
+  protocolJustification,
+  entries,
+  onEntriesChange
 }: Props) {
   const thickness = currentBatch?.dryFilmThicknessMicrons ?? undefined;
   const spacingResult = getApplicableGridSpacing(thickness);
-  const delayResult = calculateDelayCompliance(currentBatch?.applicationDate, new Date().toISOString(), 168);
+  const gridDisplay = getAdhesionGridDisplay(thickness);
   const isWitness = currentPanel?.role === 'WITNESS' || currentPanel?.index === 1;
+
+  const setEntryClass = (idx: number, cls: number | null) => {
+    onEntriesChange((prev) => prev.map((e, i) => (i === idx ? { ...e, cls } : e)));
+  };
+
+  const setEntryObs = (idx: number, obs: string) => {
+    onEntriesChange((prev) => prev.map((e, i) => (i === idx ? { ...e, obs } : e)));
+  };
 
   return (
     <div className="space-y-4">
+      <ProtocolStatusHeader
+        isAdapted={expectedCount !== standardAdhesionCount}
+        reference={`${standardAdhesionCount} mesures / panneau`}
+        realized={`${expectedCount} mesures / panneau`}
+        justification={protocolJustification}
+      />
       {/* 1. Cadre de préparation et traçabilité ISO 2409 (Section 7) */}
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs space-y-3">
         <div className="flex items-center justify-between pb-2 border-b border-slate-200">
@@ -50,7 +94,7 @@ export function BenchAdhesionForm({
             Paramètres Préparatoires du Quadrillage — NF EN ISO 2409:2020
           </span>
           <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold rounded-md">
-            Évaluation qualitative de séparation
+            {expectedCount === standardAdhesionCount ? `${expectedCount} mesures / panneau (standard)` : `${expectedCount} mesures / panneau (adaptation justifiée)`}
           </span>
         </div>
 
@@ -63,37 +107,23 @@ export function BenchAdhesionForm({
           </div>
           <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
             <div className="text-slate-500 text-[11px]">Épaisseur sèche (ISO 2808) :</div>
-            <div className={`font-bold mt-0.5 ${thickness !== undefined && thickness <= 250 ? 'text-indigo-900' : 'text-rose-600'}`}>
+            <div className={`font-bold mt-0.5 ${gridDisplay.isApplicable ? 'text-indigo-900' : 'text-rose-600'}`}>
               {thickness !== undefined ? `${thickness} µm` : '⚠️ Non renseignée'}
             </div>
           </div>
           <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
             <div className="text-slate-500 text-[11px]">Espacement requis du peigne :</div>
-            <div className={`font-bold mt-0.5 ${thickness !== undefined && thickness <= 250 ? 'text-emerald-700' : 'text-rose-600'}`}>
-              {thickness !== undefined && thickness <= 250 ? `${spacingResult.gridSpacingMm} mm (6×6 incisions)` : '🔴 Bloqué'}
+            <div className={`font-bold mt-0.5 ${gridDisplay.isApplicable ? 'text-emerald-700' : 'text-rose-600'}`}>
+              {gridDisplay.isApplicable
+                ? `${spacingResult.gridSpacingMm} mm (6×6 incisions)`
+                : thickness === undefined
+                  ? '🔴 Bloqué'
+                  : gridDisplay.warningMessage}
             </div>
           </div>
           <div className="p-2.5 bg-white border border-slate-200 rounded-lg">
             <div className="text-slate-500 text-[11px]">Conditionnement avant essai :</div>
             <div className="font-bold text-slate-800 mt-0.5">23 ± 2 °C / 50 ± 5 % HR (≥ 16 h)</div>
-          </div>
-        </div>
-
-        {/* Traçabilité du délai d'application */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 bg-white border border-slate-200 rounded-lg gap-2">
-          <div>
-            <span className="text-slate-500 font-medium">Application finition : </span>
-            <span className="font-mono font-bold text-slate-800">{currentBatch?.applicationDate || 'Non renseignée'}</span>
-          </div>
-          <div>
-            <span className="text-slate-500 font-medium">Délai écoulé : </span>
-            {delayResult.elapsedTimeHours !== null ? (
-              <span className={`font-bold ${delayResult.status === 'CONFORME' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                {Math.floor(delayResult.elapsedTimeHours / 24)} j {Math.round(delayResult.elapsedTimeHours % 24)} h ({delayResult.status === 'CONFORME' ? '✅ Conforme ≥ 168 h' : '⚠️ < 168 h'})
-              </span>
-            ) : (
-              <span className="text-slate-400 italic">Date d'application manquante</span>
-            )}
           </div>
         </div>
 
@@ -131,85 +161,89 @@ export function BenchAdhesionForm({
         </div>
       )}
 
-      {thickness !== undefined && thickness > 250 && (
+      {thickness !== undefined && !gridDisplay.isApplicable && (
         <div className="p-4 bg-rose-50 border border-rose-300 rounded-xl text-xs text-rose-900 space-y-2">
           <div className="font-bold flex items-center gap-2 text-sm text-rose-800">
             <AlertTriangle className="w-5 h-5 text-rose-600" />
-            🔴 Méthode non appropriée (Épaisseur {thickness} µm &gt; 250 µm)
+            {gridDisplay.warningMessage} ({thickness} µm)
           </div>
           <p>
-            La NF EN ISO 2409:2020 spécifie formellement que l'essai de quadrillage ne s'applique pas aux revêtements dont l'épaisseur totale est supérieure à 250 µm.
+            La NF EN ISO 2409:2020 spécifie que l'essai de quadrillage ne s'applique pas aux revêtements dont l'épaisseur totale est strictement supérieure à 250 µm. Pour ces épaisseurs, la méthode d'incision en croix X (ISO 16276-2) est prévue.
           </p>
           <p className="font-bold">
-            La saisie est bloquée conformément au domaine d'application de la norme.
+            Avertissement d'affichage : cela ne signifie pas que l'épaisseur mesurée est invalide. La donnée brute ({thickness} µm) reste bien la valeur réelle saisie par le technicien et n'est pas remplacée.
           </p>
         </div>
       )}
 
-      {/* 3. Sélecteur interactif des Classes de Quadrillage ISO 2409 */}
-      {thickness !== undefined && thickness <= 250 && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Classification visuelle du quadrillage (ISO 2409:2020)
-            </span>
-            <span className="text-xs text-slate-500">
-              Espacement retenu : <strong>{spacingResult.gridSpacingMm} mm</strong>
-            </span>
-          </div>
+      {/* 3. Sélecteurs interactifs des Classes de Quadrillage ISO 2409 — un bloc par mesure */}
+      {gridDisplay.isApplicable && (
+        <div className="space-y-4">
+          {entries.map((entry, idx) => (
+            <div key={idx} className="space-y-3 p-3 rounded-xl border border-indigo-100 bg-indigo-50/30">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Mesure n°{idx + 1} — Classification visuelle du quadrillage (ISO 2409:2020)
+                </span>
+                <span className="text-xs text-slate-500">
+                  Espacement retenu : <strong>{spacingResult.gridSpacingMm} mm</strong>
+                </span>
+              </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
-            {Object.values(ISO2409_CLASSES).map((cls) => {
-              const isSelected = adhesionClass === cls.rating;
-              return (
-                <button
-                  key={cls.rating}
-                  type="button"
-                  onClick={() => onAdhesionClassChange(cls.rating)}
-                  className={`p-3 rounded-xl border text-left transition-all ${
-                    isSelected
-                        ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-400 shadow-xs'
-                        : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className={`px-2.5 py-0.5 rounded-md text-xs font-bold ${
-                      cls.rating === 0
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : cls.rating === 1
-                        ? 'bg-blue-100 text-blue-800'
-                        : cls.rating === 2
-                        ? 'bg-amber-100 text-amber-800'
-                        : cls.rating === 3
-                        ? 'bg-orange-100 text-orange-800'
-                        : 'bg-rose-100 text-rose-800'
-                    }`}>
-                      Classe {cls.rating}
-                    </span>
-                    <span className="text-[11px] font-mono text-slate-500">
-                      Détachement : {cls.affectedAreaPercent}
-                    </span>
-                  </div>
-                  <div className="text-xs font-semibold text-slate-800 mb-1">{cls.shortLabel}</div>
-                  <p className="text-[11px] text-slate-600 line-clamp-3 leading-relaxed">{cls.description}</p>
-                </button>
-              );
-            })}
-          </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {Object.values(ISO2409_CLASSES).map((cls) => {
+                  const isSelected = entry.cls === cls.rating;
+                  return (
+                    <button
+                      key={cls.rating}
+                      type="button"
+                      onClick={() => setEntryClass(idx, cls.rating)}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        isSelected
+                            ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-400 shadow-xs'
+                            : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className={`px-2.5 py-0.5 rounded-md text-xs font-bold ${
+                          cls.rating === 0
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : cls.rating === 1
+                            ? 'bg-blue-100 text-blue-800'
+                            : cls.rating === 2
+                            ? 'bg-amber-100 text-amber-800'
+                            : cls.rating === 3
+                            ? 'bg-orange-100 text-orange-800'
+                            : 'bg-rose-100 text-rose-800'
+                        }`}>
+                          Classe {cls.rating}
+                        </span>
+                        <span className="text-[11px] font-mono text-slate-500">
+                          Détachement : {cls.affectedAreaPercent}
+                        </span>
+                      </div>
+                      <div className="text-xs font-semibold text-slate-800 mb-1">{cls.shortLabel}</div>
+                      <p className="text-[11px] text-slate-600 line-clamp-3 leading-relaxed">{cls.description}</p>
+                    </button>
+                  );
+                })}
+              </div>
 
-          {/* Observations de l'opérateur */}
-          <div className="pt-2">
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Observations spécifiques sur le quadrillage (facultatif) :
-            </label>
-            <input
-              type="text"
-              value={adhesionObservation}
-              onChange={(e) => onAdhesionObservationChange(e.target.value)}
-              placeholder="Ex : Rupture cohésive dans le bois, détachement net sur fil du bois, petits éclats aux croisillons..."
-              className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
+              {/* Observations propres à cette mesure */}
+              <div className="pt-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Observations mesure n°{idx + 1} (facultatif) :
+                </label>
+                <input
+                  type="text"
+                  value={entry.obs}
+                  onChange={(e) => setEntryObs(idx, e.target.value)}
+                  placeholder="Ex : Rupture cohésive dans le bois, détachement net sur fil du bois, petits éclats aux croisillons..."
+                  className="w-full text-xs px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

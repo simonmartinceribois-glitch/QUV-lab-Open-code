@@ -7,6 +7,7 @@ import {
   AdhesionRawData,
   AdhesionComputedData,
   AdhesionClassRating,
+  AdhesionIndividualResult,
   MeasurementAlert,
   QualityAssessment,
   ProtocolComplianceStatus,
@@ -14,9 +15,12 @@ import {
   ScientificRuleSet,
   UUID
 } from '../types/scientific';
+import { evaluateCountProtocolCompliance } from './protocolEngine';
 
 export const ADHESION_CALCULATION_VERSION = '1.2.0';
 export const ADHESION_NORM_REFERENCE = 'NF EN ISO 2409:2020';
+/** Le conditionnement avant les examens initiaux est contrôlé au niveau du protocole général.
+ *  ADHESION ne porte aucun délai scientifique spécifique : le RuleSet NF EN 927-6:2018 est la source. */
 
 /**
  * Définition officielle des 6 classes d'adhérence selon la NF EN ISO 2409:2020
@@ -87,12 +91,20 @@ export function getApplicableGridSpacing(
   coatingThicknessMicrons?: number | null,
   isWoodOrSoftSubstrate: boolean = true
 ): {
-  gridSpacingMm: number;
+  gridSpacingMm: number | null;
   cutsCount: number;
   thicknessCategory: string;
   rationale: string;
 } {
-  const thickness = coatingThicknessMicrons ?? 60; // Valeur par défaut si non spécifié
+  if (coatingThicknessMicrons === undefined || coatingThicknessMicrons === null || !Number.isFinite(coatingThicknessMicrons) || coatingThicknessMicrons < 0) {
+    return {
+      gridSpacingMm: null,
+      cutsCount: 0,
+      thicknessCategory: 'Épaisseur de revêtement non renseignée',
+      rationale: 'Espacement de quadrillage non déterminable sans épaisseur de revêtement valide.'
+    };
+  }
+  const thickness = coatingThicknessMicrons;
 
   if (thickness <= 60) {
     if (isWoodOrSoftSubstrate) {
@@ -134,92 +146,6 @@ export function getApplicableGridSpacing(
   }
 }
 
-/**
- * Calcul et vérification automatique du délai entre application et mesure
- */
-export function calculateDelayCompliance(
-  applicationDateStr?: string,
-  measurementDateStr?: string,
-  requiredMinimumHours: number = 168
-): {
-  elapsedTimeHours: number | null;
-  formattedElapsedTime: string;
-  status: 'CONFORME' | 'INSUFFICIENT_DELAY' | 'INVALID_DATE' | 'MISSING_APPLICATION_DATE';
-  complianceText: 'CONFORME' | 'DÉLAI INSUFFISANT' | 'DATE INVALIDE' | 'DATE NON RENSEIGNÉE';
-  message: string;
-} {
-  if (!applicationDateStr || applicationDateStr.trim() === '') {
-    return {
-      elapsedTimeHours: null,
-      formattedElapsedTime: 'Non déterminée',
-      status: 'MISSING_APPLICATION_DATE',
-      complianceText: 'DATE NON RENSEIGNÉE',
-      message: 'Date d\'application du lot non renseignée. Veuillez renseigner la date d\'application dans la définition du lot.'
-    };
-  }
-
-  const appTime = new Date(applicationDateStr).getTime();
-  if (isNaN(appTime)) {
-    return {
-      elapsedTimeHours: null,
-      formattedElapsedTime: 'Date invalide',
-      status: 'INVALID_DATE',
-      complianceText: 'DATE INVALIDE',
-      message: 'Format de la date d\'application invalide.'
-    };
-  }
-
-  const measureTime = measurementDateStr ? new Date(measurementDateStr).getTime() : Date.now();
-  if (isNaN(measureTime)) {
-    return {
-      elapsedTimeHours: null,
-      formattedElapsedTime: 'Date invalide',
-      status: 'INVALID_DATE',
-      complianceText: 'DATE INVALIDE',
-      message: 'Format de la date de mesure invalide.'
-    };
-  }
-
-  const diffMs = measureTime - appTime;
-  if (diffMs < 0) {
-    return {
-      elapsedTimeHours: null,
-      formattedElapsedTime: 'Antérieure à application',
-      status: 'INVALID_DATE',
-      complianceText: 'DATE INVALIDE',
-      message: 'La date de mesure ne peut pas être antérieure à la date d\'application de la finition.'
-    };
-  }
-
-  const elapsedHours = diffMs / (1000 * 60 * 60);
-  const days = Math.floor(elapsedHours / 24);
-  const remainingHours = Math.floor(elapsedHours % 24);
-  const minutes = Math.floor((elapsedHours * 60) % 60);
-
-  const formattedElapsedTime =
-    days > 0
-      ? `${days} j ${remainingHours} h ${minutes > 0 ? minutes + ' min' : ''}`.trim()
-      : `${Math.floor(elapsedHours)} h ${minutes} min`;
-
-  if (elapsedHours < requiredMinimumHours) {
-    return {
-      elapsedTimeHours: Math.round(elapsedHours * 10) / 10,
-      formattedElapsedTime,
-      status: 'INSUFFICIENT_DELAY',
-      complianceText: 'DÉLAI INSUFFISANT',
-      message: `Délai de séchage/conditionnement insuffisant (${formattedElapsedTime} écoulés vs ${requiredMinimumHours} h requis par le protocole).`
-    };
-  }
-
-  return {
-    elapsedTimeHours: Math.round(elapsedHours * 10) / 10,
-    formattedElapsedTime,
-    status: 'CONFORME',
-    complianceText: 'CONFORME',
-    message: `Délai respecté (${formattedElapsedTime} écoulés pour un minimum requis de ${requiredMinimumHours} h).`
-  };
-}
-
 export interface AdhesionCalculationOptions {
   referenceRaw?: AdhesionRawData | null;
   referenceStageId?: UUID | null;
@@ -229,132 +155,275 @@ export interface AdhesionCalculationOptions {
 }
 
 /**
+ * Normalisation en lecture seule (Gate 57) : le RAW historique scalaire
+ * (`adhesionClass`) est lu comme une mesure unique ; le RAW multi-mesures utilise
+ * `measurements`. Le RAW n'est jamais réécrit ni complété artificiellement.
+ */
+export interface NormalizedAdhesionMeasurement {
+  measurementIndex: number;
+  adhesionClass: number | null;
+  observation?: string;
+}
+
+export function normalizeAdhesionMeasurements(raw: AdhesionRawData): NormalizedAdhesionMeasurement[] {
+  // Chaîne vide historique = mesure manquante (comportement d'origine conservé), jamais classe 0.
+  const cleanValue = (v: unknown): number | null =>
+    v === '' ? null : ((v ?? null) as number | null);
+  if (Array.isArray(raw.measurements) && raw.measurements.length > 0) {
+    return raw.measurements.map((m, i) => ({
+      measurementIndex: m.measurementIndex ?? i + 1,
+      adhesionClass: cleanValue(m.adhesionClass),
+      observation: typeof m.observation === 'string' ? m.observation : undefined
+    }));
+  }
+  return [{
+    measurementIndex: 1,
+    adhesionClass: cleanValue(raw.adhesionClass),
+    observation: typeof raw.observation === 'string' ? raw.observation : undefined
+  }];
+}
+
+function isValidAdhesionClass(value: number | null | undefined): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 5;
+}
+
+/**
+ * Résout la configuration de comptage ADHESION effective sans modifier le stockage.
+ * Une configuration absente est bloquante : aucune configuration scientifique implicite
+ * ne doit être synthétisée par le moteur.
+ */
+export function resolveAdhesionCountConfig(
+  stored: MeasurementCountConfiguration | undefined
+): MeasurementCountConfiguration {
+  if (stored) return stored;
+  throw new Error('Configuration ADHESION absente : aucune configuration scientifique implicite ne doit être synthétisée.');
+  /*
+    familyId: 'ADHESION',
+    mode: 'STANDARD_DEFAULT',
+    origin: 'NORMATIVE_REQUIREMENT',
+    standardReference: 'NF EN ISO 2409:2020',
+    clause: '§5 & §6 (Essai de quadrillage)',
+    rationale: 'Configuration historique implicite (pré-Gate 57) : 1 mesure par panneau.',
+    standardRecommendedCount: 1,
+    configuredCount: 1,
+    deviationFromStandard: false,
+    configuredBy: 'SYSTEM',
+    configuredAt: '2026-08-30T00:00:00Z',
+    ruleSource: 'NORMATIVE_REQUIREMENT'
+  };
+  */
+}
+
+/**
  * Moteur de calcul et d'évaluation métrologique pour l'Adhérence au quadrillage
  */
+export function calculateAdhesion(
+  raw: AdhesionRawData,
+  countConfig: MeasurementCountConfiguration,
+  ruleSet: ScientificRuleSet,
+  options?: AdhesionCalculationOptions
+): {
+  computed: AdhesionComputedData;
+  alerts: MeasurementAlert[];
+};
 export function calculateAdhesion(
   raw: AdhesionRawData,
   countConfig: MeasurementCountConfiguration | undefined,
   ruleSet: ScientificRuleSet,
   options?: AdhesionCalculationOptions
 ): {
-  computed: AdhesionComputedData;
+  computed: AdhesionComputedData | null;
+  alerts: MeasurementAlert[];
+};
+export function calculateAdhesion(
+  raw: AdhesionRawData,
+  countConfig: MeasurementCountConfiguration | undefined,
+  ruleSet: ScientificRuleSet,
+  options?: AdhesionCalculationOptions
+): {
+  computed: AdhesionComputedData | null;
   alerts: MeasurementAlert[];
 } {
   const alerts: MeasurementAlert[] = [];
+  if (!countConfig) {
+    alerts.push({ id: 'alert-adh-protocol-missing', severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE', message: 'Configuration ADHESION absente : évaluation scientifique incomplète.', familyId: 'ADHESION', stageId: options?.stageId, panelId: options?.panelId });
+  }
+  if (countConfig && (!Number.isInteger(countConfig.configuredCount) || countConfig.configuredCount < 1 || countConfig.configuredCount > 3)) {
+    alerts.push({ id: 'alert-adh-count-invalid', severity: 'BLOCKING', code: 'MEASUREMENT_INVALID', message: 'Le nombre de mesures ADHESION doit être un entier compris entre 1 et 3.', familyId: 'ADHESION', stageId: options?.stageId, panelId: options?.panelId });
+  }
+  if (!countConfig) {
+    return { computed: null, alerts };
+  }
+
   const version = options?.calculationVersion || ADHESION_CALCULATION_VERSION;
 
-  // 1. Validation de la classe d'adhérence
-  let adhesionClass: number | null = null;
-  let classDescription = 'Non mesurée';
+  // 1. Mesures individuelles : le nombre attendu vient de la configuration du protocole ; la référence standard est portée par le RuleSet.
+  // Le nombre attendu vient du protocole. Un RAW scalaire historique reste une
+  // mesure unique pour la normalisation des données persistées, sans créer de config implicite.
+  const expectedCount = countConfig?.configuredCount ?? 0;
+  const measurements = normalizeAdhesionMeasurements(raw);
 
-  if (raw.adhesionClass !== null && raw.adhesionClass !== undefined && raw.adhesionClass !== ('' as any)) {
-    const parsed = Number(raw.adhesionClass);
+  // Référence T0 (Gate 5.6 : témoin) normalisée une seule fois, en lecture seule.
+  // Appariement strict par `measurementIndex` : C12 mesure N ↔ T0 témoin mesure N.
+  // Aucune mesure inventée : sans référence valide de même index, pas de delta.
+  const refMeasurements = options?.referenceRaw
+    ? normalizeAdhesionMeasurements(options.referenceRaw)
+    : [];
+  const refByIndex = new Map<number, number>();
+  refMeasurements.forEach((m) => {
+    if (isValidAdhesionClass(m.adhesionClass) && !refByIndex.has(m.measurementIndex)) {
+      refByIndex.set(m.measurementIndex, m.adhesionClass);
+    }
+  });
+
+  const individualResults: AdhesionIndividualResult[] = [];
+  const validClasses: number[] = [];
+  measurements.forEach((m) => {
+    if (m.adhesionClass === null || m.adhesionClass === undefined) {
+      individualResults.push({ measurementIndex: m.measurementIndex, adhesionClass: null, deltaAdhesionClass: null });
+      return;
+    }
+    const parsed = Number(m.adhesionClass);
     if (!isNaN(parsed) && Number.isInteger(parsed) && parsed >= 0 && parsed <= 5) {
-      adhesionClass = parsed;
-      classDescription = ISO2409_CLASSES[parsed]?.description || `Classe ${parsed}`;
+      const refClass = refByIndex.get(m.measurementIndex);
+      individualResults.push({
+        measurementIndex: m.measurementIndex,
+        adhesionClass: parsed,
+        deltaAdhesionClass: refClass !== undefined ? Math.round((parsed - refClass) * 10) / 10 : null
+      });
+      validClasses.push(parsed);
     } else {
+      individualResults.push({ measurementIndex: m.measurementIndex, adhesionClass: m.adhesionClass, deltaAdhesionClass: null });
       alerts.push({
-        id: `alert-adh-invalid-${options?.stageId || ''}-${options?.panelId || ''}`,
+        id: `alert-adh-invalid-${options?.stageId || ''}-${options?.panelId || ''}-${m.measurementIndex}`,
         severity: 'BLOCKING',
         code: 'PHYSICAL_BOUNDS_EXCEEDED',
-        message: `Classe d'adhérence ISO 2409 invalide : "${raw.adhesionClass}". La classe doit être un entier strict entre 0 et 5.`,
+        message: `Classe d'adhérence ISO 2409 invalide (mesure n°${m.measurementIndex}) : "${m.adhesionClass}". La classe doit être un entier strict entre 0 et 5.`,
         familyId: 'ADHESION',
         stageId: options?.stageId,
         panelId: options?.panelId
       });
     }
-  }
+  });
 
-  // 2. Contrôle du délai d'application
-  const delayCheck = calculateDelayCompliance(
-    raw.applicationDateTime,
-    raw.measurementDateTime,
-    raw.requiredMinimumDelayHours || 168
-  );
+  // Classe unique (mono-mesure ou RAW historique scalaire) : valeur directe, comportement
+  // historique strictement préservé. Multi-mesures : null, la moyenne fait foi (D-10 GO).
+  const isSingle = individualResults.length <= 1;
+  const adhesionClass: number | null = isSingle
+    ? (validClasses.length === 1 ? validClasses[0] : null)
+    : null;
+  const panelMean: number | null =
+    validClasses.length > 0
+      ? Math.round((validClasses.reduce((a, b) => a + b, 0) / validClasses.length) * 10) / 10
+      : null;
+  // ISO 2409 = classification en 6 classes, PAS une mesure quantitative.
+  // Une moyenne numérique (panelMean) ne doit JAMAIS être reconvertie en classe
+  // (ni description ISO) par arrondi : elle reste un indicateur décimal.
+  const classDescription =
+    adhesionClass !== null
+      ? ISO2409_CLASSES[adhesionClass]?.description || `Classe ${adhesionClass}`
+      : panelMean !== null
+        ? `Moyenne panneau : ${panelMean} — indicateur numérique complémentaire (hors classification ISO 2409)`
+        : 'Non mesurée';
 
-  if (delayCheck.status === 'INVALID_DATE') {
-    alerts.push({
-      id: `alert-adh-date-${options?.stageId || ''}-${options?.panelId || ''}`,
-      severity: 'BLOCKING',
-      code: 'MEASUREMENT_INVALID',
-      message: delayCheck.message,
-      familyId: 'ADHESION',
-      stageId: options?.stageId,
-      panelId: options?.panelId
-    });
-  } else if (delayCheck.status === 'INSUFFICIENT_DELAY') {
-    alerts.push({
-      id: `alert-adh-delay-${options?.stageId || ''}-${options?.panelId || ''}`,
-      severity: 'WARNING',
-      code: 'PROTOCOL_ADAPTED',
-      message: delayCheck.message,
-      familyId: 'ADHESION',
-      stageId: options?.stageId,
-      panelId: options?.panelId
-    });
-  } else if (delayCheck.status === 'MISSING_APPLICATION_DATE') {
-    alerts.push({
-      id: `alert-adh-missing-appdate-${options?.stageId || ''}-${options?.panelId || ''}`,
-      severity: 'WARNING',
-      code: 'MEASUREMENT_MISSING',
-      message: delayCheck.message,
-      familyId: 'ADHESION',
-      stageId: options?.stageId,
-      panelId: options?.panelId
-    });
-  }
+  // Le délai avant T0 est contrôlé au niveau du protocole général (RuleSet NF EN 927-6),
+  // et ne fait pas partie de l'évaluation spécifique ADHESION.
 
-  // 3. Référence T0 & Évolution
+  // 3. Référence T0 & Évolution (Gate 5.6 : T0 du témoin ; Gate 57 : moyennes de panneau).
+  // La référence est normalisée comme une mesure (scalaire historique = mesure unique),
+  // puis moyennée : initialPanelMean = moyenne des classes T0 témoin valides.
   let initialAdhesionClass: number | null = null;
+  let initialPanelMean: number | null = null;
   let deltaAdhesionClass: number | null = null;
 
-  if (options?.referenceRaw?.adhesionClass !== undefined && options.referenceRaw?.adhesionClass !== null) {
-    const refVal = Number(options.referenceRaw.adhesionClass);
-    if (!isNaN(refVal) && refVal >= 0 && refVal <= 5) {
-      initialAdhesionClass = refVal;
-      if (adhesionClass !== null) {
-        deltaAdhesionClass = adhesionClass - initialAdhesionClass;
+  if (options?.referenceRaw) {
+    const refValid = refMeasurements
+      .map((m) => m.adhesionClass)
+      .filter((v): v is number => isValidAdhesionClass(v));
+    if (refValid.length > 0) {
+      initialPanelMean = Math.round((refValid.reduce((a, b) => a + b, 0) / refValid.length) * 10) / 10;
+      // Compatibilité historique : scalaire de référence conservé tel quel (mono-mesure).
+      if (refMeasurements.length <= 1) {
+        initialAdhesionClass = initialPanelMean;
+      }
+      if (panelMean !== null) {
+        deltaAdhesionClass = Math.round((panelMean - initialPanelMean) * 10) / 10;
       }
     }
   }
 
-  // 4. Évaluation Qualité
-  const isMissing = adhesionClass === null;
+  // 4. Évaluation Qualité (Gate 57) : le nombre attendu vient du protocole
+  // (standard 2, 1 si adaptation), jamais en dur. Une seule mesure sur 2 attendues
+  // = 50 % et incomplet (WARNING), jamais complet.
+  const actualCount = individualResults.filter(
+    (m) => m.adhesionClass !== null && m.adhesionClass !== undefined
+  ).length;
+  const validCount = validClasses.length;
+  const providedInvalidCount = individualResults.filter(
+    (m) => m.adhesionClass !== null && m.adhesionClass !== undefined && !isValidAdhesionClass(m.adhesionClass)
+  ).length;
+  const missingCount = Math.max(0, expectedCount - actualCount);
+  const completenessPercent =
+    expectedCount > 0 ? Math.round((validCount / expectedCount) * 100) : 0;
+
+  // Une mesure scalaire historique ne doit pas contourner la configuration active :
+  // si le protocole attend plusieurs mesures, elle reste incomplète.
+  if (missingCount > 0) {
+    alerts.push({
+      id: `alert-adh-missing-${options?.stageId || ''}-${options?.panelId || ''}`,
+      severity: 'WARNING',
+      code: 'MEASUREMENT_MISSING',
+      message: `Mesure(s) d'adhérence manquante(s) : ${validCount}/${expectedCount} mesure(s) valide(s). Saisissez les ${missingCount} mesure(s) restante(s) (classes 0 à 5).`,
+      familyId: 'ADHESION',
+      stageId: options?.stageId,
+      panelId: options?.panelId
+    });
+  }
+
   const isInvalid = alerts.some((a) => a.severity === 'BLOCKING');
   const hasWarning = alerts.some((a) => a.severity === 'WARNING');
+  const isComplete = validCount >= expectedCount && expectedCount > 0 && !isInvalid;
 
   const qualityAssessment: QualityAssessment = {
-    expectedCount: 1,
-    actualCount: isMissing ? 0 : 1,
-    validCount: isMissing || isInvalid ? 0 : 1,
+    expectedCount,
+    actualCount,
+    validCount,
     suspectCount: 0,
-    invalidCount: isInvalid ? 1 : 0,
-    missingCount: isMissing ? 1 : 0,
-    completenessPercent: isMissing ? 0 : 100,
-    status: isInvalid ? 'INVALID' : hasWarning ? 'WARNING' : isMissing ? 'INVALID' : 'GOOD',
+    invalidCount: isInvalid ? Math.max(1, providedInvalidCount) : 0,
+    missingCount,
+    completenessPercent,
+    status: isInvalid
+      ? 'INVALID'
+      : actualCount === 0
+        ? 'INVALID'
+        : !isComplete
+          ? 'WARNING'
+          : hasWarning
+            ? 'WARNING'
+            : 'GOOD',
     warnings: alerts.map((a) => a.message)
   };
 
-  const protocolStatus: ProtocolComplianceStatus = countConfig?.deviationFromStandard
-    ? countConfig.justification?.trim()
-      ? 'ADAPTED_JUSTIFIED'
-      : 'ADAPTED_UNJUSTIFIED'
-    : 'STANDARD';
+  // ÉTAPE 3 — Mutualisation : le statut descriptif de configuration de la famille
+  // ADHESION (mode de configuration COUNT) provient de la fonction commune
+  // evaluateCountProtocolCompliance(). Celle-ci lit la référence standard PERSISTÉE
+  // de l'essai (config.standardRecommendedCount) en priorité ; le RuleSet live
+  // n'intervient qu'en repli legacy (ÉTAPE 2). Cette logique n'est plus réimplémentée
+  // localement. Le statut est descriptif uniquement : il ne participe à aucun calcul
+  // scientifique — configuredCount reste le nombre opérationnel des valeurs utilisées.
+  const protocolStatus: ProtocolComplianceStatus =
+    evaluateCountProtocolCompliance(countConfig, ruleSet).status;
 
   const computed: AdhesionComputedData = {
     adhesionClass,
     classDescription,
+    individualResults,
+    panelMean,
     initialAdhesionClass,
+    initialPanelMean,
     deltaAdhesionClass,
-    elapsedTimeHours: delayCheck.elapsedTimeHours,
-    delayCompliance:
-      delayCheck.status === 'CONFORME'
-        ? 'CONFORME'
-        : delayCheck.status === 'INSUFFICIENT_DELAY'
-        ? 'NON_CONFORME'
-        : 'NON_EVALUE',
-    gridSpacingUsedMm: raw.gridSpacingMm || 2,
-    criterionCategory: adhesionClass !== null ? `Classe ${adhesionClass} (ISO 2409)` : undefined,
+    elapsedTimeHours: null,
+    gridSpacingUsedMm: raw.gridSpacingMm ?? null,
     qualityAssessment,
     protocolStatus,
     computation: {

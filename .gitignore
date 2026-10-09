@@ -8,3 +8,5 @@ coverage/
 !.env.example
 # Artefact généré obsolète (voir docs/audits/INITIAL_AUDIT.md C1bis) — la CI fait foi
 test-results.txt
+# Notes de travail locales — jamais versionnées
+regles de calcul.txt

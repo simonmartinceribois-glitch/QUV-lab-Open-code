@@ -13,13 +13,16 @@ import {
   GlossRawData,
   PersozRawData,
   AcquisitionStatus,
-  MeasurementAlert
+  MeasurementAlert,
+  ReferenceTrace,
+  ReferenceRule
 } from '../types/scientific';
 import { calculateColor } from './colorEngine';
 import { calculateGloss } from './glossEngine';
 import { calculatePersoz } from './persozEngine';
 import { calculateAdhesion } from './adhesionEngine';
 import { calculateObservations } from './observationsEngine';
+import { getWitnessPanel, isAdhesionEligiblePanel, isPersozEligiblePanel } from './panelUtils';
 import { VisualObservationsRawData, AdhesionRawData } from '../types/scientific';
 
 export interface RecalculationResult {
@@ -46,11 +49,44 @@ export function recalculateAcquisition(
   const isCurrentInitial = record.stageId === initialStage?.id;
 
   let referenceRaw: unknown = null;
-  if (!isCurrentInitial && initialStage) {
-    const refKey = `${initialStage.id}__${record.panelId}__${record.familyId}`;
+  // Identité de l'acquisition source (traçabilité explicite, jamais inventée).
+  let referenceStageId: string | null = null;
+  let referencePanelId: string | null = null;
+  let referenceAcquisitionId: string | null = null;
+  // Verrou d'éligibilité P2 (fail-closed) : pour PERSOZ/ADHESION, le calcul
+  // scientifique n'est autorisé que si le contexte démontre l'éligibilité.
+  // - PERSOZ : panel résolu ET isPersozEligiblePanel (jalon inutile au prédicat).
+  // - ADHESION : panel ET stage résolus ET isAdhesionEligiblePanel.
+  // Contexte incomplet ou inéligible → aucun moteur, computed null, EMPTY,
+  // aucune référence. COLOR/GLOSS/OBSERVATIONS : comportement inchangé.
+  const currentBatch = trial.batches?.find((b) => b.id === record.batchId);
+  const currentPanel = currentBatch?.panels?.find((p) => p.id === record.panelId);
+  const currentStage = trial.stages?.find((s) => s.id === record.stageId);
+  let acquisitionEligible = true;
+  if (record.familyId === 'ADHESION') {
+    acquisitionEligible = !!currentPanel && !!currentStage && isAdhesionEligiblePanel(currentPanel, currentStage);
+  } else if (record.familyId === 'PERSOZ') {
+    acquisitionEligible = !!currentPanel && isPersozEligiblePanel(currentPanel);
+  }
+  if (!isCurrentInitial && initialStage && acquisitionEligible) {
+    // Règle ADHESION : la référence T0 est celle du panneau TÉMOIN du lot
+    // (T non exposé), jamais celle du panneau exposé lui-même.
+    // Les autres familles conservent la référence T0 du même panneau.
+    let resolvedReferencePanelId = record.panelId;
+    if (record.familyId === 'ADHESION') {
+      const batch = trial.batches?.find((b) => b.id === record.batchId);
+      const witness = batch ? getWitnessPanel(batch.panels || []) : undefined;
+      if (witness) {
+        resolvedReferencePanelId = witness.id;
+      }
+    }
+    const refKey = `${initialStage.id}__${resolvedReferencePanelId}__${record.familyId}`;
     const refRecord = trial.acquisitions[refKey];
     if (refRecord) {
       referenceRaw = refRecord.raw;
+      referenceStageId = initialStage.id;
+      referencePanelId = resolvedReferencePanelId;
+      referenceAcquisitionId = refRecord.id;
     }
   }
 
@@ -60,7 +96,11 @@ export function recalculateAcquisition(
   const famConfig = trial.config.familyConfigs[record.familyId];
 
   if (record.familyId === 'COLOR') {
-    const countConfig = famConfig?.countConfig || ruleSet.measurementConfigurations.COLOR;
+    const countConfig = famConfig?.countConfig;
+    if (!countConfig) {
+      computed = null;
+      alerts.push({ id: `alert-recalc-missing-config-${record.familyId}`, severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE', message: `Configuration ${record.familyId} absente. Calcul impossible.`, familyId: record.familyId, stageId: record.stageId, panelId: record.panelId });
+    } else {
     const res = calculateColor(
       record.raw as ColorRawData,
       countConfig,
@@ -75,9 +115,13 @@ export function recalculateAcquisition(
     );
     computed = res.computed;
     alerts = res.alerts;
+    }
   } else if (record.familyId === 'GLOSS') {
-    const seriesConfig = famConfig?.seriesConfig || ruleSet.seriesConfigurations?.GLOSS;
-    if (seriesConfig) {
+    const seriesConfig = famConfig?.seriesConfig;
+    if (!seriesConfig) {
+      computed = null;
+      alerts = [{ id: `alert-${record.id}-missing-series-config`, severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE', message: 'Configuration de série GLOSS absente.', familyId: 'GLOSS', panelId: record.panelId, stageId: record.stageId }];
+    } else {
       const res = calculateGloss(
         record.raw as GlossRawData,
         seriesConfig,
@@ -94,37 +138,59 @@ export function recalculateAcquisition(
       alerts = res.alerts;
     }
   } else if (record.familyId === 'PERSOZ') {
-    const countConfig = famConfig?.countConfig || ruleSet.measurementConfigurations.PERSOZ;
-    const res = calculatePersoz(
-      record.raw as PersozRawData,
-      countConfig,
-      ruleSet,
-      {
-        referenceRaw: referenceRaw as PersozRawData | null,
-        referenceStageId: initialStage?.id,
-        panelId: record.panelId,
-        stageId: record.stageId,
-        calculationVersion: options?.customCalculationVersion
+    // Verrou population P1 : une acquisition PERSOZ non éligible (T ou panneau
+    // non identifiable) ne produit AUCUN computed exploitable — aucun appel moteur,
+    // aucune référence. computed reste null → statut EMPTY (logique ci-dessous).
+    if (!acquisitionEligible) {
+      computed = null;
+      alerts = [];
+    } else {
+      const countConfig = famConfig?.countConfig;
+      if (!countConfig) {
+        computed = null;
+        alerts = [{ id: `alert-${record.id}-missing-count-config`, severity: 'BLOCKING', code: 'CALCULATION_UNAVAILABLE', message: 'Configuration de comptage PERSOZ absente.', familyId: 'PERSOZ', panelId: record.panelId, stageId: record.stageId }];
+      } else {
+      const res = calculatePersoz(
+        record.raw as PersozRawData,
+        countConfig,
+        ruleSet,
+        {
+          referenceRaw: referenceRaw as PersozRawData | null,
+          referenceStageId: initialStage?.id,
+          panelId: record.panelId,
+          stageId: record.stageId,
+          calculationVersion: options?.customCalculationVersion
+        }
+      );
+      computed = res.computed;
+      alerts = res.alerts;
       }
-    );
-    computed = res.computed;
-    alerts = res.alerts;
+    }
   } else if (record.familyId === 'ADHESION') {
-    const countConfig = famConfig?.countConfig || ruleSet.measurementConfigurations.ADHESION;
-    const res = calculateAdhesion(
-      record.raw as AdhesionRawData,
-      countConfig,
-      ruleSet,
-      {
-        referenceRaw: referenceRaw as AdhesionRawData | null,
-        referenceStageId: initialStage?.id,
-        panelId: record.panelId,
-        stageId: record.stageId,
-        calculationVersion: options?.customCalculationVersion
-      }
-    );
-    computed = res.computed;
-    alerts = res.alerts;
+    // Verrou population P1 : même règle (matrice T0/T, C12/E1-E3).
+    // T0/T et C12/E1-E3 calculés normalement ; tout autre couple → aucun computed.
+    if (!acquisitionEligible) {
+      computed = null;
+      alerts = [];
+    } else {
+      // La configuration ADHESION provient exclusivement du protocole verrouillé.
+      // Absente = calcul bloqué par le moteur ; aucune configuration implicite n'est reconstruite.
+      const countConfig = famConfig?.countConfig;
+      const res = calculateAdhesion(
+        record.raw as AdhesionRawData,
+        countConfig,
+        ruleSet,
+        {
+          referenceRaw: referenceRaw as AdhesionRawData | null,
+          referenceStageId: initialStage?.id,
+          panelId: record.panelId,
+          stageId: record.stageId,
+          calculationVersion: options?.customCalculationVersion
+        }
+      );
+      computed = res.computed;
+      alerts = res.alerts;
+    }
   } else if (record.familyId === 'OBSERVATIONS') {
     const res = calculateObservations(
       record.raw as VisualObservationsRawData,
@@ -147,6 +213,29 @@ export function recalculateAcquisition(
     status = 'WARNING';
   } else if (!computed) {
     status = 'EMPTY';
+  }
+
+  // Traçabilité explicite : la règle décrit la sélection réellement appliquée
+  // ci-dessus ; les identifiants sont ceux de l'acquisition source trouvée,
+  // null quand aucune référence n'est utilisée (jamais inventés).
+  // OBSERVATIONS ne consomme aucune référence (moteur sans referenceRaw).
+  const consumesReference =
+    record.familyId === 'COLOR' ||
+    record.familyId === 'GLOSS' ||
+    record.familyId === 'PERSOZ' ||
+    record.familyId === 'ADHESION';
+  let referenceRule: ReferenceRule = 'NONE';
+  if (consumesReference && referenceAcquisitionId !== null) {
+    referenceRule = record.familyId === 'ADHESION' ? 'T0_WITNESS_REFERENCE' : 'SAME_PANEL_T0';
+  }
+  const referenceTrace: ReferenceTrace = {
+    referenceStageId: consumesReference ? referenceStageId : null,
+    referencePanelId: consumesReference ? referencePanelId : null,
+    referenceAcquisitionId: consumesReference ? referenceAcquisitionId : null,
+    referenceRule
+  };
+  if (computed !== null && typeof computed === 'object') {
+    computed = { ...(computed as Record<string, unknown>), referenceTrace };
   }
 
   // Vérification de l'immuabilité

@@ -5,8 +5,10 @@
  */
 
 import { Split, AlertTriangle, Camera, Maximize2, FileImage } from 'lucide-react';
+import { cycleTag, formatStageOption } from '../../scientific/panelUtils';
 import type { MediaReference, PanelDefinition, Trial } from '../../types/trial';
 import type { PanelMap, StageMap } from './photoTypes';
+import { PhotoStorageImage } from './PhotoStorageImage';
 
 interface Props {
   trial: Trial;
@@ -136,7 +138,7 @@ export function PhotoCompareView({
                 <span>{isSelected ? '☑' : '☐'}</span>
                 <span className="font-mono font-bold">{stage?.name || 'Jalon'}</span>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${isSelected ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                  {stage?.scheduledExposureHours ?? 0} h
+                  {cycleTag(stage)}
                 </span>
               </button>
             );
@@ -189,17 +191,16 @@ export function PhotoCompareView({
                       </span>
                     </div>
                     <span className="text-xs font-mono font-bold text-amber-400">
-                      {stage?.scheduledExposureHours ?? 0} h
+                      {stage ? cycleTag(stage) : '—'}
                     </span>
                   </div>
 
                   {/* Image Thumbnail */}
                   <div className="relative aspect-4/3 bg-slate-950 overflow-hidden group">
-                    <img
-                      src={photo.storageKey}
+                    <PhotoStorageImage
+                      storageKey={photo.storageKey}
                       alt={photo.caption || 'Cliché chronologique'}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      referrerPolicy="no-referrer"
                     />
                     <button
                       type="button"
@@ -274,7 +275,7 @@ export function PhotoCompareView({
                     return (
                       <tr key={photo.id} className="hover:bg-slate-50">
                         <td className="p-2.5 font-mono font-bold text-slate-900 whitespace-nowrap">
-                          {stage?.name || 'Jalon'} ({stage?.scheduledExposureHours ?? 0} h)
+                          {formatStageOption(stage)}
                         </td>
                         <td className="p-2.5 font-mono text-blue-700 whitespace-nowrap">
                           {info ? `${info.batch.reference} - ${info.panel.label}` : '—'}

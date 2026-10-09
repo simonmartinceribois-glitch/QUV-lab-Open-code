@@ -5,10 +5,11 @@
  */
 
 import { Trial, ExposureStage, BatchDefinition } from '../../types/trial';
-import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
+import { ScientificRuleSet, MeasurementFamilyId, VisualObservationsComputedData, VisualObservationCategory } from '../../types/scientific';
 import { SystemComparisonItem, DescriptiveRanking, ComparisonResult } from '../../types/analysis';
 import { calculateStdDevByMethod, calculateCoefficientOfVariation } from '../statistics';
 import { getActiveExposedPanels } from '../panelUtils';
+import { getEffectiveExposureHours } from './TrendAnalyzer';
 
 export function compareSystemsAtStage(
   trial: Trial,
@@ -103,6 +104,7 @@ export function compareSystemsAtStage(
           meanGloss?: number | null;
           deltaGloss?: number | null;
           retentionRatePercent?: number | null;
+          initialMeanGloss?: number | null;
         };
         if (comp.meanGloss !== null && comp.meanGloss !== undefined) {
           glossCurrentSum += comp.meanGloss;
@@ -112,9 +114,15 @@ export function compareSystemsAtStage(
         if (comp.deltaGloss !== null && comp.deltaGloss !== undefined) {
           glossDeltaSum += comp.deltaGloss;
           glossDeltaCount++;
-          // Valeur de référence T0 dérivée : meanGloss = référence + deltaGloss
+          // Référence T0 : utilisée telle quelle quand COMPUTED la fournit
+          // (glossEngine émet initialMeanGloss), repli strictement équivalent
+          // meanGloss − deltaGloss pour les calculs historiques persistés.
           if (comp.meanGloss !== null && comp.meanGloss !== undefined) {
-            glossInitialSum += comp.meanGloss - comp.deltaGloss;
+            const initial =
+              comp.initialMeanGloss !== null && comp.initialMeanGloss !== undefined
+                ? comp.initialMeanGloss
+                : comp.meanGloss - comp.deltaGloss;
+            glossInitialSum += initial;
             glossInitialCount++;
           }
         }
@@ -155,6 +163,8 @@ export function compareSystemsAtStage(
     let persozDeltaSum = 0;
     let persozDeltaPercentSum = 0;
     let persozCount = 0;
+    let persozDeltaCount = 0;
+    let persozDeltaPercentCount = 0;
     const persozList: number[] = [];
 
     for (const panel of activePanels) {
@@ -172,9 +182,11 @@ export function compareSystemsAtStage(
         }
         if (comp.deltaDampingTime !== null && comp.deltaDampingTime !== undefined) {
           persozDeltaSum += comp.deltaDampingTime;
+          persozDeltaCount++;
         }
         if (comp.relativeHardnessVariationPercent !== null && comp.relativeHardnessVariationPercent !== undefined) {
           persozDeltaPercentSum += comp.relativeHardnessVariationPercent;
+          persozDeltaPercentCount++;
         }
       }
     }
@@ -187,45 +199,63 @@ export function compareSystemsAtStage(
       item.persoz = {
         meanInitialSeconds: null,
         meanCurrentSeconds: meanCurrent,
-        deltaSeconds: +(persozDeltaSum / persozCount).toFixed(1),
-        persozDeltaPercent: +(persozDeltaPercentSum / persozCount).toFixed(1),
+        deltaSeconds: persozDeltaCount > 0 ? +(persozDeltaSum / persozDeltaCount).toFixed(1) : null,
+        persozDeltaPercent: persozDeltaPercentCount > 0 ? +(persozDeltaPercentSum / persozDeltaPercentCount).toFixed(1) : null,
         stdDevSeconds: stdDev !== null ? +stdDev.toFixed(1) : null,
         cvPercent: cv !== null ? +cv.toFixed(1) : null
       };
     }
 
     // 4. Observations
-    let blisteringMax = 0;
-    let flakingMax = 0;
-    let crackingMax = 0;
-    let chalkingMax = 0;
-    let hasObs = false;
+    // Agrégation depuis le COMPUTED (source unique d'évaluation) : le moteur
+    // établit perCategoryMaxRating (max des cotations valides 0..5 par catégorie).
+    // Une catégorie non évaluée (absente/invalide) est absente du tableau →
+    // « non évaluée » (null), jamais fabriquée à 0. Un vrai 0 enregistré reste 0
+    // et compte comme donnée. Aucun accès au RAW ici : réévaluer les cotations
+    // (parseObservationRating) serait une duplication de la logique du moteur,
+    // en violation de la chaîne RAW → COMPUTED → ANALYSE.
+    type ObsCategory = 'BLISTERING' | 'FLAKING' | 'CRACKING' | 'CHALKING';
+    const obsRatings: Partial<Record<ObsCategory, number>> = {};
+    let hasRecordedData = false;
 
     for (const panel of activePanels) {
       const obsAcq = trial.acquisitions[`${stage.id}__${panel.id}__OBSERVATIONS`];
-      if (obsAcq && obsAcq.raw) {
-        hasObs = true;
-        const rawObs = obsAcq.raw as { observations?: Array<{ category: string; rating: number }> };
-        if (rawObs.observations) {
-          for (const obs of rawObs.observations) {
-            if (obs.category === 'BLISTERING') blisteringMax = Math.max(blisteringMax, obs.rating);
-            if (obs.category === 'FLAKING') flakingMax = Math.max(flakingMax, obs.rating);
-            if (obs.category === 'CRACKING') crackingMax = Math.max(crackingMax, obs.rating);
-            if (obs.category === 'CHALKING') chalkingMax = Math.max(chalkingMax, obs.rating);
+      if (obsAcq && obsAcq.computed) {
+        const compObs = obsAcq.computed as VisualObservationsComputedData | undefined;
+        const perCat = compObs?.perCategoryMaxRating;
+        if (perCat) {
+          for (const key of Object.keys(perCat) as VisualObservationCategory[]) {
+            const value = perCat[key];
+            if (value === undefined || value === null) continue;
+            hasRecordedData = true;
+            if (key === 'BLISTERING' || key === 'FLAKING' || key === 'CRACKING' || key === 'CHALKING') {
+              const current = obsRatings[key];
+              if (current === undefined || value > current) obsRatings[key] = value;
+            }
           }
         }
       }
     }
 
-    if (hasObs) {
+    const ratingOf = (category: ObsCategory): number | null => {
+      const v = obsRatings[category];
+      return v === undefined ? null : v;
+    };
+
+    const blisteringMax = ratingOf('BLISTERING');
+    const flakingMax = ratingOf('FLAKING');
+    const crackingMax = ratingOf('CRACKING');
+    const chalkingMax = ratingOf('CHALKING');
+
+    if (hasRecordedData) {
       const defects: string[] = [];
-      if (blisteringMax > 0) defects.push(`Cloquage coté ${blisteringMax}`);
-      if (flakingMax > 0) defects.push(`Écaillage coté ${flakingMax}`);
-      if (crackingMax > 0) defects.push(`Craquelage coté ${crackingMax}`);
-      if (chalkingMax > 0) defects.push(`Farinage coté ${chalkingMax}`);
+      if (blisteringMax !== null && blisteringMax > 0) defects.push(`Cloquage coté ${blisteringMax}`);
+      if (flakingMax !== null && flakingMax > 0) defects.push(`Écaillage coté ${flakingMax}`);
+      if (crackingMax !== null && crackingMax > 0) defects.push(`Craquelage coté ${crackingMax}`);
+      if (chalkingMax !== null && chalkingMax > 0) defects.push(`Farinage coté ${chalkingMax}`);
 
       item.observations = {
-        summary: defects.length === 0 ? 'Aucun défaut majeur coté (cotations 0)' : defects.join(', '),
+        summary: defects.length === 0 ? 'Aucun défaut majeur coté' : defects.join(', '),
         blisteringRating: blisteringMax,
         flakingRating: flakingMax,
         crackingRating: crackingMax,
@@ -235,10 +265,10 @@ export function compareSystemsAtStage(
     } else {
       item.observations = {
         summary: 'Données non renseignées',
-        blisteringRating: 0,
-        flakingRating: 0,
-        crackingRating: 0,
-        chalkingRating: 0,
+        blisteringRating: null,
+        flakingRating: null,
+        crackingRating: null,
+        chalkingRating: null,
         hasRecordedData: false
       };
     }
@@ -266,7 +296,7 @@ export function compareSystemsAtStage(
       lowestValue: lowest.color!.meanDeltaE!,
       highestBatchRef: highest.batchReference,
       highestValue: highest.color!.meanDeltaE!,
-      factualStatement: `Le système ${lowest.batchReference} présente la valeur moyenne de ΔE*ab la plus faible (${lowest.color!.meanDeltaE!.toFixed(2)}) et le système ${highest.batchReference} présente la valeur la plus élevée (${highest.color!.meanDeltaE!.toFixed(2)}) parmi les systèmes comparés à ${stage.scheduledExposureHours} h.`
+      factualStatement: `Le système ${lowest.batchReference} présente la valeur moyenne de ΔE*ab la plus faible (${lowest.color!.meanDeltaE!.toFixed(2)}) et le système ${highest.batchReference} présente la valeur la plus élevée (${highest.color!.meanDeltaE!.toFixed(2)}) parmi les systèmes comparés à ${getEffectiveExposureHours(stage)} h.`
     });
   }
 
@@ -285,7 +315,7 @@ export function compareSystemsAtStage(
       lowestValue: lowest.gloss!.glossRetentionPercent!,
       highestBatchRef: highest.batchReference,
       highestValue: highest.gloss!.glossRetentionPercent!,
-      factualStatement: `Le système ${highest.batchReference} présente la rétention de brillance la plus élevée (${highest.gloss!.glossRetentionPercent!.toFixed(1)} %) et le système ${lowest.batchReference} la rétention la plus faible (${lowest.gloss!.glossRetentionPercent!.toFixed(1)} %) parmi les lots disposant de données complètes à ${stage.scheduledExposureHours} h.`
+      factualStatement: `Le système ${highest.batchReference} présente la rétention de brillance la plus élevée (${highest.gloss!.glossRetentionPercent!.toFixed(1)} %) et le système ${lowest.batchReference} la rétention la plus faible (${lowest.gloss!.glossRetentionPercent!.toFixed(1)} %) parmi les lots disposant de données complètes à ${getEffectiveExposureHours(stage)} h.`
     });
   }
 
@@ -315,7 +345,7 @@ export function compareSystemsAtStage(
   return {
     stageId: stage.id,
     stageName: stage.name,
-    exposureHours: stage.scheduledExposureHours,
+    exposureHours: getEffectiveExposureHours(stage),
     items,
     rankings,
     incompatibilities,

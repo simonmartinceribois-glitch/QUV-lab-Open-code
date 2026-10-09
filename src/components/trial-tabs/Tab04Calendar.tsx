@@ -15,8 +15,6 @@ import {
   Circle,
   AlertCircle,
   Info,
-  Lock,
-  Unlock,
   CheckSquare,
   Square,
   Sparkles,
@@ -33,6 +31,16 @@ export function Tab04Calendar({ trial, onSelectStage, onTrialUpdated }: Props) {
   const validatedCount = trial.stages.filter((s) => s.status === 'VALIDATED').length;
   const inProgressStage = trial.stages.find((s) => s.status === 'IN_PROGRESS');
   const measuredStages = trial.stages.filter((s) => s.status !== 'INACTIVE');
+  // Statut global du plan : « terminées » uniquement si TOUS les jalons mesurés sont validés
+  // (fix/calendar-status-text : l'absence d'étape IN_PROGRESS ne signifie pas la fin).
+  const allMeasuredValidated =
+    measuredStages.length > 0 && measuredStages.every((s) => s.status === 'VALIDATED');
+  const nextPendingStage = measuredStages.find((s) => s.status !== 'VALIDATED');
+  const planStatusText = inProgressStage
+    ? `Étape active : ${inProgressStage.name}`
+    : allMeasuredValidated
+      ? 'Toutes étapes terminées'
+      : `Prochaine étape : ${nextPendingStage?.name || '—'}`;
   const totalPhysicalHours = 2016;
 
   // Calcul du statut de verrouillage du plan
@@ -93,20 +101,10 @@ export function Tab04Calendar({ trial, onSelectStage, onTrialUpdated }: Props) {
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
             Cycles hebdomadaires de 168 h (NF EN 927-6) • {validatedCount} validée(s) •{' '}
-            {inProgressStage ? `Étape active : ${inProgressStage.name}` : 'Toutes étapes terminées'}
+            {planStatusText}
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 ${
-            isPlanLocked
-              ? 'bg-amber-50 text-amber-900 border-amber-200'
-              : 'bg-emerald-50 text-emerald-900 border-emerald-200'
-          }`}>
-            {isPlanLocked ? <Lock className="w-3.5 h-3.5 text-amber-700" /> : <Unlock className="w-3.5 h-3.5 text-emerald-700" />}
-            <span>{isPlanLocked ? 'Plan Verrouillé (Acquisitions en cours)' : 'Plan Modifiable (Avant 1ère acquisition)'}</span>
-          </div>
-        </div>
       </div>
 
       {errorMessage && (
@@ -245,9 +243,9 @@ export function Tab04Calendar({ trial, onSelectStage, onTrialUpdated }: Props) {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Heures réelles d'exposition :</span>
+                  <span>Jalon d'exposition :</span>
                   <strong className="text-slate-900 font-mono">
-                    {stage.actualExposureHours !== undefined ? `${stage.actualExposureHours} h` : '—'}
+                    {stage.scheduledExposureHours} h
                   </strong>
                 </div>
 

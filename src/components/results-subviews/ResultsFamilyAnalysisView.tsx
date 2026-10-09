@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { Trial } from '../../types/trial';
-import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
+import { ScientificRuleSet, MeasurementFamilyId, ColorComputedData, GlossComputedData, PersozComputedData, AdhesionComputedData } from '../../types/scientific';
 import {
   LineChart,
   Line,
@@ -27,7 +27,14 @@ import {
   AlertTriangle,
   CheckCircle2
 } from 'lucide-react';
-import { getActiveExposedPanels } from '../../scientific/panelUtils';
+import { getActiveE1E2E3Panels, isAdhesionEligiblePanel, formatStageShort } from '../../scientific/panelUtils';
+import { getEffectiveExposureHours } from '../../scientific/analysis/TrendAnalyzer';
+import {
+  aggregateBatchColorExposed,
+  aggregateBatchGlossExposed,
+  aggregateBatchPersozExposed,
+  PanelComputedItem
+} from '../../scientific/aggregations';
 
 interface Props {
   trial: Trial;
@@ -47,78 +54,71 @@ export function ResultsFamilyAnalysisView({ trial, ruleSet }: Props) {
   // Préparation des données pour les graphiques Recharts (1 point par étape d'exposition)
   const chartData = evaluatedStages.map((stage) => {
     const point: Record<string, any> = {
-      exposureHours: stage.scheduledExposureHours,
-      stageLabel: `${stage.scheduledExposureHours} h`
+      exposureHours: getEffectiveExposureHours(stage),
+      stageLabel: formatStageShort(stage)
     };
 
     trial.batches.forEach((batch, bIdx) => {
-      // EXCLUSION STRICTE DU TÉMOIN T DES MOYENNES DU LOT
-      const activePanels = getActiveExposedPanels(batch.panels);
+      // EXCLUSION STRICTE DU TÉMOIN T DES MOYENNES DU LOT (population E1/E2/E3 normalisée)
+      const activePanels = getActiveE1E2E3Panels(batch.panels);
 
       if (activeFamily === 'COLOR') {
-        const deltaEList: number[] = [];
+        // Point d'entrée strict : E1/E2/E3 filtrés avant agrégation canonique.
+        const items: PanelComputedItem<ColorComputedData>[] = [];
         activePanels.forEach((p) => {
           const key = `${stage.id}__${p.id}__COLOR`;
           const acq = trial.acquisitions[key];
-          if (acq?.computed) {
-            const dE = (acq.computed as any).deltaE;
-            if (typeof dE === 'number') deltaEList.push(dE);
-          }
+          if (acq?.computed) items.push({ panel: p, computed: acq.computed as ColorComputedData });
         });
-        if (deltaEList.length > 0) {
-          const meanDeltaE = deltaEList.reduce((a, b) => a + b, 0) / deltaEList.length;
-          point[`${batch.reference} (ΔE*)`] = +meanDeltaE.toFixed(2);
+        const agg = aggregateBatchColorExposed(batch.id, stage.id, items);
+        if (agg.meanDeltaE !== null && agg.meanDeltaE !== undefined) {
+          point[`${batch.reference} (ΔE*)`] = +agg.meanDeltaE.toFixed(2);
         }
       } else if (activeFamily === 'GLOSS') {
-        const glossList: number[] = [];
-        const retentionList: number[] = [];
+        const items: PanelComputedItem<GlossComputedData>[] = [];
         activePanels.forEach((p) => {
           const key = `${stage.id}__${p.id}__GLOSS`;
           const acq = trial.acquisitions[key];
-          if (acq?.computed) {
-            const g = (acq.computed as any).meanGloss;
-            const ret = (acq.computed as any).retentionRatePercent;
-            if (typeof g === 'number') glossList.push(g);
-            if (typeof ret === 'number') retentionList.push(ret);
-          }
+          if (acq?.computed) items.push({ panel: p, computed: acq.computed as GlossComputedData });
         });
-        if (glossList.length > 0) {
-          point[`${batch.reference} (Brillance GU)`] = +(
-            glossList.reduce((a, b) => a + b, 0) / glossList.length
-          ).toFixed(1);
+        const agg = aggregateBatchGlossExposed(batch.id, stage.id, items);
+        if (agg.interPanelMean !== null && agg.interPanelMean !== undefined) {
+          point[`${batch.reference} (Brillance GU)`] = +agg.interPanelMean.toFixed(1);
         }
-        if (retentionList.length > 0) {
-          point[`${batch.reference} (Rétention %)`] = +(
-            retentionList.reduce((a, b) => a + b, 0) / retentionList.length
-          ).toFixed(1);
+        if (agg.meanGlossRetentionPercent !== null && agg.meanGlossRetentionPercent !== undefined) {
+          point[`${batch.reference} (Rétention %)`] = +agg.meanGlossRetentionPercent.toFixed(1);
         }
       } else if (activeFamily === 'PERSOZ') {
-        const persozList: number[] = [];
+        const items: PanelComputedItem<PersozComputedData>[] = [];
         activePanels.forEach((p) => {
           const key = `${stage.id}__${p.id}__PERSOZ`;
           const acq = trial.acquisitions[key];
-          if (acq?.computed) {
-            const pVal = (acq.computed as any).meanDampingTime;
-            if (typeof pVal === 'number') persozList.push(pVal);
-          }
+          if (acq?.computed) items.push({ panel: p, computed: acq.computed as PersozComputedData });
         });
-        if (persozList.length > 0) {
-          point[`${batch.reference} (Dureté s)`] = +(
-            persozList.reduce((a, b) => a + b, 0) / persozList.length
-          ).toFixed(1);
+        const agg = aggregateBatchPersozExposed(batch.id, stage.id, items);
+        if (agg.interPanelMean !== null && agg.interPanelMean !== undefined) {
+          point[`${batch.reference} (Dureté s)`] = +agg.interPanelMean.toFixed(1);
         }
       } else if (activeFamily === 'ADHESION') {
+        // ADHÉSION : population dépendante du jalon (matrice T0/T, C12/E1-E3),
+        // jamais la population exposée générique (T0/T disparaîtrait).
         const adhList: number[] = [];
-        activePanels.forEach((p) => {
+        const adhPanels = batch.panels.filter(
+          (p) => p.status === 'ACTIVE' && isAdhesionEligiblePanel(p, stage)
+        );
+        adhPanels.forEach((p) => {
           const key = `${stage.id}__${p.id}__ADHESION`;
           const acq = trial.acquisitions[key];
           if (acq?.computed) {
-            const aVal = (acq.computed as any).adhesionClass;
+            // Gate 57 : moyenne panneau (multi-mesures) puis repli scalaire legacy.
+            // La cinétique trace la moyenne des moyennes panneau, comme l'agrégation lot.
+            const compAdh = acq.computed as AdhesionComputedData;
+            const aVal = compAdh.panelMean ?? compAdh.adhesionClass;
             if (typeof aVal === 'number') adhList.push(aVal);
           }
         });
         if (adhList.length > 0) {
-          point[`${batch.reference} (Classe)`] = +(
+          point[`${batch.reference} (Moy. panneau)`] = +(
             adhList.reduce((a, b) => a + b, 0) / adhList.length
           ).toFixed(1);
         }
@@ -207,7 +207,7 @@ export function ResultsFamilyAnalysisView({ trial, ruleSet }: Props) {
                         ? 'Rétention (%) / GU'
                         : activeFamily === 'PERSOZ'
                         ? 'Damping Time (s)'
-                        : 'Classe Quadrillage (0 à 5)',
+                        : 'Moy. panneau (classes ISO 2409, 0 à 5)',
                     angle: -90,
                     position: 'insideLeft',
                     fontSize: 11,
@@ -276,7 +276,7 @@ export function ResultsFamilyAnalysisView({ trial, ruleSet }: Props) {
                       <Line
                         key={batch.id}
                         type="monotone"
-                        dataKey={`${batch.reference} (Classe)`}
+                        dataKey={`${batch.reference} (Moy. panneau)`}
                         stroke={strokeColor}
                         strokeWidth={2.5}
                         dot={{ r: 4, strokeWidth: 2 }}

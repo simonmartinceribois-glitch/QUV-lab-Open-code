@@ -17,13 +17,14 @@ import {
   MeasurementCountConfiguration,
   MeasurementSeriesConfiguration,
   ComputationMetadata,
-  ScientificReport
+  ScientificReport,
+  ScientificContext
 } from './scientific';
 
 export interface TrialMetadata {
-  reference: string;                 // ex: "QUV-2026-042"
-  orderNumber?: string;              // Commande ex: "CO-VAN2026-001"
-  reportNumber?: string;             // Rapport d'essai ex: "RA-VAN2026-001"
+  reference: string;                 // ex: "QUV-2030-004"
+  orderNumber?: string;              // Commande ex: "CO-2030-001"
+  reportNumber?: string;             // Rapport d'essai ex: "RA-2030-001"
   title?: string;
   projectOrClient?: string;
   coatingSystemDescription?: string;
@@ -124,6 +125,10 @@ export interface ExposureStage {
   stageType: ExposureStageType;
   name: string;
   scheduledExposureHours: number;
+  // Compatibilité historique UNIQUEMENT : durée jadis saisissable manuellement.
+  // Ne plus renseigner : le jalon déterministe (scheduledExposureHours =
+  // cycleIndex × 168) est la seule source scientifique. Ne jamais l'éditer
+  // depuis Step 05, ne jamais l'utiliser comme source de durée scientifique.
   actualExposureHours?: number;
   scheduledAt?: ISODateString;
   measuredAt?: ISODateString;
@@ -265,11 +270,20 @@ export interface Trial {
   schemaVersion: string;
   createdAt: ISODateString;
   updatedAt: ISODateString;
+  // Date de début de l'exposition (jalon T0) — source unique de vérité du calendrier.
+  // Renseignée à la création (générateur de stages paramétré par cette date).
+  startDate?: ISODateString;
   metadata: TrialMetadata;
   commonCharacteristics?: CommonCharacteristics;
   status: TrialStatus;
   configurationStatus: ConfigurationStatus;
   config: TrialProtocolConfig;
+  /**
+   * Contexte scientifique historique gelé (ÉTAPE 1 — contrat de type uniquement).
+   * Optionnel : les essais existants créés avant le mécanisme de gel n'en portent pas.
+   * La capture et le figeage seront implémentés dans les étapes ultérieures.
+   */
+  scientificContext?: ScientificContext;
   scheduleConfig: ExposureScheduleConfig;
   stages: ExposureStage[];
   batches: BatchDefinition[];

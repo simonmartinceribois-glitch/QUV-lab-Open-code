@@ -16,11 +16,13 @@
  * 12. Règles Normatives & Unités : Respect NF EN 927-6:2018 (2016h, 4 pts couleur, 2x2 brillance).
  */
 
+import { calculatePreExposureDelayCompliance } from '../protocolEngine';
 import { calculateColor } from '../colorEngine';
 import { calculateGloss } from '../glossEngine';
 import { calculatePersoz } from '../persozEngine';
 import { calculateObservations } from '../observationsEngine';
-import { calculateAdhesion, getApplicableGridSpacing, calculateDelayCompliance, ISO2409_CLASSES } from '../adhesionEngine';
+import { calculateAdhesion, getApplicableGridSpacing,
+} from '../adhesionEngine';
 import {
   calculateMean,
   calculateSampleStdDev,
@@ -40,7 +42,7 @@ import { aggregateBatchColor, aggregateBatchGloss } from '../aggregations';
 import { extractTemporalKinetics } from '../analysis/TrendAnalyzer';
 import { compareSystemsAtStage } from '../analysis/MultiSystemComparator';
 import { runQUVAnalysis } from '../analysis/AnalysisEngine';
-import { getDefaultScientificRuleSet, createCountConfiguration } from '../ruleSet';
+import { getDefaultScientificRuleSet, createCountConfiguration, createSeriesConfiguration } from '../ruleSet';
 import {
   globalTrialStore,
   generateStandardExposureStages,
@@ -336,14 +338,14 @@ export function runGate33ScientificMetrologyTests(): {
     for (const tc of testCases) {
       const rawT0: GlossRawData = {
         series: [
-          { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: tc.t0 }, { pointIndex: 2, value: tc.t0 }] },
-          { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: tc.t0 }, { pointIndex: 2, value: tc.t0 }] }
+          { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: tc.t0 }, { pointIndex: 2, value: tc.t0 }] },
+          { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: tc.t0 }, { pointIndex: 2, value: tc.t0 }] }
         ]
       };
       const rawC1: GlossRawData = {
         series: [
-          { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: tc.c1 }, { pointIndex: 2, value: tc.c1 }] },
-          { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: tc.c1 }, { pointIndex: 2, value: tc.c1 }] }
+          { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: tc.c1 }, { pointIndex: 2, value: tc.c1 }] },
+          { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: tc.c1 }, { pointIndex: 2, value: tc.c1 }] }
         ]
       };
 
@@ -367,14 +369,14 @@ export function runGate33ScientificMetrologyTests(): {
   {
     const rawT0Zero: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: 0.0 }, { pointIndex: 2, value: 0.0 }] },
-        { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: 0.0 }, { pointIndex: 2, value: 0.0 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 0.0 }, { pointIndex: 2, value: 0.0 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 0.0 }, { pointIndex: 2, value: 0.0 }] }
       ]
     };
     const rawC1: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: 10.0 }, { pointIndex: 2, value: 10.0 }] },
-        { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: 10.0 }, { pointIndex: 2, value: 10.0 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 10.0 }, { pointIndex: 2, value: 10.0 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 10.0 }, { pointIndex: 2, value: 10.0 }] }
       ]
     };
 
@@ -396,13 +398,13 @@ export function runGate33ScientificMetrologyTests(): {
 
   // Multi-séries 2x2 avec calcul indépendant des écarts-types de série
   // S1 (Sens fil) : [62.0, 64.0] -> mean=63.0, stdDev=1.41
-  // S2 (Perpendiculaire) : [58.0, 60.0] -> mean=59.0, stdDev=1.41
+  // S2 (Sens opposé au fil) : [58.0, 60.0] -> mean=59.0, stdDev=1.41
   // Global (4 pts) : [62, 64, 58, 60] -> mean=61.0, stdDev=2.58
   {
     const raw2x2: GlossRawData = {
       series: [
-        { seriesIndex: 1, orientation: 'Sens du fil', readings: [{ pointIndex: 1, value: 62.0 }, { pointIndex: 2, value: 64.0 }] },
-        { seriesIndex: 2, orientation: 'Perpendiculaire', readings: [{ pointIndex: 1, value: 58.0 }, { pointIndex: 2, value: 60.0 }] }
+        { seriesIndex: 1, orientation: 'GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 62.0 }, { pointIndex: 2, value: 64.0 }] },
+        { seriesIndex: 2, orientation: 'OPPOSITE_GRAIN_DIRECTION', readings: [{ pointIndex: 1, value: 58.0 }, { pointIndex: 2, value: 60.0 }] }
       ]
     };
     const res = calculateGloss(raw2x2, glossSeriesConfig, ruleSet);
@@ -506,15 +508,17 @@ export function runGate33ScientificMetrologyTests(): {
       res.computed.defectsCount === 2 &&
       res.computed.maxRating === 3 &&
       res.computed.qualityAssessment.status === 'WARNING' &&
-      res.alerts.some((a) => a.code === 'STATISTICAL_WARNING' && a.message.includes('Farinage'));
+      // Pacte P1 : plus aucun déclenchement d'alerte sur le seuil « >= 3 » ;
+      // seules les limites normatives 0 et 5 restent actives.
+      !res.alerts.some((a) => a.code === 'STATISTICAL_WARNING' && a.message.includes('Farinage'));
 
     record(
       'G33-OBS-01',
-      'Observations : Évaluation des cotations qualitatives ISO 4628 (2 défauts, maxRating=3, alerte farinage émise)',
+      'Observations : cotations ISO 4628 (2 défauts, maxRating=3) — statut qualité WARNING, AUCUNE alerte émise sur le seuil 3',
       'VISUAL_OBSERVATIONS',
       passed,
-      'totalEvaluated=4, defectsCount=2, maxRating=3, qualityStatus=WARNING',
-      `totalEvaluated=${res.computed.totalEvaluated}, defectsCount=${res.computed.defectsCount}, maxRating=${res.computed.maxRating}`
+      'totalEvaluated=4, defectsCount=2, maxRating=3, qualityStatus=WARNING, pas d\'alerte farinage',
+      `totalEvaluated=${res.computed.totalEvaluated}, defectsCount=${res.computed.defectsCount}, maxRating=${res.computed.maxRating}, status=${res.computed.qualityAssessment.status}`
     );
   }
 
@@ -592,8 +596,8 @@ export function runGate33ScientificMetrologyTests(): {
   ];
 
   const batches: BatchDefinition[] = [
-    { id: b1Id, trialId, orderIndex: 0, reference: 'LOT-A-SYST1', productReference: 'Système A', woodSpecies: 'Pin', panels: panelsB1 },
-    { id: b2Id, trialId, orderIndex: 1, reference: 'LOT-B-SYST2', productReference: 'Système B', woodSpecies: 'Pin', panels: panelsB2 }
+    { id: b1Id, trialId, orderIndex: 0, reference: 'LOT-A-SYST1', productReference: 'Système A', woodSpecies: 'Pin', applicationDate: '2026-08-01', panels: panelsB1 },
+    { id: b2Id, trialId, orderIndex: 1, reference: 'LOT-B-SYST2', productReference: 'Système B', woodSpecies: 'Pin', applicationDate: '2026-08-01', panels: panelsB2 }
   ];
 
   const trial: Trial = {
@@ -608,9 +612,9 @@ export function runGate33ScientificMetrologyTests(): {
       standardReference: 'NF EN 927-6',
       activeFamilies: ['COLOR', 'GLOSS', 'PERSOZ', 'OBSERVATIONS'],
       familyConfigs: {
-        COLOR: { familyId: 'COLOR', enabled: true },
-        GLOSS: { familyId: 'GLOSS', enabled: true },
-        PERSOZ: { familyId: 'PERSOZ', enabled: true },
+        COLOR: { familyId: 'COLOR', enabled: true, countConfig: createCountConfiguration('COLOR', 4, ruleSet) },
+        GLOSS: { familyId: 'GLOSS', enabled: true, seriesConfig: createSeriesConfiguration('GLOSS', 2, 2, ruleSet) },
+        PERSOZ: { familyId: 'PERSOZ', enabled: true, countConfig: createCountConfiguration('PERSOZ', 3, ruleSet) },
         OBSERVATIONS: { familyId: 'OBSERVATIONS', enabled: true }
       }
     },
@@ -904,8 +908,8 @@ export function runGate33ScientificMetrologyTests(): {
     );
 
     // B. Contrôle du délai de séchage / conditionnement
-    const delayConform = calculateDelayCompliance('2026-08-01T00:00:00Z', '2026-08-10T00:00:00Z', 168);
-    const delayNonConform = calculateDelayCompliance('2026-08-01T00:00:00Z', '2026-08-03T00:00:00Z', 168);
+    const delayConform = calculatePreExposureDelayCompliance('2026-08-01T00:00:00Z', '2026-08-10T00:00:00Z', 168);
+    const delayNonConform = calculatePreExposureDelayCompliance('2026-08-01T00:00:00Z', '2026-08-03T00:00:00Z', 168);
 
     const delayPassed =
       delayConform.status === 'CONFORME' &&
@@ -928,7 +932,6 @@ export function runGate33ScientificMetrologyTests(): {
       gridSpacingMm: 2,
       coatingThicknessMicrons: 65,
       measurementDateTime: '2026-08-01T00:00:00Z',
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020',
       observation: 'Incisions nettes, 0% décollement'
     };
@@ -939,31 +942,84 @@ export function runGate33ScientificMetrologyTests(): {
       coatingThicknessMicrons: 65,
       measurementDateTime: '2026-10-24T00:00:00Z',
       applicationDateTime: '2026-08-01T00:00:00Z',
-      requiredMinimumDelayHours: 168,
       normReference: 'NF EN ISO 2409:2020',
       observation: 'Léger détachement aux intersections'
     };
 
-    const adhCountConfig = ruleSet.measurementConfigurations['ADHESION'];
+    const adhCountConfig = createCountConfiguration('ADHESION', 1, ruleSet, { justification: 'Fixture historique : une mesure d’adhérence par panneau', operatorId: 'Test' });
     const adhResult = calculateAdhesion(rawC12, adhCountConfig, ruleSet, {
       referenceRaw: rawT0
     });
 
+    // Fixture explicite 1/1 : adaptation autorisée avec justification ; aucune conversion en MPa.
     const adhPassed =
       adhResult.computed.adhesionClass === 1 &&
       adhResult.computed.initialAdhesionClass === 0 &&
       adhResult.computed.deltaAdhesionClass === 1 &&
       adhResult.computed.gridSpacingUsedMm === 2 &&
       typeof (adhResult.computed as any).adhesionForceMpa === 'undefined' &&
-      adhResult.computed.qualityAssessment.status === 'GOOD';
+      adhResult.computed.qualityAssessment.status === 'GOOD' &&
+      adhResult.computed.qualityAssessment.expectedCount === 1 &&
+      adhResult.computed.qualityAssessment.completenessPercent === 100;
 
     record(
       'G33-ADH-03',
       'Adhérence ISO 2409 : Préservation stricte de l\'échelle qualitative (Classe 0 à 5), non-conversion en MPa et calcul du delta vs T0',
       'STATISTICAL_RIGOR',
       adhPassed,
-      'Classe 1, delta vs T0 = +1, aucune unité MPa, statut GOOD',
-      `Classe=${adhResult.computed.adhesionClass}, Delta=${adhResult.computed.deltaAdhesionClass}, Spacing=${adhResult.computed.gridSpacingUsedMm}mm, ForceMpa=${(adhResult.computed as any).adhesionForceMpa}`
+      'Classe 1, delta vs T0 = +1, aucune unité MPa, legacy 1/1 GOOD',
+      `Classe=${adhResult.computed?.adhesionClass}, Delta=${adhResult.computed?.deltaAdhesionClass}, Spacing=${adhResult.computed?.gridSpacingUsedMm}mm, ForceMpa=${(adhResult.computed as any)?.adhesionForceMpa}`
+    );
+
+    // D. Distinction legacy 1/1 vs nouveau protocole 1/2 (Gate 57 / D4).
+    // Même contenu métrologique, configuration standard 2/2 explicite : 1 mesure
+    // fournie = incomplet WARNING + MEASUREMENT_MISSING, sans toucher classes/delta.
+    const rawC12New: AdhesionRawData = {
+      measurements: [{ measurementIndex: 1, adhesionClass: 1, observation: 'Léger détachement aux intersections' }],
+      gridSpacingMm: 2,
+      coatingThicknessMicrons: 65,
+      measurementDateTime: '2026-10-24T00:00:00Z',
+      applicationDateTime: '2026-08-01T00:00:00Z',
+      normReference: 'NF EN ISO 2409:2020'
+    };
+    const rawT0New: AdhesionRawData = {
+      measurements: [
+        { measurementIndex: 1, adhesionClass: 0, observation: 'Incisions nettes' },
+        { measurementIndex: 2, adhesionClass: 0, observation: 'Incisions nettes' }
+      ],
+      gridSpacingMm: 2,
+      coatingThicknessMicrons: 65,
+      measurementDateTime: '2026-08-01T00:00:00Z',
+      normReference: 'NF EN ISO 2409:2020'
+    };
+    const adhStandard2 = createCountConfiguration('ADHESION', 2, ruleSet);
+    const adhNewResult = calculateAdhesion(rawC12New, adhStandard2, ruleSet, {
+      referenceRaw: rawT0New
+    });
+    const adhNewPassed =
+      adhNewResult.computed.panelMean === 1 &&
+      adhNewResult.computed.initialPanelMean === 0 &&
+      adhNewResult.computed.deltaAdhesionClass === 1 &&
+      adhNewResult.computed.qualityAssessment.status === 'WARNING' &&
+      adhNewResult.computed.qualityAssessment.expectedCount === 2 &&
+      adhNewResult.computed.qualityAssessment.completenessPercent === 50 &&
+      adhNewResult.alerts.some((a) => a.code === 'MEASUREMENT_MISSING' && a.severity === 'WARNING') &&
+      Array.isArray(adhNewResult.computed.individualResults) &&
+      adhNewResult.computed.individualResults.length === 1 &&
+      adhNewResult.computed.individualResults[0].deltaAdhesionClass === 1;
+
+    // Configuration absente : aucun fallback historique ; calcul bloqué.
+    const adhHistorical = calculateAdhesion(rawC12New, undefined, ruleSet, { referenceRaw: rawT0New });
+
+    record(
+      'G33-ADH-04',
+      'Adhérence Gate 57 : 1/2 = WARNING + MEASUREMENT_MISSING ; absence de countConfig = blocage explicite',
+      'STATISTICAL_RIGOR',
+      adhNewPassed &&
+        adhHistorical.alerts.some((a) => a.severity === 'BLOCKING') &&
+        adhHistorical.computed === null,
+      'Nouveau 1/2 WARNING 50 % + MEASUREMENT_MISSING ; sans configuration = BLOQUANT',
+      `PanelMean=${adhNewResult.computed.panelMean}, Delta=${adhNewResult.computed.deltaAdhesionClass}, Status=${adhNewResult.computed.qualityAssessment.status}, HistStatus=${adhHistorical.alerts.some((a) => a.severity === 'BLOCKING') ? 'BLOCKING' : 'UNEXPECTED'}`
     );
   }
 

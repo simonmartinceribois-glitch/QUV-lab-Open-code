@@ -15,8 +15,9 @@ import {
   Trash2,
   Info
 } from 'lucide-react';
+import { PhotoStorageImage } from './PhotoStorageImage';
 import { useMemo } from 'react';
-import { getActiveStages } from '../../scientific/panelUtils';
+import { getActiveStages, formatStageTitle } from '../../scientific/panelUtils';
 import type { BatchDefinition, MediaReference, PanelDefinition, Trial } from '../../types/trial';
 
 interface Props {
@@ -167,10 +168,6 @@ export function PhotoTimelineView({
                       {activePanel.label === 'T' ? 'Témoin (Chambre Obscure)' : 'Exposé QUV'}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {activeBatch.woodSpecies || 'Pin sylvestre'} • {activeBatch.productReference || 'Lasure / Finition'} • Épaisseur film sec :{' '}
-                    <strong>{activeBatch.dryFilmThicknessMicrons ? `${activeBatch.dryFilmThicknessMicrons} µm` : 'Non renseignée'}</strong>
-                  </p>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -234,18 +231,15 @@ export function PhotoTimelineView({
                           <div className="space-y-0.5">
                             <div className="flex items-center gap-2">
                               <span className="font-mono font-bold text-xs text-slate-900">
-                                {stage.name}
-                              </span>
-                              <span className="px-1.5 py-0.2 text-[10px] font-mono font-semibold rounded bg-slate-100 text-slate-700">
-                                {stage.scheduledExposureHours} h
+                                {formatStageTitle(stage)}
                               </span>
                             </div>
                             <div className="text-[11px] text-slate-500">
                               {stage.cycleIndex === 0
-                                ? 'Initial (T0 avant exposition)'
+                                ? 'Initial (avant exposition)'
                                 : stage.cycleIndex === 12
-                                ? 'Final (2016 h terme essai)'
-                                : `Cycle ${stage.cycleIndex} intermédiaire`}
+                                ? `Final (terme essai) ${stage.scheduledExposureHours}h`
+                                : `Cycle intermédiaire ${stage.scheduledExposureHours}h`}
                             </div>
                           </div>
                         </div>
@@ -259,11 +253,10 @@ export function PhotoTimelineView({
                                 onClick={() => onPreviewPhoto(photo)}
                                 className="relative group shrink-0 aspect-4/3 w-20 bg-slate-900 rounded-lg overflow-hidden border border-slate-200"
                               >
-                                <img
-                                  src={photo.storageKey}
+                                <PhotoStorageImage
+                                  storageKey={photo.storageKey}
                                   alt={photo.caption || 'Cliché'}
                                   className="w-full h-full object-cover group-hover:scale-110 transition-transform"
-                                  referrerPolicy="no-referrer"
                                 />
                                 <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                   <Maximize2 className="w-3.5 h-3.5 text-white" />

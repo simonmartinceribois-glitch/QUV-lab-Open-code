@@ -1,6 +1,6 @@
 /**
  * QUV-Lab — Moteur Scientifique : Famille Brillance (NF EN 927-6 / ISO 2813)
- * Modélisation multi-séries (Sens du fil & Perpendiculaire), géométries, rétention et immuabilité de RAW.
+ * Modélisation multi-séries (Sens du fil & Sens opposé au fil, rotation 180°), géométries, rétention et immuabilité de RAW.
  */
 
 import {
@@ -24,6 +24,23 @@ import {
 import { evaluateSeriesProtocolCompliance } from './protocolEngine';
 
 export const GLOSS_CALCULATION_VERSION = '1.2.0';
+
+/**
+ * Table de correspondance code sémantique → libellé lisible (S0 §Brillance).
+ * Le RAW stocke le code stable (GRAIN_DIRECTION / OPPOSITE_GRAIN_DIRECTION) ;
+ * cette fonction ne sert qu'à l'affichage (UI, alertes, export). Toute valeur
+ * historique non reconnue (import legacy) est renvoyée telle quelle plutôt
+ * que masquée, pour préserver la traçabilité des données déjà acquises.
+ */
+const GLOSS_ORIENTATION_LABELS: Record<string, string> = {
+  GRAIN_DIRECTION: 'Sens du fil',
+  OPPOSITE_GRAIN_DIRECTION: 'Sens opposé au fil (180°)'
+};
+
+export function getGlossOrientationLabel(orientation?: string | null): string {
+  if (!orientation) return '';
+  return GLOSS_ORIENTATION_LABELS[orientation] ?? orientation;
+}
 
 export interface GlossCalculationResult {
   computed: GlossComputedData;
@@ -52,11 +69,23 @@ export function calculateGloss(
   const expectedReadingsPerSeries = config.configuredConfiguration.readingsPerSeries;
   const totalExpectedReadings = config.configuredConfiguration.totalReadings;
 
-  // 1. Contrôle de la géométrie de mesure
-  const configuredGeometry = ruleSet.statisticalRules.glossGeometryDefault || '60';
+  // 1. Contrôle de la géométrie de mesure — aucun repli en dur :
+  //    - RuleSet fournit une géométrie + RAW la déclare différente → WARNING mismatch.
+  //    - Ni RuleSet ni métadonnées RAW ne fournissent de géométrie → calcul INVALID.
+  const configuredGeometry = ruleSet.statisticalRules.glossGeometryDefault;
   const actualGeometry = raw.instrumentMetadata?.geometry;
 
-  if (actualGeometry && actualGeometry !== configuredGeometry) {
+  if (!configuredGeometry && !actualGeometry) {
+    alerts.push({
+      id: `alert-gloss-geom-undef`,
+      severity: 'BLOCKING',
+      code: 'MEASUREMENT_INVALID',
+      message: 'Géométrie de brillance non configurée dans le RuleSet et absente des métadonnées RAW : calcul INVALID.',
+      familyId: 'GLOSS',
+      panelId: options?.panelId,
+      stageId: options?.stageId
+    });
+  } else if (configuredGeometry && actualGeometry && actualGeometry !== configuredGeometry) {
     alerts.push({
       id: `alert-gloss-geom-mismatch`,
       severity: 'WARNING',
@@ -78,7 +107,8 @@ export function calculateGloss(
   for (let sIdx = 0; sIdx < expectedSeriesCount; sIdx++) {
     const series = seriesList[sIdx];
     const rawOrientation = series?.orientation;
-    const orientation = rawOrientation || config.configuredConfiguration.orientations?.[sIdx] || `Série #${sIdx + 1}`;
+    const orientationCode = rawOrientation || config.configuredConfiguration.orientations?.[sIdx] || `Série #${sIdx + 1}`;
+    const orientation = getGlossOrientationLabel(orientationCode) || orientationCode;
 
     if (!rawOrientation && (!config.configuredConfiguration.orientations || !config.configuredConfiguration.orientations[sIdx])) {
       alerts.push({
@@ -147,6 +177,10 @@ export function calculateGloss(
 
   // 3. Contrôle Qualité global du relevé
   const qualityAssessment = buildQualityAssessment(allValidityStatuses, totalExpectedReadings);
+  if (!configuredGeometry && !actualGeometry) {
+    qualityAssessment.status = 'INVALID';
+    qualityAssessment.warnings.push('Géométrie de brillance non configurée (RuleSet) et absente des métadonnées RAW.');
+  }
 
   // 4. Évaluation de la conformité du protocole
   const protocolEval = evaluateSeriesProtocolCompliance(config, ruleSet);
@@ -221,7 +255,7 @@ export function calculateGloss(
     }
   }
 
-  // 7. Détection du Mode et Alerte Spécifique INFIPERF (Rétention < 50%)
+  // 7. Détection du Mode de Mesure (NORMATIVE_4 / SIMPLIFIED_2 / NORMATIVE_6)
   let detectedMode: 'NORMATIVE_4' | 'SIMPLIFIED_2' | 'NORMATIVE_6' = 'NORMATIVE_4';
   if (raw.mode) {
     detectedMode = raw.mode;
@@ -231,25 +265,6 @@ export function calculateGloss(
     detectedMode = 'NORMATIVE_6';
   } else {
     detectedMode = 'NORMATIVE_4';
-  }
-
-  let infiperfAlert: { active: boolean; message: string; source: 'INFIPERF / FCBA'; severity: 'WARNING' } | undefined = undefined;
-  if (retentionRatePercent !== null && retentionRatePercent < 50) {
-    infiperfAlert = {
-      active: true,
-      message: 'Alerte — rétention de brillant < 50 % (Critère d\'étude INFIPERF / FCBA)',
-      source: 'INFIPERF / FCBA',
-      severity: 'WARNING'
-    };
-    alerts.push({
-      id: `alert-gloss-infiperf-50`,
-      severity: 'WARNING',
-      code: 'STATISTICAL_WARNING',
-      message: `Alerte : Taux de rétention de brillant de ${roundMetric(retentionRatePercent, 1)} % (< seuil indicatif d'alerte de 50 % selon référence INFIPERF / FCBA). Critère complémentaire, distinct de la conformité NF EN 927-6.`,
-      familyId: 'GLOSS',
-      panelId: options?.panelId,
-      stageId: options?.stageId
-    });
   }
 
   const computed: GlossComputedData = {
@@ -265,8 +280,6 @@ export function calculateGloss(
     deltaGloss: roundMetric(deltaGloss, 2),
     deltaGlossStdDev: null,
     retentionRatePercent: roundMetric(retentionRatePercent, 1),
-    infiperfAlert,
-    criterionCategory: 'NORMATIVE_REQUIREMENT',
     qualityAssessment,
     protocolStatus: protocolEval.status,
     computation: {

@@ -6,8 +6,10 @@
 
 import type { Dispatch, SetStateAction } from 'react';
 import { Filter, Camera, Archive, Maximize2, Trash2, Clock } from 'lucide-react';
+import { cycleTag, formatStageOption } from '../../scientific/panelUtils';
 import type { MediaReference, Trial } from '../../types/trial';
 import type { PanelMap, StageMap } from './photoTypes';
+import { PhotoStorageImage } from './PhotoStorageImage';
 
 interface Props {
   trial: Trial;
@@ -93,7 +95,7 @@ export function PhotoGalleryView({
               <option value="ALL">Toutes les étapes ({trial.stages.length})</option>
               {trial.stages.map((st) => (
                 <option key={st.id} value={st.id}>
-                  {st.name} ({st.scheduledExposureHours}h)
+                  {formatStageOption(st)}
                 </option>
               ))}
             </select>
@@ -152,11 +154,10 @@ export function PhotoGalleryView({
               >
                 {/* Thumbnail */}
                 <div className="relative aspect-4/3 bg-slate-100 overflow-hidden border-b border-slate-100 flex items-center justify-center">
-                  <img
-                    src={media.storageKey}
+                  <PhotoStorageImage
+                    storageKey={media.storageKey}
                     alt={media.caption || 'Photographie éprouvette'}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    referrerPolicy="no-referrer"
                   />
 
                   {/* Badges Overlay */}
@@ -208,7 +209,7 @@ export function PhotoGalleryView({
                       {stage ? stage.name : 'Jalon N/A'}
                     </span>
                     <span className="font-mono text-[10px] font-bold text-slate-800">
-                      {stage?.scheduledExposureHours ?? 0} h
+                      {stage ? cycleTag(stage) : '—'}
                     </span>
                   </div>
 
