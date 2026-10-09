@@ -58,7 +58,7 @@ export const ACTION_CATALOG: Record<ActionId, ActionDefinition> = {
     storeMethods: ['updateT0EffectiveDate'],
     auditActions: ['UPDATE_T0_EFFECTIVE_DATE']
   },
-  CREATE_BATCH: { label: 'Ajouter un lot', criticity: 'STANDARD', storeMethods: [], auditActions: ['CREATE_BATCH'] },
+  CREATE_BATCH: { label: 'Ajouter un lot', criticity: 'STANDARD', storeMethods: ['createBatch'], auditActions: ['CREATE_BATCH'] },
   MODIFY_LOTS_SPECIMENS: { label: 'Modifier lots et éprouvettes', criticity: 'STANDARD', storeMethods: ['updateLotsAndSpecimens'], auditActions: ['MODIFY_BATCH', 'MODIFY_PANEL'] },
   RECORD_ACQUISITION: {
     label: 'Saisir des mesures',

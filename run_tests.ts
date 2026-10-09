@@ -932,7 +932,7 @@ suite66.results.forEach((r) => {
 });
 
 console.log('================================================================');
-console.log("67. EXÉCUTION DES GARDE-FOUS D'ARCHITECTURE CIBLE SERVEUR (R-ARCH-01 → 04)");
+console.log("67. EXÉCUTION DES GARDE-FOUS D'ARCHITECTURE CIBLE SERVEUR (R-ARCH-01 → 07)");
 console.log('================================================================');
 const suite67 = runServerReadinessTests();
 console.log(`Résultats Archi : ${suite67.summary.passed} / ${suite67.summary.total} réussis.`);

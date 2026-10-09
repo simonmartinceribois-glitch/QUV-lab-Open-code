@@ -66,7 +66,8 @@ Nouveaux tickets : ouvrir une section §5 ci-dessous (ne pas réécrire l'histor
 11. ~~`feature/tab02-locked-edit-journal`~~ — **mergé** (PR #152, #153).
 12. ~~`feature/auth-roles-foundation`~~ — **mergé** (PR #154).
 13. ~~`feature/auth-roles-decisions`~~ — **mergé** (PR #155).
-14. `docs/server-target-architecture` — **PR ouverte** (LOW) : cible serveur D-13, garde-fous R-ARCH.
+14. ~~`docs/server-target-architecture`~~ — **mergé** (PR #156).
+15. `refactor/server-debt-a1-a3` — **PR ouverte** (MEDIUM) : dette serveur A1 (createBatch) et A3 (horodatages dans le store).
 
 ## 6. Règle permanente — actions et droits (D-11)
 

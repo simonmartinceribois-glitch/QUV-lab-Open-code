@@ -8,7 +8,7 @@
 
 import React, { useState } from 'react';
 import { Trial, BatchDefinition, PanelDefinition } from '../../types/trial';
-import { globalTrialStore, generateUUID } from '../../services/trialStore';
+import { globalTrialStore } from '../../services/trialStore';
 import { getTodayLocalISODate } from '../../utils/dateUtils';
 import { getApplicableGridSpacing } from '../../scientific/adhesionEngine';
 import { getAdhesionGridDisplay } from '../bench/BenchAdhesionForm';
@@ -186,88 +186,26 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
   const handleAddBatch = () => {
     if (isLocked) return;
     if (!newBatchRef.trim()) return;
-
-    const batchId = generateUUID();
-    const panels: PanelDefinition[] = [
+    // SERVER_TARGET A1 : l'ajout passe par le store (future commande d'API).
+    globalTrialStore.createBatch(
+      trial.id,
       {
-        id: generateUUID(),
-        batchId,
-        index: 1,
-        label: 'T',
-        role: 'WITNESS',
-        roleCode: 'T',
-        grainOrientation: 'Quartier',
-        status: 'ACTIVE'
+        reference: newBatchRef,
+        woodSpecies: newBatchWood,
+        productReference: newBatchProduct,
+        manufacturerOrSupplier: newBatchSupplier,
+        coatingSystem: newBatchCoating,
+        coatCount: newBatchCoatCount,
+        substratePreparation: newBatchPrep,
+        applicationMethod: newBatchMethod,
+        applicationConditions: newBatchConditions,
+        applicationDate: newBatchDate,
+        dryingOrConditioningTime: newBatchDrying,
+        dryFilmThicknessMicrons: newBatchThickness,
+        batchNotes: newBatchNotes
       },
-      {
-        id: generateUUID(),
-        batchId,
-        index: 2,
-        label: '1',
-        role: 'EXPOSED_1',
-        roleCode: 'E1',
-        grainOrientation: 'Quartier',
-        exposureFace: 'Face externe',
-        status: 'ACTIVE'
-      },
-      {
-        id: generateUUID(),
-        batchId,
-        index: 3,
-        label: '2',
-        role: 'EXPOSED_2',
-        roleCode: 'E2',
-        grainOrientation: 'Quartier',
-        exposureFace: 'Face externe',
-        status: 'ACTIVE'
-      },
-      {
-        id: generateUUID(),
-        batchId,
-        index: 4,
-        label: '3',
-        role: 'EXPOSED_3',
-        roleCode: 'E3',
-        grainOrientation: 'Faux quartier',
-        exposureFace: 'Face externe',
-        status: 'ACTIVE'
-      }
-    ];
-
-    const newBatch: BatchDefinition = {
-      id: batchId,
-      trialId: trial.id,
-      reference: newBatchRef.trim(),
-      orderIndex: trial.batches.length + 1,
-      woodSpecies: newBatchWood.trim() || undefined,
-      productReference: newBatchProduct.trim() || undefined,
-      manufacturerOrSupplier: newBatchSupplier.trim() || undefined,
-      coatingSystem: newBatchCoating.trim() || undefined,
-      coatCount: newBatchCoatCount,
-      substratePreparation: newBatchPrep.trim() || undefined,
-      applicationMethod: newBatchMethod.trim() || undefined,
-      applicationConditions: newBatchConditions.trim() || undefined,
-      applicationDate: newBatchDate,
-      dryingOrConditioningTime: newBatchDrying.trim() || undefined,
-      dryFilmThicknessMicrons: newBatchThickness ? Number(newBatchThickness) : undefined,
-      dryFilmThicknessUnit: 'µm',
-      batchNotes: newBatchNotes.trim() || undefined,
-      panels
-    };
-
-    trial.batches.push(newBatch);
-    trial.auditTrail.push({
-      id: generateUUID(),
-      trialId: trial.id,
-      timestamp: new Date().toISOString(),
-      operatorId: operatorId || 'OPERATOR',
-      action: 'CREATE_BATCH',
-      entityType: 'BATCH',
-      entityId: batchId,
-      details: { reference: newBatch.reference, panelCount: 4 }
-    });
-
-    globalTrialStore.saveTrial(trial);
+      operatorId
+    );
     setShowAddBatchModal(false);
     setNewBatchRef('');
     setNewBatchCoating('');
