@@ -1710,7 +1710,7 @@ export class TrialStoreService {
   public logReportExport(
     trialId: UUID,
     reportId: string,
-    exportType: 'REPORT_PDF' | 'REPORT_CSV' | 'RAW_DATA_CSV' | 'COMPUTED_DATA_CSV' | 'SCIENTIFIC_DOSSIER_JSON',
+    exportType: 'REPORT_PDF' | 'REPORT_CSV' | 'RAW_DATA_CSV' | 'COMPUTED_DATA_CSV' | 'SCIENTIFIC_DOSSIER_JSON' | 'FULL_BACKUP_JSON',
     operatorId: string
   ): void {
     const trial = this.getTrial(trialId);
@@ -1720,6 +1720,7 @@ export class TrialStoreService {
     if (exportType === 'RAW_DATA_CSV') action = 'EXPORT_RAW_DATA';
     else if (exportType === 'COMPUTED_DATA_CSV') action = 'EXPORT_COMPUTED_DATA';
     else if (exportType === 'SCIENTIFIC_DOSSIER_JSON') action = 'EXPORT_SCIENTIFIC_DOSSIER';
+    else if (exportType === 'FULL_BACKUP_JSON') action = 'EXPORT_FULL_BACKUP';
 
     trial.auditTrail.push({
       id: generateUUID(),
