@@ -64,6 +64,7 @@ import { runFullBackupTests } from './src/scientific/tests/full_backup.test';
 import { runTrialIdentificationEditTests } from './src/scientific/tests/trial_identification_edit.test';
 import { runLotsSpecimensEditTests } from './src/scientific/tests/lots_specimens_edit.test';
 import { runAuthRolesFoundationTests } from './src/scientific/tests/auth_roles_foundation.test';
+import { runServerReadinessTests } from './src/scientific/tests/server_readiness.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -930,6 +931,19 @@ suite66.results.forEach((r) => {
   }
 });
 
+console.log('================================================================');
+console.log("67. EXÉCUTION DES GARDE-FOUS D'ARCHITECTURE CIBLE SERVEUR (R-ARCH-01 → 04)");
+console.log('================================================================');
+const suite67 = runServerReadinessTests();
+console.log(`Résultats Archi : ${suite67.summary.passed} / ${suite67.summary.total} réussis.`);
+suite67.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Archi] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -996,7 +1010,8 @@ const totalFailed =
   suite63.summary.failed +
   suite64.summary.failed +
   suite65.summary.failed +
-  suite66.summary.failed;
+  suite66.summary.failed +
+  suite67.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -1063,7 +1078,8 @@ const totalCount =
   suite63.summary.total +
   suite64.summary.total +
   suite65.summary.total +
-  suite66.summary.total;
+  suite66.summary.total +
+  suite67.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

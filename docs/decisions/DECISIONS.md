@@ -1,5 +1,16 @@
 # QUV-Lab — DÉCISIONS (journal, ordre antichronologique)
 
+## 2026-10-09 — D-13 : cible serveur — architecture préparée, rien de codé côté serveur
+
+- **Décidé (utilisateur)** : l'application sera hébergée sur un serveur ; la connexion n'est pas codée
+  maintenant, mais l'architecture et chaque évolution doivent en tenir compte.
+- **Conséquences** : la phase 1 « profils locaux » de `feature-auth-roles.md` est **abandonnée** au profit
+  de la cible serveur (comptes / annuaire, droits contrôlés par le serveur). Cible, règles par PR, dette
+  (A1 → A6) et étapes de migration : `docs/architecture/SERVER_TARGET.md`.
+- **Garde-fous** : suite R-ARCH (moteur scientifique sans API navigateur, aucune écriture directe depuis
+  l'interface hors dette A1, stockage navigateur confiné aux services de persistance, aucun champ mot
+  de passe dans le modèle).
+
 ## 2026-10-09 — D-12 : validation d'étape STANDARD ; une personne = un compte (e-mail + mot de passe)
 
 - **Décidé (utilisateur)** : « Valider une étape » passe de HIGH à **STANDARD** (Technicien autorisé).
