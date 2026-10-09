@@ -1,5 +1,14 @@
 # QUV-Lab — DÉCISIONS (journal, ordre antichronologique)
 
+## 2026-10-09 — D-12 : validation d'étape STANDARD ; une personne = un compte (e-mail + mot de passe)
+
+- **Décidé (utilisateur)** : « Valider une étape » passe de HIGH à **STANDARD** (Technicien autorisé).
+- **Décidé (utilisateur)** : une personne = un compte = un rôle ; identification par **e-mail + mot de
+  passe**. Modèle `UserProfile` complété (e-mail unique), règles de compte codées (`validateUserProfile`).
+- **Conséquence** : un compte unique valable sur tous les postes et la réinitialisation par e-mail
+  exigent un serveur ou l'annuaire de l'entreprise (phase 2). Exigences mot de passe et arbitrage
+  phase 1 locale / phase 2 directe : `feature-auth-roles.md` §8.
+
 ## 2026-10-09 — D-11 : profils et droits par rôle — fondation inactive (phase 0)
 
 - **Demande** : future connexion Prénom + Nom + rôle (Utilisateur : consultation ; Technicien :

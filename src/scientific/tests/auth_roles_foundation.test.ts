@@ -13,7 +13,8 @@ import {
   canPerform,
   canViewSection,
   canViewTab,
-  formatOperatorLabel
+  formatOperatorLabel,
+  validateUserProfile
 } from '../../services/permissions';
 import type { ActionId } from '../../services/permissions';
 import { AUTH_ENABLED, isAllowed, isTabVisible, setCurrentUser } from '../../services/session';
@@ -27,7 +28,7 @@ export interface AuthFoundationTestResult {
   actual: string;
 }
 
-const user = (role: Role, active = true): UserProfile => ({ id: `u-${role}`, firstName: 'Simon', lastName: 'Martin', role, active });
+const user = (role: Role, active = true): UserProfile => ({ id: `u-${role}`, email: `${role.toLowerCase()}@labo.test`, firstName: 'Simon', lastName: 'Martin', role, active });
 const ACTIONS = Object.keys(ACTION_CATALOG) as ActionId[];
 const byCriticity = (...levels: string[]) => ACTIONS.filter((a) => levels.includes(ACTION_CATALOG[a].criticity));
 
@@ -153,9 +154,30 @@ export function runAuthRolesFoundationTests(): {
 
   // R-AUTH-08 : libellé opérateur standardisé.
   {
-    const label = formatOperatorLabel({ id: 'x', firstName: ' Simon ', lastName: 'Martin ', role: 'TECHNICIEN', active: true });
+    const label = formatOperatorLabel({ id: 'x', email: 's.martin@labo.test', firstName: ' Simon ', lastName: 'Martin ', role: 'TECHNICIEN', active: true });
     record('R-AUTH-08', 'Libellé opérateur du journal : « Prénom NOM (Rôle) »',
       label === 'Simon MARTIN (Technicien)', 'Simon MARTIN (Technicien)', label);
+  }
+
+  // R-AUTH-09 : D-12 — valider une étape est STANDARD (Technicien autorisé, Utilisateur non).
+  {
+    const ok = ACTION_CATALOG.VALIDATE_STAGE.criticity === 'STANDARD' &&
+      canPerform(user('TECHNICIEN'), 'VALIDATE_STAGE') && !canPerform(user('UTILISATEUR'), 'VALIDATE_STAGE');
+    record('R-AUTH-09', 'D-12 : « Valider une étape » en STANDARD — autorisé au Technicien, refusé à l’Utilisateur',
+      ok, 'STANDARD, technicien oui, utilisateur non', `criticité=${ACTION_CATALOG.VALIDATE_STAGE.criticity}`);
+  }
+
+  // R-AUTH-10 : D-12 — un compte par personne (e-mail unique, insensible à la casse), champs obligatoires.
+  {
+    const existing: UserProfile[] = [{ id: 'a', email: 'S.Martin@Labo.test', firstName: 'Simon', lastName: 'Martin', role: 'TECHNICIEN', active: true }];
+    const duplicate = validateUserProfile({ id: 'b', email: ' s.martin@labo.test ', firstName: 'Simon', lastName: 'Martin', role: 'RESPONSABLE', active: true }, existing);
+    const invalid = validateUserProfile({ id: 'c', email: 'pas-un-mail', firstName: '', lastName: 'X', role: 'UTILISATEUR', active: true }, existing);
+    const sameAccount = validateUserProfile({ ...existing[0], role: 'RESPONSABLE' }, existing);
+    const valid = validateUserProfile({ id: 'd', email: 'a.dupont@labo.test', firstName: 'Anne', lastName: 'Dupont', role: 'UTILISATEUR', active: true }, existing);
+    const ok = duplicate.length === 1 && invalid.length === 2 && sameAccount.length === 0 && valid.length === 0;
+    record('R-AUTH-10', 'D-12 : e-mail unique (même personne = un seul compte, un seul rôle), e-mail valide, prénom et nom obligatoires',
+      ok, 'doublon refusé, 2 erreurs, changement de rôle du même compte accepté, compte valide',
+      `doublon=${duplicate.length}, invalide=${invalid.length}, mêmeCompte=${sameAccount.length}, valide=${valid.length}`);
   }
 
   const passed = results.filter((r) => r.passed).length;
