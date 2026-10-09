@@ -141,14 +141,25 @@ export function resolveScientificRuleSetForTrial(trial: Trial, currentRuleSet: S
  * sur la durée, navigation privée, quota déjà partiellement occupé par une autre
  * application du même domaine, etc.). Cet événement permet à la couche UI d'avertir
  * l'opérateur au lieu de laisser passer l'échec en silence.
+ *
+ * Deux types concernent la LECTURE au démarrage (cf. getStorageLoadIssue()) :
+ *   - STORAGE_LOAD_RECOVERED : contenu illisible ou partiellement corrompu, copié
+ *     intégralement sous `backupKey` avant toute écriture ; l'application reste
+ *     utilisable sans perte.
+ *   - STORAGE_WRITE_BLOCKED : lecture impossible ou copie de secours échouée ;
+ *     toute écriture est refusée pour ne jamais écraser les données d'origine.
  */
 export interface StorageErrorEvent {
-  type: 'STORAGE_QUOTA_EXCEEDED' | 'STORAGE_UNKNOWN_ERROR';
+  type: 'STORAGE_QUOTA_EXCEEDED' | 'STORAGE_UNKNOWN_ERROR' | 'STORAGE_LOAD_RECOVERED' | 'STORAGE_WRITE_BLOCKED';
   message: string;
   timestamp: string;
+  backupKey?: string;
 }
 
 type StorageErrorListener = (event: StorageErrorEvent) => void;
+
+/** Préfixe des copies de secours du contenu brut illisible (jamais relues automatiquement). */
+export const STORAGE_BACKUP_KEY_PREFIX = `${STORAGE_KEY}__backup_`;
 /**
  * Service TrialStore complet
  */
@@ -158,6 +169,11 @@ export class TrialStoreService {
   private isEphemeral: boolean;
   private storageErrorListeners: StorageErrorListener[] = [];
   private persistenceHealthy = true;
+  // Anomalie détectée au chargement (null = lecture saine). Si son type est
+  // STORAGE_WRITE_BLOCKED, saveToStorage() n'écrit plus jamais.
+  private storageLoadIssue: StorageErrorEvent | null = null;
+  // Contenu brut illisible à copier sous une clé de secours avant la 1re écriture.
+  private pendingBackup: { raw: string; reason: string } | null = null;
 
   constructor(options?: { ephemeral?: boolean }) {
     this.ruleSet = getDefaultScientificRuleSet();
@@ -273,9 +289,13 @@ export class TrialStoreService {
     try {
       stored = localStorage.getItem(STORAGE_KEY);
     } catch (err) {
-      // Lecture impossible : mémoire utilisable, AUCUNE écriture.
+      // Lecture impossible : mémoire utilisable, écritures BLOQUÉES (on ignore
+      // ce que contient le stockage, il ne doit donc jamais être remplacé).
       console.warn('[QUV-Lab] Lecture du stockage local impossible, essais de démonstration en mémoire uniquement.', err);
       this.seedDemoTrials(false);
+      this.blockStorageWrites(
+        "Le stockage local n'a pas pu être lu : les essais affichés sont des essais de démonstration et aucune modification ne sera enregistrée."
+      );
       return;
     }
     // Stockage vide : premier lancement, comportement existant (seed + persist).
@@ -287,19 +307,21 @@ export class TrialStoreService {
     try {
       parsed = JSON.parse(stored);
     } catch (err) {
-      // JSON corrompu : warning, mémoire utilisable, AUCUNE écriture —
-      // les données existantes ne sont jamais remplacées par DEMO.
-      console.warn('[QUV-Lab] Stockage local illisible (JSON corrompu), données conservées telles quelles, aucun écrasement.', err);
+      // JSON corrompu : copie de secours du contenu brut AVANT toute écriture.
+      console.warn('[QUV-Lab] Stockage local illisible (JSON corrompu).', err);
       this.seedDemoTrials(false);
+      this.secureUnreadableStorage(stored, 'contenu illisible (JSON corrompu)');
       return;
     }
     if (!Array.isArray(parsed)) {
       console.warn('[QUV-Lab] Stockage local inattendu (tableau attendu), essais de démonstration en mémoire uniquement.');
       this.seedDemoTrials(false);
+      this.secureUnreadableStorage(stored, 'format inattendu (tableau attendu)');
       return;
     }
     // Tableau lisible (même vide ou entièrement corrompu) : charger les essais
     // valides un par un, ignorer les autres. Ne JAMAIS réécrire le stockage ici.
+    let skipped = 0;
     parsed.forEach((entry: unknown) => {
       // Validation structurelle D'ABORD (avant tout accès métier tel que
       // entry.id) : un id non-string (ex. 123) ne doit jamais faire
@@ -310,6 +332,7 @@ export class TrialStoreService {
         console.warn(
           `[QUV-Lab] Essai ignoré au chargement : structure invalide (id=${typeof rawId === 'string' ? rawId : 'absent/invalide'}).`
         );
+        skipped++;
         return;
       }
       // Éliminer préventivement toute pollution issue d'anciens mocks de test (Gate 55 - D-6)
@@ -319,12 +342,85 @@ export class TrialStoreService {
         this.trials.set(migrated.id, migrated);
       } catch (err) {
         console.warn(`[QUV-Lab] Essai ignoré au chargement : migration impossible (id=${entry.id}).`, err);
+        skipped++;
       }
     });
+    // Les essais ignorés disparaîtraient à la prochaine écriture : on conserve
+    // d'abord le contenu brut complet.
+    if (skipped > 0) {
+      this.secureUnreadableStorage(stored, `${skipped} essai(s) illisible(s) ignoré(s)`);
+    }
+  }
+
+  /**
+   * Programme la copie de secours du contenu brut. Elle n'est PAS écrite ici :
+   * le chargement ne fait jamais d'écriture (IR-35/36/37/48/56). Elle est
+   * réalisée par saveToStorage() juste avant la première écriture.
+   */
+  private secureUnreadableStorage(raw: string, reason: string): void {
+    this.pendingBackup = { raw, reason };
+    this.storageLoadIssue = {
+      type: 'STORAGE_LOAD_RECOVERED',
+      message: `Stockage local partiellement illisible (${reason}). Le contenu d'origine sera sauvegardé intégralement avant la première modification.`,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Écrit la copie de secours programmée. Si elle réussit, les écritures
+   * normales restent autorisées (rien n'est perdu) ; sinon elles sont bloquées
+   * définitivement pour ne jamais écraser l'original.
+   */
+  private writePendingBackup(): boolean {
+    const pending = this.pendingBackup;
+    if (!pending) return true;
+    const backupKey = `${STORAGE_BACKUP_KEY_PREFIX}${new Date().toISOString().replace(/[:.]/g, '-')}`;
+    try {
+      localStorage.setItem(backupKey, pending.raw);
+    } catch (err) {
+      console.warn('[QUV-Lab] Copie de secours du stockage local impossible : écritures bloquées.', err);
+      this.pendingBackup = null;
+      this.blockStorageWrites(
+        `Stockage local partiellement illisible (${pending.reason}) et copie de secours impossible : aucune modification ne sera enregistrée afin de préserver les données d'origine.`
+      );
+      return false;
+    }
+    console.warn(`[QUV-Lab] Contenu brut du stockage local sauvegardé sous « ${backupKey} ».`);
+    this.pendingBackup = null;
+    this.storageLoadIssue = {
+      type: 'STORAGE_LOAD_RECOVERED',
+      message: `Stockage local partiellement illisible (${pending.reason}). Le contenu d'origine a été sauvegardé intégralement sous la clé « ${backupKey} » avant toute modification.`,
+      timestamp: new Date().toISOString(),
+      backupKey
+    };
+    this.notifyStorageError(this.storageLoadIssue);
+    return true;
+  }
+
+  private blockStorageWrites(message: string): void {
+    this.storageLoadIssue = { type: 'STORAGE_WRITE_BLOCKED', message, timestamp: new Date().toISOString() };
+  }
+
+  /**
+   * Anomalie détectée lors du chargement initial (null si la lecture était saine).
+   * Le chargement a lieu dans le constructeur, avant tout abonnement possible à
+   * onStorageError() : la couche UI doit donc interroger cette méthode au démarrage.
+   */
+  public getStorageLoadIssue(): StorageErrorEvent | null {
+    return this.storageLoadIssue;
   }
 
   private saveToStorage(): void {
     if (this.isEphemeral) return;
+    // Le contenu d'origine n'a pas pu être lu ni sauvegardé : l'écraser par
+    // l'état en mémoire (démo + modifications) le détruirait définitivement.
+    const backupOk = this.writePendingBackup();
+    const issue = this.storageLoadIssue;
+    if (!backupOk || issue?.type === 'STORAGE_WRITE_BLOCKED') {
+      this.persistenceHealthy = false;
+      if (issue) this.notifyStorageError({ ...issue, timestamp: new Date().toISOString() });
+      return;
+    }
     try {
       const list = Array.from(this.trials.values()).filter((t) => !t.id.startsWith('MOCK_TEST_'));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
