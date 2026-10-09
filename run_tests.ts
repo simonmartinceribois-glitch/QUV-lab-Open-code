@@ -62,6 +62,7 @@ import { runExportAuditTraceTests } from './src/scientific/tests/export_audit_tr
 import { runTrialImportTests } from './src/scientific/tests/trial_import.test';
 import { runFullBackupTests } from './src/scientific/tests/full_backup.test';
 import { runTrialIdentificationEditTests } from './src/scientific/tests/trial_identification_edit.test';
+import { runLotsSpecimensEditTests } from './src/scientific/tests/lots_specimens_edit.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -902,6 +903,19 @@ suite64.results.forEach((r) => {
   }
 });
 
+console.log('================================================================');
+console.log('65. EXÉCUTION DE LA MODIFICATION VALIDÉE DES LOTS ET ÉPROUVETTES (R-LOTS-01 → 06)');
+console.log('================================================================');
+const suite65 = runLotsSpecimensEditTests();
+console.log(`Résultats Lots : ${suite65.summary.passed} / ${suite65.summary.total} réussis.`);
+suite65.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Lots] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -966,7 +980,8 @@ const totalFailed =
   suite61.summary.failed +
   suite62.summary.failed +
   suite63.summary.failed +
-  suite64.summary.failed;
+  suite64.summary.failed +
+  suite65.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -1031,7 +1046,8 @@ const totalCount =
   suite61.summary.total +
   suite62.summary.total +
   suite63.summary.total +
-  suite64.summary.total;
+  suite64.summary.total +
+  suite65.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

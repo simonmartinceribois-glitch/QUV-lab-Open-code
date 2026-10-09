@@ -7,11 +7,23 @@
  */
 
 import React, { useState } from 'react';
-import { Trial, BatchDefinition, PanelDefinition, WoodGrainOrientation, ExposureFace } from '../../types/trial';
+import { Trial, BatchDefinition, PanelDefinition } from '../../types/trial';
 import { globalTrialStore, generateUUID } from '../../services/trialStore';
 import { getTodayLocalISODate } from '../../utils/dateUtils';
 import { getApplicableGridSpacing } from '../../scientific/adhesionEngine';
 import { getAdhesionGridDisplay } from '../bench/BenchAdhesionForm';
+import { ConfirmDialog } from '../ConfirmDialog';
+import {
+  diffLotsSpecimens,
+  effectiveFace,
+  effectiveGrain,
+  isBatchThicknessLocked,
+  isWitnessPanel,
+  lotsSpecimensFormFromTrial,
+  specimenCode as buildSpecimenCode,
+  validateLotsSpecimensChanges
+} from '../../services/trialLotsSpecimens';
+import type { LotsSpecimensForm } from '../../services/trialLotsSpecimens';
 import {
   Layers,
   Plus,
@@ -29,7 +41,9 @@ import {
   Sparkles,
   Sliders,
   Compass,
-  Maximize2
+  Maximize2,
+  Pencil,
+  Check
 } from 'lucide-react';
 
 /**
@@ -85,54 +99,61 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
 
   const isLocked = trial.configurationStatus === 'LOCKED';
 
-  // L'épaisseur ne sert normativement qu'au quadrillage (ISO 2409) : sans adhérence
-  // mesurée pour ce lot, la modifier après verrouillage est sans effet sur les résultats
-  // (fix/batch-thickness). Sinon, saisie bloquée avec message explicite.
-  const hasBatchAdhesionData = (batchId: string): boolean => {
-    return Object.values(trial.acquisitions || {}).some(
-      (a) => a.batchId === batchId && a.familyId === 'ADHESION' && a.raw !== null && a.raw !== undefined
-    );
+  // Mode modification (même parcours que l'onglet 01) : rien n'est enregistré
+  // avant « Valider les modifications » ; chaque valeur modifiée est tracée
+  // dans 09 Journal de bord (MODIFY_BATCH / MODIFY_PANEL).
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<LotsSpecimensForm>(() => lotsSpecimensFormFromTrial(trial));
+  const [editDialog, setEditDialog] = useState<'confirmEdit' | 'confirmValidate' | null>(null);
+  const [editOperator, setEditOperator] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editNotice, setEditNotice] = useState<string | null>(null);
+
+  const editChanges = editing ? diffLotsSpecimens(trial, form) : [];
+
+  const setFormValue = (key: keyof LotsSpecimensForm, id: string, value: string) =>
+    setForm((f) => ({ ...f, [key]: { ...f[key], [id]: value } }));
+
+  const startEdit = () => {
+    setForm(lotsSpecimensFormFromTrial(trial));
+    setEditing(true);
+    setEditDialog(null);
+    setEditError(null);
+    setEditNotice(null);
   };
 
-  const handleUpdateBatchThickness = (batchId: string, thickness: number | undefined) => {
-    const batch = trial.batches.find((b) => b.id === batchId);
-    if (!batch) return;
-    const previous = batch.dryFilmThicknessMicrons ?? null;
-    batch.dryFilmThicknessMicrons = thickness;
-    trial.auditTrail.push({
-      id: generateUUID(),
-      trialId: trial.id,
-      timestamp: new Date().toISOString(),
-      operatorId: operatorId || 'OPERATOR',
-      action: 'UPDATE_BATCH_THICKNESS',
-      entityType: 'BATCH',
-      entityId: batchId,
-      details: { previousMicrons: previous, newMicrons: thickness ?? null, lockedTrial: isLocked }
-    });
-    globalTrialStore.saveTrial(trial);
-    onTrialUpdated();
+  const cancelEdit = () => {
+    setForm(lotsSpecimensFormFromTrial(trial));
+    setEditing(false);
+    setEditError(null);
   };
 
-  const handleUpdateSpecimenGrain = (batchId: string, panelId: string, orientation: WoodGrainOrientation) => {
-    const batch = trial.batches.find((b) => b.id === batchId);
-    if (!batch) return;
-    const panel = batch.panels.find((p) => p.id === panelId);
-    if (!panel) return;
-
-    panel.grainOrientation = orientation;
-    globalTrialStore.saveTrial(trial);
-    onTrialUpdated();
+  const requestValidation = () => {
+    setEditError(null);
+    const errors = validateLotsSpecimensChanges(trial, editChanges);
+    if (errors.length > 0) {
+      setEditError(errors.join(' '));
+      return;
+    }
+    if (editChanges.length === 0) {
+      setEditing(false);
+      setEditNotice('Aucune modification à valider.');
+      return;
+    }
+    setEditDialog('confirmValidate');
   };
 
-  const handleUpdateSpecimenFace = (batchId: string, panelId: string, face: ExposureFace) => {
-    const batch = trial.batches.find((b) => b.id === batchId);
-    if (!batch) return;
-    const panel = batch.panels.find((p) => p.id === panelId);
-    if (!panel) return;
-
-    panel.exposureFace = face;
-    globalTrialStore.saveTrial(trial);
-    onTrialUpdated();
+  const confirmValidation = () => {
+    try {
+      const applied = globalTrialStore.updateLotsAndSpecimens(trial.id, form, editOperator);
+      setEditDialog(null);
+      setEditing(false);
+      setEditNotice(`${applied.length} modification(s) validée(s) et tracée(s) dans 09 Journal de bord.`);
+      onTrialUpdated();
+    } catch (err) {
+      setEditDialog(null);
+      setEditError(err instanceof Error ? err.message : String(err));
+    }
   };
 
   const handleOpenExclusion = (batch: BatchDefinition, panel: PanelDefinition) => {
@@ -272,7 +293,37 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
           </p>
         </div>
 
-        {!isLocked && (
+        <div className="flex items-center gap-2">
+        {editing ? (
+          <>
+            <button
+              type="button"
+              onClick={cancelEdit}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 border border-slate-300 hover:bg-slate-100 flex items-center gap-2"
+            >
+              <X className="w-4 h-4" />
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={requestValidation}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs"
+            >
+              <Check className="w-4 h-4" />
+              Valider les modifications
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditDialog('confirmEdit')}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs"
+          >
+            <Pencil className="w-4 h-4" />
+            Modifier
+          </button>
+        )}
+        {!isLocked && !editing && (
           <button
             type="button"
             onClick={() => {
@@ -285,7 +336,26 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
             Ajouter un Lot (T + 3 E)
           </button>
         )}
+        </div>
       </div>
+
+      {editing && (
+        <div className="px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs font-semibold text-amber-900">
+          Mode modification : les changements ne sont enregistrés qu'après « Valider les modifications ».
+        </div>
+      )}
+      {editNotice && !editing && (
+        <div className="px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800 flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4" />
+          {editNotice}
+        </div>
+      )}
+      {editError && (
+        <div className="px-4 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-800 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4" />
+          {editError}
+        </div>
+      )}
 
       {/* Rappel Dimensions PROJET & Règles de Hiérarchie */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -406,7 +476,7 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
                       <Sliders className="w-3.5 h-3.5 text-indigo-600" />
                       Épaisseur sèche du film (µm) :
                     </span>
-                    {isLocked && hasBatchAdhesionData(batch.id) ? (
+                    {isBatchThicknessLocked(trial, batch.id) ? (
                       <span className="font-mono font-bold text-slate-500" title="Verrouillée : une adhérence a déjà été mesurée pour ce lot">
                         {batch.dryFilmThicknessMicrons ? `${batch.dryFilmThicknessMicrons} µm 🔒` : 'Non renseignée 🔒'}
                       </span>
@@ -417,17 +487,13 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
                           min="1"
                           max="1000"
                           placeholder="ex: 60"
-                          value={batch.dryFilmThicknessMicrons ?? ''}
-                          onChange={(e) =>
-                            handleUpdateBatchThickness(
-                              batch.id,
-                              e.target.value !== '' ? Number(e.target.value) : undefined
-                            )
-                          }
-                          className="w-20 px-2 py-0.5 bg-white border border-indigo-300 rounded-lg text-xs font-mono font-bold text-indigo-900 text-center focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                          value={editing ? form.thickness[batch.id] ?? '' : batch.dryFilmThicknessMicrons ?? ''}
+                          onChange={(e) => setFormValue('thickness', batch.id, e.target.value)}
+                          readOnly={!editing}
+                          className={`${editing ? '' : 'bg-slate-50 cursor-default '}w-20 px-2 py-0.5 bg-white border border-indigo-300 rounded-lg text-xs font-mono font-bold text-indigo-900 text-center focus:ring-2 focus:ring-indigo-500 focus:outline-hidden`}
                         />
                         <span className="font-mono text-indigo-800 font-semibold text-[11px]">µm</span>
-                        {isLocked && !hasBatchAdhesionData(batch.id) && (
+                        {isLocked && !isBatchThicknessLocked(trial, batch.id) && editing && (
                           <span
                             className="text-[10px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded font-medium"
                             title="Essai verrouillé mais aucune adhérence mesurée pour ce lot : saisie autorisée et tracée en audit"
@@ -468,12 +534,12 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   {batch.panels.map((panel, pIdx) => {
-                    const isWitness = pIdx === 0 || panel.label === 'T' || panel.roleCode === 'T';
+                    const isWitness = isWitnessPanel(panel, pIdx);
                     const isExcluded = panel.status === 'EXCLUDED';
-                    const specimenLabel = isWitness ? 'T' : (panel.label === 'P02' ? '1' : panel.label === 'P03' ? '2' : panel.label === 'P04' ? '3' : panel.label);
-                    const specimenCode = `${batch.reference}-${specimenLabel}`;
-                    const currentOrientation = panel.grainOrientation || (isWitness ? 'Quartier' : pIdx === 3 ? 'Faux quartier' : 'Quartier');
-                    const currentFace = panel.exposureFace || 'Face externe';
+                    const specimenCode = buildSpecimenCode(batch, panel, pIdx);
+                    const specimenLabel = specimenCode.slice(batch.reference.length + 1);
+                    const currentOrientation = editing ? form.grain[panel.id] : effectiveGrain(panel, pIdx);
+                    const currentFace = editing ? form.face[panel.id] : effectiveFace(panel);
 
                     return (
                       <div
@@ -504,7 +570,7 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
                               </span>
                             </div>
 
-                            {!isExcluded && (
+                            {!isExcluded && !editing && (
                               <button
                                 type="button"
                                 title="Exclure cette éprouvette (Motif requis)"
@@ -525,8 +591,8 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
                               </label>
                               <select
                                 value={currentOrientation}
-                                onChange={(e) => handleUpdateSpecimenGrain(batch.id, panel.id, e.target.value as WoodGrainOrientation)}
-                                disabled={isExcluded}
+                                onChange={(e) => setFormValue('grain', panel.id, e.target.value)}
+                                disabled={!editing || isExcluded}
                                 className="w-full px-2 py-1 bg-white border border-slate-200 rounded-md text-xs font-medium text-slate-800 focus:ring-1 focus:ring-blue-500"
                               >
                                 <option value="Quartier">Quartier</option>
@@ -547,8 +613,8 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
                               ) : (
                                 <select
                                   value={currentFace}
-                                  onChange={(e) => handleUpdateSpecimenFace(batch.id, panel.id, e.target.value as ExposureFace)}
-                                  disabled={isExcluded}
+                                  onChange={(e) => setFormValue('face', panel.id, e.target.value)}
+                                  disabled={!editing || isExcluded}
                                   className="w-full px-2 py-1 bg-white border border-slate-200 rounded-md text-xs font-medium text-slate-800 focus:ring-1 focus:ring-blue-500"
                                 >
                                   <option value="Face externe">Face externe (côté écorce)</option>
@@ -588,6 +654,56 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
           );
         })}
       </div>
+
+      {editDialog === 'confirmEdit' && (
+        <ConfirmDialog
+          title="Modifier"
+          message="Voulez-vous modifier les lots et éprouvettes de cet essai ? Les modifications validées seront tracées dans 09 Journal de bord."
+          onConfirm={startEdit}
+          onCancel={() => setEditDialog(null)}
+        />
+      )}
+
+      {editDialog === 'confirmValidate' && (
+        <ConfirmDialog
+          title="Valider les modifications"
+          message="Confirmez-vous l'enregistrement des modifications suivantes ?"
+          confirmDisabled={editOperator.trim() === ''}
+          onConfirm={confirmValidation}
+          onCancel={() => setEditDialog(null)}
+        >
+          <table className="w-full border border-slate-200 rounded-lg overflow-hidden">
+            <thead>
+              <tr className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
+                <th className="text-left px-3 py-2">Élément</th>
+                <th className="text-left px-3 py-2">Champ</th>
+                <th className="text-left px-3 py-2">Avant</th>
+                <th className="text-left px-3 py-2">Après</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {editChanges.map((c) => (
+                <tr key={`${c.entityId}-${c.field}`}>
+                  <td className="px-3 py-2 font-mono font-semibold">{c.target}</td>
+                  <td className="px-3 py-2">{c.label}</td>
+                  <td className="px-3 py-2 text-slate-500 line-through">{c.before || '—'}</td>
+                  <td className="px-3 py-2 font-bold text-slate-900">{c.after || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <label className="block space-y-1">
+            <span className="font-bold text-slate-600">Opérateur (obligatoire)</span>
+            <input
+              type="text"
+              value={editOperator}
+              onChange={(e) => setEditOperator(e.target.value)}
+              placeholder="Initiales ou nom"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </label>
+        </ConfirmDialog>
+      )}
 
       {/* Modal Exclusion Motivée */}
       {selectedPanelForExclusion && (
