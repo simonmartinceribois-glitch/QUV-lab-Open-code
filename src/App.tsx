@@ -54,7 +54,9 @@ export default function App() {
   const [mediaMigration, setMediaMigration] = useState<'idle' | 'migrating' | 'success' | 'failed' | 'interrupted'>('idle');
   const [mediaMigrationSummary, setMediaMigrationSummary] = useState<{ migrated: number; remainingLegacy: number } | null>(null);
   const migrationStartedRef = useRef(false);
-  const [storageWarning, setStorageWarning] = useState<StorageErrorEvent | null>(null);
+  // Initialisé avec l'éventuelle anomalie de lecture survenue au démarrage du
+  // store (avant que l'abonnement ci-dessous ne puisse exister).
+  const [storageWarning, setStorageWarning] = useState<StorageErrorEvent | null>(() => globalTrialStore.getStorageLoadIssue());
 
   // Remonte à l'opérateur tout échec d'écriture des métadonnées localStorage
   // (résiduel depuis la migration IndexedDB des photos, PR #111) au lieu de le

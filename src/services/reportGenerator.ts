@@ -20,6 +20,7 @@ import {
   VisualObservationsComputedData
 } from '../types/scientific';
 import { generateUUID } from './trialIds';
+import { csvUserText, csvValue } from './csvUtils';
 import {
   getActiveE1E2E3Panels,
   isPersozEligiblePanel,
@@ -613,12 +614,12 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
   const lines: string[] = [];
 
   lines.push(`RAPPORT SCIENTIFIQUE QUV-LAB — NF EN 927-6`);
-  lines.push(`Référence Essai;${trial.metadata.reference}`);
-  lines.push(`Titre;${trial.metadata.title || ''}`);
+  lines.push(`Référence Essai;${csvUserText(trial.metadata.reference, 'auto')}`);
+  lines.push(`Titre;${csvUserText(trial.metadata.title, 'auto')}`);
   lines.push(`Rapport ID;${report.id}`);
-  lines.push(`Version Rapport;${report.metadata.reportVersion}`);
+  lines.push(`Version Rapport;${csvUserText(report.metadata.reportVersion, 'auto')}`);
   lines.push(`Date Génération;${report.metadata.generatedAt}`);
-  lines.push(`Généré Par;${report.metadata.generatedBy}`);
+  lines.push(`Généré Par;${csvUserText(report.metadata.generatedBy, 'auto')}`);
   lines.push(`Moteur Scientifique;QUV-Lab v${report.metadata.calculationVersion}`);
   lines.push(`RuleSet ID;${report.metadata.scientificRuleSetId}`);
   lines.push(`Statut Protocole;${report.protocolStatus}`);
@@ -631,7 +632,7 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
   trial.batches.forEach((b) => {
     const activeP = b.panels.filter((p) => p.status === 'ACTIVE').length;
     lines.push(
-      `"${b.reference}";"${b.coatingSystem || ''}";"${b.woodSpecies || ''}";"${b.productReference || ''}";${displayReportValue(b.coatCount)};${b.panels.length};${activeP}`
+      `${csvUserText(b.reference)};${csvUserText(b.coatingSystem)};${csvUserText(b.woodSpecies)};${csvUserText(b.productReference)};${displayReportValue(b.coatCount)};${b.panels.length};${activeP}`
     );
   });
   lines.push(``);
@@ -714,7 +715,7 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
             const refRule = refTrace?.referenceRule ?? 'N/A';
 
             lines.push(
-              `"${st.name}";${st.scheduledExposureHours};"${p.label}";"${b.reference}";${fam};"${valStr}";"${stdStr}";"${deltaStr}";"${retStr}";${qStatus};"${calcVer}";"${calcAt}";${refStage};${refPanel};${refAcq};${refRule}`
+              `${csvUserText(st.name)};${st.scheduledExposureHours};${csvUserText(p.label)};${csvUserText(b.reference)};${fam};${csvValue(valStr)};${csvValue(stdStr)};${csvValue(deltaStr)};${csvValue(retStr)};${qStatus};${csvValue(calcVer)};${csvValue(calcAt)};${refStage};${refPanel};${refAcq};${refRule}`
             );
           }
         });
@@ -744,14 +745,14 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
       const fmt = (v: number | null | undefined, decimals: number): string =>
         v !== null && v !== undefined ? v.toFixed(decimals) : '';
       lines.push(
-        `"${st.name}";${st.scheduledExposureHours};"${b.reference}";${fmt(agg.color?.meanL, 3)};${fmt(agg.color?.stdDevL, 3)};${fmt(agg.color?.meanA, 3)};${fmt(agg.color?.stdDevA, 3)};${fmt(agg.color?.meanB, 3)};${fmt(agg.color?.stdDevB, 3)};${fmt(agg.meanDeltaE, 2)};${fmt(agg.interPanelStdDev, 2)}`
+        `${csvUserText(st.name)};${st.scheduledExposureHours};${csvUserText(b.reference)};${fmt(agg.color?.meanL, 3)};${fmt(agg.color?.stdDevL, 3)};${fmt(agg.color?.meanA, 3)};${fmt(agg.color?.stdDevA, 3)};${fmt(agg.color?.meanB, 3)};${fmt(agg.color?.stdDevB, 3)};${fmt(agg.meanDeltaE, 2)};${fmt(agg.interPanelStdDev, 2)}`
       );
     });
   });
 
   lines.push(``);
   lines.push(`=== CONCLUSION FACTUELLE ===`);
-  lines.push(`"${report.sections.factualConclusion.replace(/\n/g, ' ')}"`);
+  lines.push(csvValue(report.sections.factualConclusion.replace(/\n/g, ' ')));
 
   // ==========================================================================
   // BLOC ADDITIF — CRITÈRES COMPLÉMENTAIRES NF EN 927-2:2014 & INFIPERF
@@ -772,7 +773,7 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
       `GENERAL_APPEARANCE=${perBatch.evaluation.infiperf.results.GENERAL_APPEARANCE.status}`
     ].join(' | ');
     lines.push(
-      `"${nf.status}";"${classification}";"${perBatch.batchId ?? 'N/A'}";"COMPLEMENTARY";"${infiperfResult}"`
+      `${csvValue(nf.status)};${csvValue(classification)};${csvValue(perBatch.batchId ?? 'N/A')};"COMPLEMENTARY";${csvValue(infiperfResult)}`
     );
   });
 
@@ -785,7 +786,7 @@ export function exportReportToCsv(trial: Trial, report: ScientificReport, ruleSe
 export function exportRawDataToCsv(trial: Trial): string {
   const lines: string[] = [];
   lines.push(`DONNÉES BRUTES ACQUISES (RAW DATA) — QUV-LAB`);
-  lines.push(`Essai;${trial.metadata.reference}`);
+  lines.push(`Essai;${csvUserText(trial.metadata.reference, 'auto')}`);
   lines.push(`Date Export;${new Date().toISOString()}`);
   lines.push(``);
   lines.push(`StageId;StageName;CycleIndex;BatchId;BatchRef;PanelId;PanelLabel;FamilyId;PointIndex / Series;RawValue1;RawValue2;RawValue3;RawValue4;Source;Operateur;DateSaisie`);
@@ -801,11 +802,14 @@ export function exportRawDataToCsv(trial: Trial): string {
             const src = acq.trace?.source ?? '';
             const op = acq.trace?.createdBy ?? '';
             const dt = acq.trace?.createdAt || '';
+            // Colonnes communes StageId…PanelLabel et Source/Operateur/DateSaisie.
+            const head = `${csvValue(st.id)};${csvUserText(st.name)};${st.cycleIndex};${csvValue(b.id)};${csvUserText(b.reference)};${csvValue(p.id)};${csvUserText(p.label)}`;
+            const tail = `${src};${csvUserText(op)};${csvValue(dt)}`;
 
             if (fam === 'COLOR' && Array.isArray(raw.readings)) {
               raw.readings.forEach((r: any) => {
                 lines.push(
-                  `"${st.id}";"${st.name}";${st.cycleIndex};"${b.id}";"${b.reference}";"${p.id}";"${p.label}";COLOR;${r.pointIndex};${r.L ?? ''};${r.a ?? ''};${r.b ?? ''};;${src};"${op}";"${dt}"`
+                  `${head};COLOR;${r.pointIndex};${r.L ?? ''};${r.a ?? ''};${r.b ?? ''};;${tail}`
                 );
               });
             } else if (fam === 'GLOSS' && Array.isArray(raw.series)) {
@@ -813,7 +817,7 @@ export function exportRawDataToCsv(trial: Trial): string {
                 if (Array.isArray(s.readings)) {
                   s.readings.forEach((r: any) => {
                     lines.push(
-                      `"${st.id}";"${st.name}";${st.cycleIndex};"${b.id}";"${b.reference}";"${p.id}";"${p.label}";GLOSS;"S${s.seriesIndex}_P${r.pointIndex}_${getGlossOrientationLabel(s.orientation) || s.orientation}";${r.value ?? ''};;;;${src};"${op}";"${dt}"`
+                      `${head};GLOSS;${csvValue(`S${s.seriesIndex}_P${r.pointIndex}_${getGlossOrientationLabel(s.orientation) || s.orientation}`)};${r.value ?? ''};;;;${tail}`
                     );
                   });
                 }
@@ -821,7 +825,7 @@ export function exportRawDataToCsv(trial: Trial): string {
             } else if (fam === 'PERSOZ' && Array.isArray(raw.readings)) {
               raw.readings.forEach((r: any) => {
                 lines.push(
-                  `"${st.id}";"${st.name}";${st.cycleIndex};"${b.id}";"${b.reference}";"${p.id}";"${p.label}";PERSOZ;${r.pointIndex};${r.dampingTimeSeconds ?? ''};;;;${src};"${op}";"${dt}"`
+                  `${head};PERSOZ;${r.pointIndex};${r.dampingTimeSeconds ?? ''};;;;${tail}`
                 );
               });
             } else if (fam === 'ADHESION' && (Array.isArray(raw.measurements) || raw.adhesionClass !== undefined)) {
@@ -830,18 +834,18 @@ export function exportRawDataToCsv(trial: Trial): string {
               if (Array.isArray(raw.measurements)) {
                 raw.measurements.forEach((m: any) => {
                   lines.push(
-                    `"${st.id}";"${st.name}";${st.cycleIndex};"${b.id}";"${b.reference}";"${p.id}";"${p.label}";ADHESION;"Mesure ${m.measurementIndex ?? ''} Classe ${m.adhesionClass ?? ''}";${raw.coatingThicknessMicrons ?? ''};${raw.gridSpacingMm ?? ''};${raw.elapsedTimeHours ?? ''};"${m.observation || ''}";${src};"${op}";"${dt}"`
+                    `${head};ADHESION;${csvValue(`Mesure ${m.measurementIndex ?? ''} Classe ${m.adhesionClass ?? ''}`)};${raw.coatingThicknessMicrons ?? ''};${raw.gridSpacingMm ?? ''};${raw.elapsedTimeHours ?? ''};${csvUserText(m.observation)};${tail}`
                   );
                 });
               } else {
                 lines.push(
-                  `"${st.id}";"${st.name}";${st.cycleIndex};"${b.id}";"${b.reference}";"${p.id}";"${p.label}";ADHESION;"Classe ${raw.adhesionClass ?? ''}";${raw.coatingThicknessMicrons ?? ''};${raw.gridSpacingMm ?? ''};${raw.elapsedTimeHours ?? ''};"${raw.observation || ''}";${src};"${op}";"${dt}"`
+                  `${head};ADHESION;${csvValue(`Classe ${raw.adhesionClass ?? ''}`)};${raw.coatingThicknessMicrons ?? ''};${raw.gridSpacingMm ?? ''};${raw.elapsedTimeHours ?? ''};${csvUserText(raw.observation)};${tail}`
                 );
               }
             } else if (fam === 'OBSERVATIONS' && Array.isArray(raw.observations)) {
               raw.observations.forEach((obs: any) => {
                 lines.push(
-                  `"${st.id}";"${st.name}";${st.cycleIndex};"${b.id}";"${b.reference}";"${p.id}";"${p.label}";OBSERVATIONS;"${obs.category}";"${obs.rating}";"${obs.status}";"${obs.comment || ''}";;${src};"${op}";"${dt}"`
+                  `${head};OBSERVATIONS;${csvValue(obs.category)};${csvValue(obs.rating)};${csvValue(obs.status)};${csvUserText(obs.comment)};;${tail}`
                 );
               });
             }

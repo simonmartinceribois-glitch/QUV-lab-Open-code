@@ -57,6 +57,7 @@ import { runArchivedComparisonExclusionTests } from './src/scientific/tests/a1_a
 import { runO1O2PhotoMediaTests } from './src/scientific/tests/o1_o2_photo_media.test';
 import { runNfEn9272InfiperfTests } from './src/scientific/tests/nfen9272_infiperf_criteria.test';
 import { runScientificCriteriaEvaluationTests } from './src/scientific/tests/scientificCriteriaEvaluation.integration.test';
+import { runCsvExportEscapingTests } from './src/scientific/tests/csv_export_escaping.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -771,7 +772,7 @@ suite54.results.forEach((r) => {
 });
 
 console.log('================================================================');
-console.log('55. EXÉCUTION NOTIFICATION ERREURS DE PERSISTANCE (R-STORAGE-01 → 08, 8 TESTS)');
+console.log('55. EXÉCUTION NOTIFICATION ERREURS DE PERSISTANCE (R-STORAGE-01 → 14, 14 TESTS)');
 console.log('================================================================');
 const suite55 = runStorageErrorNotificationTests();
 console.log(`Résultats Notification Stockage : ${suite55.summary.passed} / ${suite55.summary.total} réussis.`);
@@ -826,6 +827,19 @@ const suite59 = runScientificCriteriaEvaluationTests();
 console.log(`Résultats Intégration Critères Complémentaires : ${suite59.summary.passed} / ${suite59.summary.total} réussis.`);
 suite59.results.forEach((r) => {
   console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Intégration Critères ${r.category}] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
+console.log('================================================================');
+console.log('60. EXÉCUTION DE L\'ÉCHAPPEMENT DES EXPORTS CSV (R-CSV-01 → 06)');
+console.log('================================================================');
+const suite60 = runCsvExportEscapingTests();
+console.log(`Résultats Échappement CSV : ${suite60.summary.passed} / ${suite60.summary.total} réussis.`);
+suite60.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [CSV] ${r.id} - ${r.name}`);
   if (!r.passed) {
     console.error(`   Attendu: ${r.expected}`);
     console.error(`   Obtenu:  ${r.actual}`);
@@ -891,7 +905,8 @@ const totalFailed =
   suite56.summary.failed +
   suite57.summary.failed +
   suite58.summary.failed +
-  suite59.summary.failed;
+  suite59.summary.failed +
+  suite60.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -951,7 +966,8 @@ const totalCount =
   suite56.summary.total +
   suite57.summary.total +
   suite58.summary.total +
-  suite59.summary.total;
+  suite59.summary.total +
+  suite60.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);

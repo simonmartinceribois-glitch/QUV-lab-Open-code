@@ -50,3 +50,7 @@ Jamais de dev direct sur `main`. Branches : `main / develop / feature/* / fix/* 
 8. ~~Release docs~~ — manifest 195/195 (#5), D-00→D-07, releases v1.2.0/v1.3.0/v1.4.0 taguées.
 
 Nouveaux tickets : ouvrir une section §5 ci-dessous (ne pas réécrire l'historique ci-dessus).
+
+## 5. Tickets ouverts
+
+1. `fix/storage-overwrite-csv-escaping` — **PR ouverte** (HIGH, audit 2026-10-09) : copie de secours avant écrasement du stockage illisible, échappement CSV, `npm audit fix`.

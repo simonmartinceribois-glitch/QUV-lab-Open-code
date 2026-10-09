@@ -14,7 +14,7 @@
  * measurement_plan_round_trip.test.ts, avec un hook `failNextWritesWith`
  * pour simuler un échec de setItem() sur commande.
  */
-import { TrialStoreService } from '../../services/trialStoreService';
+import { TrialStoreService, STORAGE_BACKUP_KEY_PREFIX } from '../../services/trialStoreService';
 import type { StorageErrorEvent } from '../../services/trialStoreService';
 
 export interface StorageErrorTestResult {
@@ -33,14 +33,23 @@ interface FakeLocalStorage {
   key(index: number): string | null;
   length: number;
   failNextWritesWith: (err: unknown) => void;
+  failReadsWith: (err: unknown) => void;
+  keys: () => string[];
+  writeCount: () => number;
 }
 
 function createFakeLocalStorage(): FakeLocalStorage {
   const store = new Map<string, string>();
   let failWith: unknown = null;
+  let readFailure: unknown = null;
+  let writes = 0;
   return {
-    getItem: (key) => (store.has(key) ? (store.get(key) as string) : null),
+    getItem: (key) => {
+      if (readFailure !== null) throw readFailure;
+      return store.has(key) ? (store.get(key) as string) : null;
+    },
     setItem: (key, value) => {
+      writes++;
       if (failWith !== null) {
         const err = failWith;
         failWith = null;
@@ -58,7 +67,12 @@ function createFakeLocalStorage(): FakeLocalStorage {
     },
     failNextWritesWith: (err: unknown) => {
       failWith = err;
-    }
+    },
+    failReadsWith: (err: unknown) => {
+      readFailure = err;
+    },
+    keys: () => Array.from(store.keys()),
+    writeCount: () => writes
   };
 }
 
@@ -280,6 +294,141 @@ export function runStorageErrorNotificationTests(): {
       captured.length === 0,
       '0 événement reçu après désabonnement',
       `${captured.length} événement(s) reçu(s)`
+    );
+  });
+
+  // ==========================================================================
+  // R-STORAGE-09 → 14 : lecture anormale au démarrage — le contenu d'origine
+  // ne doit JAMAIS être perdu (avant ce correctif, la première écriture
+  // remplaçait un stockage illisible par les essais de démonstration).
+  // ==========================================================================
+  const STORAGE_KEY = 'quv_lab_trials_v2_2';
+  const backupKeysOf = (fake: FakeLocalStorage) => fake.keys().filter((k) => k.startsWith(STORAGE_BACKUP_KEY_PREFIX));
+
+  // R-STORAGE-09 : JSON corrompu → copie de secours intégrale AVANT la
+  // première écriture (scénario reproduit : simple consultation des résultats).
+  withFakeLocalStorage((fakeStorage) => {
+    const corrupt = '[{"id":"REAL-1","truncated": tru';
+    fakeStorage.setItem(STORAGE_KEY, corrupt);
+    const writesBeforeLoad = fakeStorage.writeCount();
+    const store = new TrialStoreService();
+    const loadWrites = fakeStorage.writeCount() - writesBeforeLoad;
+    const signaledAtLoad = store.getStorageLoadIssue()?.type === 'STORAGE_LOAD_RECOVERED';
+    store.logViewResults(store.getAllTrials()[0].id, 'OP');
+    const issue = store.getStorageLoadIssue();
+    const backups = backupKeysOf(fakeStorage);
+    const backupIntact = backups.length === 1 && fakeStorage.getItem(backups[0]) === corrupt;
+    record(
+      'R-STORAGE-09',
+      'JSON corrompu → signalé au chargement (0 écriture), contenu brut sauvegardé intégralement avant la première écriture',
+      loadWrites === 0 && signaledAtLoad && issue?.type === 'STORAGE_LOAD_RECOVERED' && issue.backupKey === backups[0] && backupIntact,
+      '0 écriture au chargement, STORAGE_LOAD_RECOVERED, 1 copie identique au contenu corrompu',
+      `écrituresChargement=${loadWrites}, signalé=${signaledAtLoad}, type=${issue?.type ?? 'aucun'}, copies=${backups.length}, identique=${backupIntact}`
+    );
+  });
+
+  // R-STORAGE-10 : JSON corrompu ET copie de secours impossible → écritures
+  // bloquées : la clé d'origine reste strictement inchangée.
+  withFakeLocalStorage((fakeStorage) => {
+    const corrupt = '{not json';
+    fakeStorage.setItem(STORAGE_KEY, corrupt);
+    fakeStorage.failNextWritesWith(new DOMException('quota exceeded', 'QuotaExceededError'));
+    const store = new TrialStoreService();
+    const captured: StorageErrorEvent[] = [];
+    store.onStorageError((event) => captured.push(event));
+    store.saveTrial(store.getAllTrials()[0]);
+    store.logViewResults(store.getAllTrials()[0].id, 'OP');
+    const intact = fakeStorage.getItem(STORAGE_KEY) === corrupt;
+    const ok =
+      store.getStorageLoadIssue()?.type === 'STORAGE_WRITE_BLOCKED' &&
+      intact &&
+      captured.length === 2 &&
+      captured.every((e) => e.type === 'STORAGE_WRITE_BLOCKED') &&
+      store.isPersistenceHealthy() === false;
+    record(
+      'R-STORAGE-10',
+      'Copie de secours impossible → écritures bloquées, stockage d’origine inchangé, opérateur notifié à chaque tentative',
+      ok,
+      'WRITE_BLOCKED, original intact, 2 notifications, persistance non saine',
+      `type=${store.getStorageLoadIssue()?.type ?? 'aucun'}, intact=${intact}, notifications=${captured.length}, healthy=${store.isPersistenceHealthy()}`
+    );
+  });
+
+  // R-STORAGE-11 : JSON valide mais pas un tableau → même protection.
+  withFakeLocalStorage((fakeStorage) => {
+    const raw = '{"trials":[{"id":"REAL-1"}]}';
+    fakeStorage.setItem(STORAGE_KEY, raw);
+    const store = new TrialStoreService();
+    store.saveTrial(store.getAllTrials()[0]);
+    const backups = backupKeysOf(fakeStorage);
+    const ok =
+      store.getStorageLoadIssue()?.type === 'STORAGE_LOAD_RECOVERED' &&
+      backups.length === 1 &&
+      fakeStorage.getItem(backups[0]) === raw;
+    record(
+      'R-STORAGE-11',
+      'Format inattendu (objet au lieu d’un tableau) → contenu brut sauvegardé avant écriture',
+      ok,
+      'STORAGE_LOAD_RECOVERED, 1 copie identique',
+      `type=${store.getStorageLoadIssue()?.type ?? 'aucun'}, copies=${backups.length}`
+    );
+  });
+
+  // R-STORAGE-12 : tableau avec un essai illisible → les essais valides sont
+  // chargés ET le contenu brut complet (essai illisible inclus) est conservé.
+  withFakeLocalStorage((fakeStorage) => {
+    new TrialStoreService(); // premier lancement : démo persistée
+    const validTrials = JSON.parse(fakeStorage.getItem(STORAGE_KEY) as string) as Array<{ id: string }>;
+    const raw = JSON.stringify([...validTrials, { id: 'BROKEN-1', stages: 'not-an-array' }]);
+    fakeStorage.setItem(STORAGE_KEY, raw);
+    const store = new TrialStoreService();
+    store.saveTrial(store.getAllTrials()[0]);
+    const backups = backupKeysOf(fakeStorage);
+    const allValidLoaded = validTrials.every((t) => !!store.getTrial(t.id));
+    const ok =
+      allValidLoaded &&
+      !store.getTrial('BROKEN-1') &&
+      store.getStorageLoadIssue()?.type === 'STORAGE_LOAD_RECOVERED' &&
+      backups.length === 1 &&
+      fakeStorage.getItem(backups[0]) === raw;
+    record(
+      'R-STORAGE-12',
+      'Essai illisible ignoré → essais valides chargés, contenu brut complet sauvegardé avant écriture',
+      ok,
+      'valides chargés, BROKEN-1 ignoré, 1 copie identique',
+      `validesChargés=${allValidLoaded}, type=${store.getStorageLoadIssue()?.type ?? 'aucun'}, copies=${backups.length}`
+    );
+  });
+
+  // R-STORAGE-13 : lecture impossible (getItem lève) → aucune écriture tentée.
+  withFakeLocalStorage((fakeStorage) => {
+    fakeStorage.failReadsWith(new DOMException('access denied', 'SecurityError'));
+    const store = new TrialStoreService();
+    const writesBefore = fakeStorage.writeCount();
+    store.saveTrial(store.getAllTrials()[0]);
+    const ok =
+      store.getStorageLoadIssue()?.type === 'STORAGE_WRITE_BLOCKED' && fakeStorage.writeCount() === writesBefore;
+    record(
+      'R-STORAGE-13',
+      'Lecture du stockage impossible → écritures bloquées (aucun setItem tenté)',
+      ok,
+      'WRITE_BLOCKED, 0 écriture',
+      `type=${store.getStorageLoadIssue()?.type ?? 'aucun'}, écritures=${fakeStorage.writeCount() - writesBefore}`
+    );
+  });
+
+  // R-STORAGE-14 : stockage sain → aucune anomalie, aucune copie de secours.
+  withFakeLocalStorage((fakeStorage) => {
+    new TrialStoreService();
+    const store = new TrialStoreService();
+    store.saveTrial(store.getAllTrials()[0]);
+    const ok = store.getStorageLoadIssue() === null && backupKeysOf(fakeStorage).length === 0;
+    record(
+      'R-STORAGE-14',
+      'Stockage sain → aucune anomalie signalée, aucune copie de secours créée',
+      ok,
+      'issue=null, 0 copie',
+      `issue=${store.getStorageLoadIssue()?.type ?? 'null'}, copies=${backupKeysOf(fakeStorage).length}`
     );
   });
 
