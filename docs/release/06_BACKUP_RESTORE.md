@@ -36,7 +36,8 @@ Onglet **08 Résultats & Fiches → 8. Rapport Scientifique & Exports**, encadr�
 Tableau de bord → **« Importer un essai »** → choisir la sauvegarde et saisir l'opérateur.
 - L'essai est restauré à l'identique (données RAW, calculs, rapports, journal d'audit), import tracé (`IMPORT_TRIAL`).
 - Sauvegarde complète : les photographies sont restaurées ; une photo déjà présente n'est jamais remplacée.
-- Un essai déjà présent n'est jamais écrasé (import refusé).
+- Un essai déjà présent n'est jamais écrasé : l'import est refusé, avec la possibilité de l'**importer comme copie**
+  (nouvel identifiant, référence suffixée `-COPIE`).
 
 ## 5. Copies de secours automatiques (v1.6.0)
 Si le stockage local est illisible au démarrage, son contenu brut est copié tel quel sous la clé

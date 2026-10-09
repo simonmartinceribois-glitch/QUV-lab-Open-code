@@ -863,7 +863,7 @@ suite61.results.forEach((r) => {
 });
 
 console.log('================================================================');
-console.log("62. EXÉCUTION DE L'IMPORT D'ESSAI (R-IMPORT-01 → 08)");
+console.log("62. EXÉCUTION DE L'IMPORT D'ESSAI (R-IMPORT-01 → 11)");
 console.log('================================================================');
 const suite62 = runTrialImportTests();
 console.log(`Résultats Import : ${suite62.summary.passed} / ${suite62.summary.total} réussis.`);

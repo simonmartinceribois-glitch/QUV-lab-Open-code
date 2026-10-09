@@ -1737,6 +1737,32 @@ export class TrialStoreService {
   }
 
   /**
+   * Réidentifie une copie d'essai : nouvel id, champs `trialId` / `entityId`
+   * désignant l'ancien essai réécrits à toute profondeur, référence unique
+   * suffixée « -COPIE » (« -COPIE-2 », … si nécessaire).
+   */
+  private reidentifyTrialCopy(trial: Trial, newId: UUID): Trial {
+    const oldId = trial.id;
+    const rewrite = (node: unknown): unknown => {
+      if (Array.isArray(node)) return node.map(rewrite);
+      if (!isPlainRecord(node)) return node;
+      const out: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(node)) {
+        out[key] = (key === 'trialId' || key === 'entityId') && value === oldId ? newId : rewrite(value);
+      }
+      return out;
+    };
+    const copy = rewrite(trial) as Trial;
+    copy.id = newId;
+    const references = new Set(Array.from(this.trials.values()).map((t) => t.metadata?.reference));
+    const base = `${trial.metadata.reference}-COPIE`;
+    let reference = base;
+    for (let n = 2; references.has(reference); n++) reference = `${base}-${n}`;
+    copy.metadata = { ...copy.metadata, reference };
+    return copy;
+  }
+
+  /**
    * Importe un essai depuis le dossier scientifique JSON exporté
    * (`{ trial, ruleSet, activeReport, criteriaEvaluation }`) ou depuis un
    * objet Trial brut. Contrat FAIL-CLOSED : toute anomalie lève une
@@ -1748,8 +1774,19 @@ export class TrialStoreService {
    *     références sont conservées et s'affichent « introuvables » si le
    *     média n'existe pas sur ce poste.
    * L'import est tracé dans l'audit trail de l'essai (IMPORT_TRIAL).
+   *
+   * `asCopy` : l'essai reçoit un NOUVEL identifiant (tous les champs
+   * `trialId` / `entityId` qui désignaient l'essai d'origine sont réécrits)
+   * et une référence suffixée « -COPIE » ; l'essai d'origine n'est jamais
+   * touché. Les identifiants internes (lots, éprouvettes, jalons,
+   * acquisitions, médias) sont conservés : ils sont propres à chaque essai.
    */
-  public importTrialFromExport(payload: unknown, operatorId: string, sourceName?: string): Trial {
+  public importTrialFromExport(
+    payload: unknown,
+    operatorId: string,
+    sourceName?: string,
+    options?: { asCopy?: boolean }
+  ): Trial {
     const operator = typeof operatorId === 'string' ? operatorId.trim() : '';
     if (!operator) {
       throw new IntegrityViolationError("L'opérateur est obligatoire pour importer un essai.");
@@ -1771,10 +1808,11 @@ export class TrialStoreService {
     if (candidate.id.startsWith('MOCK_TEST_')) {
       throw new IntegrityViolationError("Les essais de test (MOCK_TEST_) ne peuvent pas être importés.", { trialId: candidate.id });
     }
-    if (this.trials.has(candidate.id)) {
+    const asCopy = !!options?.asCopy;
+    if (!asCopy && this.trials.has(candidate.id)) {
       throw new IntegrityViolationError(
         `Un essai portant le même identifiant existe déjà (${metadata['reference']}) : import refusé, aucun essai existant n'est écrasé.`,
-        { trialId: candidate.id }
+        { trialId: candidate.id, reason: 'DUPLICATE_TRIAL_ID' }
       );
     }
     if (validateScientificContext(candidate.scientificContext) === 'INVALID') {
@@ -1785,7 +1823,15 @@ export class TrialStoreService {
     }
 
     // Copie profonde : le store ne partage jamais de référence avec l'objet fourni.
-    const copy = JSON.parse(JSON.stringify(candidate)) as Trial;
+    let copy = JSON.parse(JSON.stringify(candidate)) as Trial;
+    const originalId = candidate.id;
+    if (asCopy) {
+      copy = this.reidentifyTrialCopy(copy, generateUUID());
+      // Garde-fou : la réécriture doit laisser un essai structurellement valide.
+      if (!isStructurallyValidTrial(copy)) {
+        throw new IntegrityViolationError("Copie de l'essai impossible : structure invalide après réidentification.", { trialId: originalId });
+      }
+    }
     let imported: Trial;
     try {
       imported = this.migrateTrialTerminology(copy);
@@ -1806,6 +1852,7 @@ export class TrialStoreService {
       entityId: imported.id,
       details: {
         source: sourceName || 'import JSON',
+        ...(asCopy ? { importedAsCopyOf: originalId } : {}),
         mediaReferenceCount: Array.isArray(imported.mediaReferences) ? imported.mediaReferences.length : 0
       }
     });
