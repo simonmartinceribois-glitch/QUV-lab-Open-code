@@ -483,7 +483,7 @@ export function ResultsReportAndReviewView({ trial, ruleSet, onTrialUpdated }: P
             <div className="flex flex-col sm:flex-row gap-2 pt-2">
               <select
                 value={reviewCategory}
-                onChange={(e) => setReviewCategory(e.target.value as any)}
+                onChange={(e) => setReviewCategory(e.target.value as ScientificReportReviewComment['category'])}
                 className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 shrink-0"
               >
                 <option value="GENERAL">Général</option>

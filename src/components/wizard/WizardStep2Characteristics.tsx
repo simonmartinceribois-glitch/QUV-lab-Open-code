@@ -5,7 +5,7 @@
  */
 
 import { Sliders } from 'lucide-react';
-import type { DimUnitSetter, NumberSetter, TextSetter } from './wizardTypes';
+import type { DimUnit, DimUnitSetter, NumberSetter, TextSetter } from './wizardTypes';
 
 interface Props {
   lengthMm: number;
@@ -84,7 +84,7 @@ export function WizardStep2Characteristics({
             <label className="block text-xs text-slate-600 mb-1 font-medium">Unité</label>
             <select
               value={dimUnit}
-              onChange={(e) => onDimUnitChange(e.target.value as any)}
+              onChange={(e) => onDimUnitChange(e.target.value as DimUnit)}
               className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg bg-white"
             >
               <option value="mm">Millimètres (mm)</option>
