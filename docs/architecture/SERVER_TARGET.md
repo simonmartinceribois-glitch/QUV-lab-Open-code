@@ -52,16 +52,16 @@ aussi la **liste des futurs points d'API**.
 
 | # | Dette | Où | Action prévue |
 |---|---|---|---|
-| A1 | Ajout de lot écrit directement par l'interface (mutation + journal + `saveTrial`) | `Tab02LotsPanels.tsx` (`CREATE_BATCH`) | Méthode `createBatch` du store — *autorisé temporairement dans R-ARCH-02* |
+| ~~A1~~ | ~~Ajout de lot écrit directement par l'interface~~ | — | **Résorbée** : `TrialStoreService.createBatch` (R-ARCH-05) ; liste de dette de R-ARCH-02 vide |
 | A2 | Store synchrone, `localStorage` intégré | `trialStoreService.ts` | Extraire un port de persistance (`TrialRepository`) puis passer les méthodes en asynchrone (une PR dédiée, HIGH) |
-| A3 | Horodatages produits dans l'onglet 06 (`measurementDateTime`, `assessedAt`) | `Tab06MeasurementsBench.tsx` | Déplacer dans `recordAcquisition` |
+| ~~A3~~ | ~~Horodatages produits dans l'onglet 06~~ | — | **Résorbée** : `stampAcquisitionRaw` dans `recordAcquisition` pose `measurementDateTime` / `assessedAt` / `assessedBy` s'ils manquent, sans écraser une valeur fournie (R-ARCH-06 / 07) |
 | A4 | Essais de démonstration semés au premier lancement | `trialSeed.ts` | Désactiver en production serveur |
 | A5 | Essai stocké comme un seul document JSON | modèle | Côté serveur : essai + table de journal séparée append-only + numéro de version |
 | A6 | Valeurs calculées produites par le client | moteur scientifique | Le serveur recalcule à la réception (même code) |
 
 ## 5. Étapes de migration envisagées (non planifiées)
 
-1. Résorber A1 et A3 (petites PR, comportement inchangé).
+1. ~~Résorber A1 et A3~~ — fait (PR `refactor/server-debt-a1-a3`).
 2. Port de persistance `TrialRepository` + store asynchrone, implémentation `localStorage` conservée (A2).
 3. Serveur : API reprenant `ACTION_CATALOG`, base de données, stockage des photos, journal serveur,
    recalcul scientifique (A5, A6).

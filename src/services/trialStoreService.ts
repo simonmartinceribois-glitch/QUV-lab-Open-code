@@ -165,6 +165,29 @@ type StorageErrorListener = (event: StorageErrorEvent) => void;
 /** Préfixe des copies de secours du contenu brut illisible (jamais relues automatiquement). */
 export const STORAGE_BACKUP_KEY_PREFIX = `${STORAGE_KEY}__backup_`;
 /**
+ * Complète les horodatages système d'un RAW sans jamais écraser une valeur
+ * fournie : ADHESION → `measurementDateTime` ; OBSERVATIONS → `assessedAt`
+ * (et `assessedBy` = opérateur). Retourne une copie ; les autres familles et
+ * les RAW déjà complets sont renvoyés tels quels.
+ */
+export function stampAcquisitionRaw(familyId: MeasurementFamilyId, raw: unknown, nowIso: string, operatorId: string): unknown {
+  if (!isPlainRecord(raw)) return raw;
+  const record = raw as Record<string, unknown>;
+  const missing = (key: string) => typeof record[key] !== 'string' || (record[key] as string).trim() === '';
+  if (familyId === 'ADHESION' && missing('measurementDateTime')) {
+    return { ...record, measurementDateTime: nowIso };
+  }
+  if (familyId === 'OBSERVATIONS' && (missing('assessedAt') || missing('assessedBy'))) {
+    return {
+      ...record,
+      ...(missing('assessedAt') ? { assessedAt: nowIso } : {}),
+      ...(missing('assessedBy') && operatorId ? { assessedBy: operatorId } : {})
+    };
+  }
+  return raw;
+}
+
+/**
  * Service TrialStore complet
  */
 export class TrialStoreService {
@@ -613,6 +636,91 @@ export class TrialStoreService {
     return changes;
   }
 
+  /**
+   * Ajoute un lot (T + E1/E2/E3) à un essai non verrouillé et le journalise
+   * (CREATE_BATCH). Remplace l'écriture directe faite par l'onglet 02
+   * (SERVER_TARGET A1) — même modèle de lot et mêmes valeurs par défaut.
+   */
+  public createBatch(
+    trialId: UUID,
+    input: {
+      reference: string;
+      woodSpecies?: string;
+      productReference?: string;
+      manufacturerOrSupplier?: string;
+      coatingSystem?: string;
+      coatCount?: number;
+      substratePreparation?: string;
+      applicationMethod?: string;
+      applicationConditions?: string;
+      applicationDate?: string;
+      dryingOrConditioningTime?: string;
+      dryFilmThicknessMicrons?: number;
+      batchNotes?: string;
+    },
+    operatorId: string
+  ): BatchDefinition {
+    const trial = this.getTrial(trialId);
+    if (!trial) throw new Error('Essai introuvable');
+    if (trial.configurationStatus === 'LOCKED') {
+      throw new IntegrityViolationError("Ajout de lot impossible : la configuration de l'essai est verrouillée.", { trialId });
+    }
+    const reference = (input.reference ?? '').trim();
+    if (!reference) throw new IntegrityViolationError('La référence du lot est obligatoire.', { trialId });
+
+    const opt = (v?: string) => (v && v.trim() ? v.trim() : undefined);
+    const batchId = generateUUID();
+    const panel = (index: number, label: string, role: PanelDefinition['role'], roleCode: PanelDefinition['roleCode'], grain: PanelDefinition['grainOrientation'], exposed: boolean): PanelDefinition => ({
+      id: generateUUID(),
+      batchId,
+      index,
+      label,
+      role,
+      roleCode,
+      grainOrientation: grain,
+      ...(exposed ? { exposureFace: 'Face externe' as const } : {}),
+      status: 'ACTIVE'
+    });
+    const batch: BatchDefinition = {
+      id: batchId,
+      trialId,
+      reference,
+      orderIndex: trial.batches.length + 1,
+      woodSpecies: opt(input.woodSpecies),
+      productReference: opt(input.productReference),
+      manufacturerOrSupplier: opt(input.manufacturerOrSupplier),
+      coatingSystem: opt(input.coatingSystem),
+      coatCount: input.coatCount,
+      substratePreparation: opt(input.substratePreparation),
+      applicationMethod: opt(input.applicationMethod),
+      applicationConditions: opt(input.applicationConditions),
+      applicationDate: input.applicationDate,
+      dryingOrConditioningTime: opt(input.dryingOrConditioningTime),
+      dryFilmThicknessMicrons: input.dryFilmThicknessMicrons ? Number(input.dryFilmThicknessMicrons) : undefined,
+      dryFilmThicknessUnit: 'µm',
+      batchNotes: opt(input.batchNotes),
+      panels: [
+        panel(1, 'T', 'WITNESS', 'T', 'Quartier', false),
+        panel(2, '1', 'EXPOSED_1', 'E1', 'Quartier', true),
+        panel(3, '2', 'EXPOSED_2', 'E2', 'Quartier', true),
+        panel(4, '3', 'EXPOSED_3', 'E3', 'Faux quartier', true)
+      ]
+    };
+    trial.batches.push(batch);
+    trial.auditTrail.push({
+      id: generateUUID(),
+      trialId,
+      timestamp: new Date().toISOString(),
+      operatorId: operatorId || 'OPERATOR',
+      action: 'CREATE_BATCH',
+      entityType: 'BATCH',
+      entityId: batchId,
+      details: { reference, panelCount: 4 }
+    });
+    this.saveTrial(trial);
+    return batch;
+  }
+
   public saveTrial(trial: Trial): void {
     trial.updatedAt = new Date().toISOString();
     if (!trial.auditTrail) trial.auditTrail = [];
@@ -967,6 +1075,9 @@ export class TrialStoreService {
     // jamais d'acquisition EMPTY silencieuse).
     validateAcquisitionFamily(params.familyId);
     validateAcquisitionRaw(params.raw);
+    // SERVER_TARGET A3 : horodatages système posés par le store (demain : le serveur),
+    // jamais par l'interface ; une valeur déjà fournie (import instrument) est conservée.
+    const raw = stampAcquisitionRaw(params.familyId, params.raw, new Date().toISOString(), params.operatorId);
 
     const trial = this.getTrial(params.trialId);
     if (!trial) throw new Error(`Essai ${params.trialId} introuvable`);
@@ -1045,7 +1156,7 @@ export class TrialStoreService {
       batchId: params.batchId,
       panelId: params.panelId,
       familyId: params.familyId,
-      raw: params.raw,
+      raw,
       computed: null,
       status: 'COMPLETE',
       alerts: [],

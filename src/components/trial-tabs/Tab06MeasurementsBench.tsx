@@ -329,9 +329,8 @@ export function Tab06MeasurementsBench({
             adhesionClass: firstEntry.cls,
             gridSpacingMm: spacingInfo.gridSpacingMm,
             coatingThicknessMicrons: currentBatch.dryFilmThicknessMicrons,
-            measurementDateTime: new Date().toISOString(),
             applicationDateTime: currentBatch.applicationDate,
-                        normReference: 'NF EN ISO 2409:2020',
+            normReference: 'NF EN ISO 2409:2020',
             ...(firstEntry.obs.trim() ? { observation: firstEntry.obs.trim() } : {})
           } as AdhesionRawData
         : {
@@ -342,16 +341,12 @@ export function Tab06MeasurementsBench({
             })),
             gridSpacingMm: spacingInfo.gridSpacingMm,
             coatingThicknessMicrons: currentBatch.dryFilmThicknessMicrons,
-            measurementDateTime: new Date().toISOString(),
             applicationDateTime: currentBatch.applicationDate,
             normReference: 'NF EN ISO 2409:2020'
           } as AdhesionRawData;
     } else if (selectedFamilyId === 'OBSERVATIONS') {
-      rawPayload = {
-        observations,
-        assessedBy: operatorId,
-        assessedAt: new Date().toISOString()
-      } as VisualObservationsRawData;
+      // assessedBy / assessedAt posés par recordAcquisition (SERVER_TARGET A3).
+      rawPayload = { observations } as VisualObservationsRawData;
     }
 
     globalTrialStore.recordAcquisition({
