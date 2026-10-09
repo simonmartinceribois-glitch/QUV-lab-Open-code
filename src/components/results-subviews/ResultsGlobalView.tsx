@@ -4,7 +4,7 @@
 
 import React, { useState } from 'react';
 import { Trial, ExposureStage } from '../../types/trial';
-import { ScientificRuleSet } from '../../types/scientific';
+import { ScientificRuleSet, MeasurementFamilyId } from '../../types/scientific';
 import { getActiveFamiliesForStage, isFamilyScheduledForStage, getActiveStages, cycleTag } from '../../scientific/panelUtils';
 import {
   Layers,
@@ -33,7 +33,7 @@ export function ResultsGlobalView({
   onSelectStageForDetail,
   onSelectPanelForDetail
 }: Props) {
-  const [filterFamily, setFilterFamily] = useState<string>('ALL');
+  const [filterFamily, setFilterFamily] = useState<MeasurementFamilyId | 'ALL'>('ALL');
 
   const totalBatches = trial.batches.length;
   const allPanels = trial.batches.flatMap((b) => b.panels);
@@ -304,7 +304,7 @@ export function ResultsGlobalView({
             <span className="text-xs text-slate-500">Filtrer par famille :</span>
             <select
               value={filterFamily}
-              onChange={(e) => setFilterFamily(e.target.value)}
+              onChange={(e) => setFilterFamily(e.target.value as MeasurementFamilyId | 'ALL')}
               className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 font-medium text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
             >
               <option value="ALL">Toutes les familles</option>
@@ -358,8 +358,8 @@ export function ResultsGlobalView({
                       {planStages.map((stage) => {
                         const baseFamilies = filterFamily === 'ALL'
                           ? trial.config.activeFamilies
-                          : trial.config.activeFamilies.includes(filterFamily as any)
-                          ? [filterFamily as any]
+                          : trial.config.activeFamilies.includes(filterFamily)
+                          ? [filterFamily]
                           : [];
                         const familiesToCheck = stage.status === 'INACTIVE'
                           ? []
