@@ -477,8 +477,9 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
                       Épaisseur sèche du film (µm) :
                     </span>
                     {isBatchThicknessLocked(trial, batch.id) ? (
-                      <span className="font-mono font-bold text-slate-500" title="Verrouillée : une adhérence a déjà été mesurée pour ce lot">
+                      <span className="font-mono font-bold text-slate-500" title="Figée définitivement : une mesure d'adhérence est enregistrée pour ce lot (prérequis du peigne ISO 2409)">
                         {batch.dryFilmThicknessMicrons ? `${batch.dryFilmThicknessMicrons} µm 🔒` : 'Non renseignée 🔒'}
+                        <span className="ml-1.5 font-sans font-medium text-[10px] text-slate-500">figée (adhérence enregistrée)</span>
                       </span>
                     ) : (
                       <div className="flex items-center gap-1.5">
@@ -593,7 +594,7 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
                                 value={currentOrientation}
                                 onChange={(e) => setFormValue('grain', panel.id, e.target.value)}
                                 disabled={!editing || isExcluded}
-                                className="w-full px-2 py-1 bg-white border border-slate-200 rounded-md text-xs font-medium text-slate-800 focus:ring-1 focus:ring-blue-500"
+                                className={`w-full px-2 py-1 border border-slate-200 rounded-md text-xs font-medium text-slate-800 focus:ring-1 focus:ring-blue-500 ${editing && !isExcluded ? 'bg-white' : 'appearance-none bg-slate-50 cursor-default'}`}
                               >
                                 <option value="Quartier">Quartier</option>
                                 <option value="Faux quartier">Faux quartier</option>
@@ -615,7 +616,7 @@ export function Tab02LotsPanels({ trial, onTrialUpdated }: Props) {
                                   value={currentFace}
                                   onChange={(e) => setFormValue('face', panel.id, e.target.value)}
                                   disabled={!editing || isExcluded}
-                                  className="w-full px-2 py-1 bg-white border border-slate-200 rounded-md text-xs font-medium text-slate-800 focus:ring-1 focus:ring-blue-500"
+                                  className={`w-full px-2 py-1 border border-slate-200 rounded-md text-xs font-medium text-slate-800 focus:ring-1 focus:ring-blue-500 ${editing && !isExcluded ? 'bg-white' : 'appearance-none bg-slate-50 cursor-default'}`}
                                 >
                                   <option value="Face externe">Face externe (côté écorce)</option>
                                   <option value="Face interne">Face interne (côté coeur)</option>
