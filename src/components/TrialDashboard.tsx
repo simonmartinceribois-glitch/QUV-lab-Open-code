@@ -9,6 +9,7 @@ import { TrialStatus } from '../types/scientific';
 import {
   FlaskConical,
   Plus,
+  Upload,
   Search,
   Filter,
   ChevronRight,
@@ -21,9 +22,10 @@ interface Props {
   trials: Trial[];
   onSelectTrial: (trialId: string) => void;
   onOpenCreateWizard: () => void;
+  onOpenImport: () => void;
 }
 
-export function TrialDashboard({ trials, onSelectTrial, onOpenCreateWizard }: Props) {
+export function TrialDashboard({ trials, onSelectTrial, onOpenCreateWizard, onOpenImport }: Props) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | TrialStatus | 'VALIDATED'>('ALL');
 
@@ -60,6 +62,15 @@ export function TrialDashboard({ trials, onSelectTrial, onOpenCreateWizard }: Pr
           </p>
         </div>
 
+        <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onOpenImport}
+          className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all"
+        >
+          <Upload className="w-4 h-4" />
+          Importer un essai
+        </button>
         <button
           type="button"
           onClick={onOpenCreateWizard}
@@ -68,6 +79,7 @@ export function TrialDashboard({ trials, onSelectTrial, onOpenCreateWizard }: Pr
           <Plus className="w-4 h-4" />
           Nouvel Essai QUV
         </button>
+        </div>
       </div>
 
       {/* 2. INDICATEURS CLÉS */}
