@@ -136,3 +136,9 @@ GitHub source de vérité + `main` (releases taguées) / `develop` (intégration
 `docs/` versionnées + workflow multi-agents (`docs/agents/`) : **en place et éprouvé (PR #2→#23)**.
 Restes connus : formulaires Tab06 extraits (save au parent — retypage `computed as any` ouvert),
 lazy d'onglets, vérifs visuelles humaines par ticket UI.
+
+## 10. Cible serveur (D-13)
+
+L'application sera hébergée sur un serveur avec connexion par compte. Rien n'est encore codé côté
+serveur ; la cible, les règles à respecter dans chaque PR et la dette à résorber sont décrites dans
+[`SERVER_TARGET.md`](SERVER_TARGET.md) et vérifiées par la suite R-ARCH.

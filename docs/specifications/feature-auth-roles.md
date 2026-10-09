@@ -4,6 +4,8 @@
 > identification par **adresse e-mail + mot de passe**, **une personne = un compte = un rôle** (D-12).
 > Préparer le processus et les fichiers **sans coder l'ensemble des fonctionnalités**.
 > Statut : **phase 0 livrée (fondation inactive)** — aucun changement de comportement.
+> **D-13 : l'application sera sur serveur** — la phase 1 « profils locaux » est abandonnée ; les droits
+> seront contrôlés par le serveur. Cible d'architecture : `../architecture/SERVER_TARGET.md`.
 
 ## 1. Rôles
 
@@ -78,7 +80,8 @@ réservées au Responsable.
 
 **Phase 0 — Fondation (livrée).** Modèle, matrice, garde-fous, aucun effet sur l'application.
 
-**Phase 1 — Profils locaux et application des droits** (application toujours 100 % locale) :
+**~~Phase 1 — Profils locaux~~ (abandonnée par D-13)** — conservée pour mémoire ; les éléments utiles
+(masquage des boutons, opérateur issu de la session, dette CREATE_BATCH) sont repris dans la phase 2 :
 - Écran de sélection de profil au démarrage ; gestion des profils (création, désactivation) réservée au
   Responsable ; profils stockés localement ; premier lancement → création du premier Responsable.
 - Boutons masqués ou désactivés via `isAllowed(action)` ; onglets filtrés via `isTabVisible(tab)`.
@@ -89,7 +92,8 @@ réservées au Responsable.
 - Dette à solder avant : déplacer l'ajout de lot (`CREATE_BATCH`, écrit directement dans l'onglet 02)
   dans une méthode du store ; rendre `saveTrial` non publique pour l'interface.
 
-**Phase 2 — Authentification réelle** : nécessite un **serveur** (ou annuaire de l'entreprise).
+**Phase 2 — Application sur serveur avec authentification (cible retenue, D-13)** :
+voir `SERVER_TARGET.md` §5. Rappel du raisonnement :
 Dans une application 100 % navigateur, un mot de passe ou un rôle stocké localement **n'est pas une
 barrière de sécurité** : toute personne ayant accès au poste peut modifier le stockage du navigateur.
 La phase 1 apporte la **traçabilité nominative et la prévention des erreurs**, pas une protection

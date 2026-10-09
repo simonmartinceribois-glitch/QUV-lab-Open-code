@@ -65,7 +65,8 @@ Nouveaux tickets : ouvrir une section §5 ci-dessous (ne pas réécrire l'histor
 10. ~~`feature/tab01-locked-edit-journal`~~ — **mergé** (PR #151).
 11. ~~`feature/tab02-locked-edit-journal`~~ — **mergé** (PR #152, #153).
 12. ~~`feature/auth-roles-foundation`~~ — **mergé** (PR #154).
-13. `feature/auth-roles-decisions` — **PR ouverte** (LOW) : D-12 (validation d'étape STANDARD, compte e-mail + mot de passe).
+13. ~~`feature/auth-roles-decisions`~~ — **mergé** (PR #155).
+14. `docs/server-target-architecture` — **PR ouverte** (LOW) : cible serveur D-13, garde-fous R-ARCH.
 
 ## 6. Règle permanente — actions et droits (D-11)
 
@@ -73,3 +74,11 @@ Toute nouvelle action qui modifie un essai est déclarée dans `src/services/per
 (`ACTION_CATALOG` : criticité READ / LOW / STANDARD / HIGH, méthode du store, codes du journal) dans la
 même PR, et passe par une méthode dédiée du store. La suite R-AUTH échoue sinon.
 Réf. : `docs/specifications/feature-auth-roles.md`.
+
+## 7. Règle permanente — cible serveur (D-13)
+
+Chaque PR respecte `docs/architecture/SERVER_TARGET.md` §3 : écritures uniquement via une méthode
+dédiée du store (une action = une future commande d'API), opérateur passé en paramètre, horodatage du
+journal dans le store, moteur scientifique sans API du navigateur, stockage navigateur confiné aux
+services de persistance, aucun mot de passe dans les données. La suite R-ARCH échoue sinon ; la liste
+de dette connue (A1…) ne peut que diminuer.
