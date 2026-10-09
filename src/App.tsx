@@ -9,6 +9,9 @@ import { TrialDetailView } from './components/TrialDetailView';
 import type { StorageErrorEvent } from './services/trialStore';
 
 // perf/lazy-sections : sections secondaires chargées à la demande (TRIALS reste eager).
+const ImportTrialModal = lazy(() =>
+  import('./components/ImportTrialModal').then((m) => ({ default: m.ImportTrialModal }))
+);
 const CreateTrialWizardModal = lazy(() =>
   import('./components/CreateTrialWizardModal').then((m) => ({ default: m.CreateTrialWizardModal }))
 );
@@ -49,6 +52,7 @@ export default function App() {
   const [selectedTrialId, setSelectedTrialId] = useState<string | null>(null);
   const [activeTrialTab, setActiveTrialTab] = useState<string>('06');
   const [showCreateWizard, setShowCreateWizard] = useState<boolean>(false);
+  const [showImport, setShowImport] = useState<boolean>(false);
 
   // État d'initialisation de la migration média (Base64 → IndexedDB)
   const [mediaMigration, setMediaMigration] = useState<'idle' | 'migrating' | 'success' | 'failed' | 'interrupted'>('idle');
@@ -228,6 +232,7 @@ export default function App() {
                   setActiveTrialTab('06');
                 }}
                 onOpenCreateWizard={() => setShowCreateWizard(true)}
+                onOpenImport={() => setShowImport(true)}
               />
             ) : (
               <TrialDetailView
@@ -277,6 +282,20 @@ export default function App() {
             onCreated={(newId) => {
               refreshTrials();
               setSelectedTrialId(newId);
+              setActiveTrialTab('01');
+            }}
+          />
+        </Suspense>
+      )}
+
+      {/* Import Modal */}
+      {showImport && (
+        <Suspense fallback={<SectionFallback />}>
+          <ImportTrialModal
+            onClose={() => setShowImport(false)}
+            onImported={(importedId) => {
+              refreshTrials();
+              setSelectedTrialId(importedId);
               setActiveTrialTab('01');
             }}
           />

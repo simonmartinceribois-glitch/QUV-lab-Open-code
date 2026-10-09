@@ -12,7 +12,7 @@
 - **Objet** : suivi d'essais de vieillissement accéléré UV selon NF EN 927-6 (Cycle A : T0 + 12 × 168 h = 2016 h).
 - **Scripts** (`package.json`) : `dev` (port 3000), `build` (`tsc --noEmit && vite build`),
   `test` (`tsx run_tests.ts`, 1039 tests validés), `typecheck`/`lint` (`tsc --noEmit`), `clean` (cross-platform, `dist/` seul), `preview`.
-- **Dépendances** : react, vite, tailwind, recharts, motion, lucide (+ `@types/*`).
+- **Dépendances** : react, recharts, idb, lucide (exécution) ; vite, tailwind, typescript, tsx (outillage, `devDependencies`) (+ `@types/*`).
   `express`/`dotenv`/`@google/genai` purgés (PR #8). 100 % local, sans backend ni clé API.
 - Plus gros fichiers restants (mesures réelles 2026-09-24) : `UXTestsSuite.tsx` (1530 l, tests UI),
   `trialStoreService.ts` (1640 l), `trialSeed.ts` (1187 l), `CreateTrialWizardModal.tsx` (643 l).

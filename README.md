@@ -1,22 +1,41 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# QUV-Lab
 
-# Run and deploy your AI Studio app
+Application de saisie et de suivi des essais de vieillissement artificiel accéléré UV
+(enceinte QUV) sur finitions pour bois extérieurs, selon la **NF EN 927-6:2018**.
+Critères complémentaires : **NF EN 927-2:2014** (classification historique) et **INFIPERF / FCBA**.
 
-This contains everything you need to run your app locally.
+- Saisie de paillasse : couleur (CIE L\*a\*b\*, ΔE\*), brillance 60°, dureté Persoz, adhérence (ISO 2409), observations (ISO 4628).
+- Calendrier normatif T0 + 12 cycles de 168 h (2016 h), multi-lots, témoin T + éprouvettes exposées E1-E3.
+- Calculs déterministes, rapport scientifique, exports RAW CSV / REPORT CSV / JSON, journal d'audit, photothèque.
 
-View your app in AI Studio: https://ai.studio/apps/0c7d42fd-5ade-4f62-bd51-dcc3e4f82c5f
+## Fonctionnement
 
-## Run Locally
+Application **100 % locale** dans le navigateur : aucun serveur, aucune clé d'API, aucun fichier `.env`.
+Les métadonnées des essais sont stockées dans le `localStorage`, les photographies dans IndexedDB.
+Exporter régulièrement les essais (JSON / CSV) : voir [`docs/release/06_BACKUP_RESTORE.md`](docs/release/06_BACKUP_RESTORE.md).
 
-**Prerequisites:**  Node.js
+## Démarrage
 
+Prérequis : Node.js 20 LTS.
 
-1. Install dependencies:
-   `npm install`
-2. Run the app:
-   `npm run dev`
+```bash
+npm ci          # installation (lockfile versionné)
+npm run dev     # serveur de développement sur http://localhost:3000
+```
 
-> QUV-Lab is 100 % local (browser `localStorage`, French lab terminology preserved in code).
-> No backend, no API key, no `.env` file required. See `docs/release/04_DEPLOYMENT_GUIDE.md`.
+## Qualité
+
+```bash
+npm run lint    # tsc --noEmit, mode strict
+npm test        # suites de tests scientifiques (run_tests.ts)
+npm run build   # build de production (dist/)
+```
+
+La CI GitHub Actions (`verify`) exécute ces trois commandes et doit être verte pour fusionner sur `develop` ou `main`.
+
+## Documentation
+
+- Règles scientifiques : [`docs/QUV_LAB_SCIENTIFIC_RULES.md`](docs/QUV_LAB_SCIENTIFIC_RULES.md)
+- Architecture : [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md)
+- Workflow de contribution (branches, PR, niveaux de risque) : [`docs/agents/WORKFLOW.md`](docs/agents/WORKFLOW.md)
+- Dossier de version : [`docs/release/`](docs/release/)

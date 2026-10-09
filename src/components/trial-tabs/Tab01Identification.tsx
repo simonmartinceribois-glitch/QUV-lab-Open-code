@@ -242,7 +242,7 @@ export function Tab01Identification({ trial, onTrialUpdated }: Props) {
               <label className="block text-slate-700 mb-1 font-semibold">Unité de mesure</label>
               <select
                 value={dimUnit}
-                onChange={(e) => setDimUnit(e.target.value as any)}
+                onChange={(e) => setDimUnit(e.target.value as 'mm' | 'cm')}
                 className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white font-medium"
               >
                 <option value="mm">mm</option>
