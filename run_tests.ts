@@ -63,6 +63,7 @@ import { runTrialImportTests } from './src/scientific/tests/trial_import.test';
 import { runFullBackupTests } from './src/scientific/tests/full_backup.test';
 import { runTrialIdentificationEditTests } from './src/scientific/tests/trial_identification_edit.test';
 import { runLotsSpecimensEditTests } from './src/scientific/tests/lots_specimens_edit.test';
+import { runAuthRolesFoundationTests } from './src/scientific/tests/auth_roles_foundation.test';
 
 console.log('================================================================');
 console.log('1. EXÉCUTION DE LA SUITE DE TESTS SCIENTIFIQUES GÉNÉRALE (44 TESTS)');
@@ -916,6 +917,19 @@ suite65.results.forEach((r) => {
   }
 });
 
+console.log('================================================================');
+console.log('66. EXÉCUTION DE LA FONDATION PROFILS & DROITS (R-AUTH-01 → 08)');
+console.log('================================================================');
+const suite66 = runAuthRolesFoundationTests();
+console.log(`Résultats Auth : ${suite66.summary.passed} / ${suite66.summary.total} réussis.`);
+suite66.results.forEach((r) => {
+  console.log(`[${r.passed ? 'PASS ✓' : 'FAIL ✗'}] [Auth] ${r.id} - ${r.name}`);
+  if (!r.passed) {
+    console.error(`   Attendu: ${r.expected}`);
+    console.error(`   Obtenu:  ${r.actual}`);
+  }
+});
+
 const totalFailed =
   suite1.summary.failed +
   suite2.summary.failed +
@@ -981,7 +995,8 @@ const totalFailed =
   suite62.summary.failed +
   suite63.summary.failed +
   suite64.summary.failed +
-  suite65.summary.failed;
+  suite65.summary.failed +
+  suite66.summary.failed;
 const totalCount =
   suite1.summary.total +
   suite2.summary.total +
@@ -1047,7 +1062,8 @@ const totalCount =
   suite62.summary.total +
   suite63.summary.total +
   suite64.summary.total +
-  suite65.summary.total;
+  suite65.summary.total +
+  suite66.summary.total;
 
 if (totalFailed > 0) {
   console.error(`\n❌ Échec total : ${totalFailed} tests ont échoué.`);
